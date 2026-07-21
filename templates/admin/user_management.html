@@ -1,0 +1,202 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block title %}User Management{% endblock %}
+{% block admin_page_title %}User Management{% endblock %}
+
+{% block admin_content %}
+<div class="page-title"><i class="fas fa-user-shield"></i> User Management</div>
+<p class="page-sub">Staff accounts only. Authorization is driven entirely by the four permission flags below - "Role" is just a free-text label.</p>
+
+<div class="dash-stats" style="margin-bottom:20px;">
+    <div class="dash-stat"><div class="stat-label">Total Staff</div><div class="stat-number">{{ stats.total }}</div></div>
+    <div class="dash-stat"><div class="stat-label">Active</div><div class="stat-number">{{ stats.active }}</div></div>
+    <div class="dash-stat"><div class="stat-label">User Mgmt</div><div class="stat-number">{{ stats.user_management }}</div></div>
+    <div class="dash-stat"><div class="stat-label">Price Listing</div><div class="stat-number">{{ stats.price_listing }}</div></div>
+    <div class="dash-stat"><div class="stat-label">Product Mgmt</div><div class="stat-number">{{ stats.product_management }}</div></div>
+    <div class="dash-stat"><div class="stat-label">Customer Mgmt</div><div class="stat-number">{{ stats.customer_management }}</div></div>
+</div>
+
+<div class="dash-card">
+    <div class="card-header">
+        <h5 id="usersCountLabel">All Users ({{ all_users|length }})</h5>
+        <div class="card-actions">
+            <div class="search-box-dash">
+                <i class="fas fa-search"></i>
+                <input type="text" id="userSearchInput" class="search-input-dash" placeholder="Search users..." oninput="filterUsersTable()">
+            </div>
+            <button type="button" class="btn-dash primary" onclick="openUserModal()"><i class="fas fa-user-plus"></i> Create User</button>
+        </div>
+    </div>
+    <div class="card-body" style="padding:0;">
+        {% if all_users|length == 0 %}
+        <div class="empty-state"><i class="fas fa-users"></i> No users found.</div>
+        {% else %}
+        <table>
+            <thead>
+                <tr><th>Name</th><th>Email</th><th>Role Title</th><th>Permissions</th><th>Phone</th><th>Created</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="usersTableBody">
+                {% for u in all_users %}
+                <tr data-search="{{ (u.user_name ~ ' ' ~ u.email ~ ' ' ~ u.role_title)|lower }}">
+                    <td><strong>{{ u.user_name }}</strong>{% if not u.is_active %} <span style="font-size:0.65rem;color:var(--danger);">(deactivated)</span>{% endif %}</td>
+                    <td>{{ u.email }}</td>
+                    <td>{{ u.role_title }}</td>
+                    <td style="font-size:0.65rem;">
+                        {% if u.user_management %}<span style="background:var(--bg); padding:1px 6px; border-radius:8px; margin:1px; display:inline-block;">User Mgmt</span>{% endif %}
+                        {% if u.price_listing %}<span style="background:var(--bg); padding:1px 6px; border-radius:8px; margin:1px; display:inline-block;">Pricing</span>{% endif %}
+                        {% if u.product_management %}<span style="background:var(--bg); padding:1px 6px; border-radius:8px; margin:1px; display:inline-block;">Products</span>{% endif %}
+                        {% if u.customer_management %}<span style="background:var(--bg); padding:1px 6px; border-radius:8px; margin:1px; display:inline-block;">Customers</span>{% endif %}
+                    </td>
+                    <td>{{ u.phone_num or '—' }}</td>
+                    <td style="font-size:0.75rem;">{{ format_date(u.creation_date) }}</td>
+                    <td style="white-space:nowrap;">
+                        {% if current_account() and u.id == current_account().id %}
+                        <span style="font-size:0.65rem; color:var(--text-light);">This is you</span>
+                        {% else %}
+                        <button type="button" class="btn-dash primary sm" onclick="openUserModal({{ u.id }})" title="Edit"><i class="fas fa-edit"></i></button>
+                        <form method="post" action="{{ url_for('admin.users_delete', user_id=u.id) }}" style="display:inline;" onsubmit="return confirm('Deactivate this staff account?');">
+                            <button type="submit" class="btn-dash danger sm" title="Deactivate"><i class="fas fa-trash"></i></button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="empty-state" id="usersNoMatch" style="display:none;"><i class="fas fa-search"></i> No users match your search.</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add/Edit User Modal -->
+<div class="dash-modal-overlay" id="userModalOverlay">
+    <div class="dash-modal-box">
+        <button type="button" class="dash-modal-close" onclick="closeUserModal()"><i class="fas fa-times"></i></button>
+        <h3 class="dash-modal-title" id="userModalTitle">Create New User</h3>
+        <form id="userForm" method="post">
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Full Name *</label>
+                <input type="text" name="user_name" id="userName" required style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+            </div>
+            <div class="form-group" id="userEmailGroup" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Email *</label>
+                <input type="email" name="email" id="userEmail" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                <div id="userEmailReadonlyNote" style="display:none; font-size:0.7rem; color:var(--text-light); margin-top:3px;">Email can only be changed by the staff member themselves (via their own profile).</div>
+            </div>
+            <div class="form-group" id="userPasswordGroup" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Password *</label>
+                <input type="password" name="password" id="userPassword" placeholder="Create a password" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Role Title</label>
+                <input type="text" name="role_title" id="userRoleTitle" placeholder="e.g. Admin, Sales Manager, Sub Admin" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                <div style="font-size:0.7rem;color:var(--text-light);margin-top:4px;">Display label only - actual access is controlled by the permissions below.</div>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Phone</label>
+                <input type="tel" name="phone_num" id="userPhone" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Address</label>
+                <input type="text" name="address" id="userAddress" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+            </div>
+            <div style="border-top:1px solid var(--border); padding-top:12px; margin-top:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:6px;">
+                    <i class="fas fa-key"></i> Permissions
+                </label>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px;">
+                    <label style="font-size:0.75rem; display:flex; align-items:center; gap:4px; cursor:pointer; color:var(--text);">
+                        <input type="checkbox" name="user_management" id="permUserManagement"> User Management
+                    </label>
+                    <label style="font-size:0.75rem; display:flex; align-items:center; gap:4px; cursor:pointer; color:var(--text);">
+                        <input type="checkbox" name="price_listing" id="permPriceListing"> Price Listing
+                    </label>
+                    <label style="font-size:0.75rem; display:flex; align-items:center; gap:4px; cursor:pointer; color:var(--text);">
+                        <input type="checkbox" name="product_management" id="permProductManagement"> Product Management
+                    </label>
+                    <label style="font-size:0.75rem; display:flex; align-items:center; gap:4px; cursor:pointer; color:var(--text);">
+                        <input type="checkbox" name="customer_management" id="permCustomerManagement"> Customer Management
+                    </label>
+                </div>
+            </div>
+            <div class="form-group" id="userIsActiveGroup" style="margin-top:12px; display:none; align-items:center; gap:8px;">
+                <input type="checkbox" name="is_active" id="userIsActive" style="width:auto;">
+                <label for="userIsActive" style="font-size:0.8rem;font-weight:600;color:var(--text-soft);margin:0;">Active (uncheck to deactivate)</label>
+            </div>
+            <button type="submit" class="btn-dash primary" style="width:100%;padding:10px;font-size:0.9rem;justify-content:center;margin-top:16px;" id="userModalSubmitBtn">
+                <i class="fas fa-save"></i> Create User
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const USERS_DATA = {{ all_users|tojson }};
+    const USER_NEW_URL = {{ url_for('admin.users_new')|tojson }};
+
+    function openUserModal(userId) {
+        const user = userId ? USERS_DATA.find(u => u.id === userId) : null;
+        const isEdit = !!user;
+
+        document.getElementById('userModalTitle').textContent = isEdit ? 'Edit User' : 'Create New User';
+        document.getElementById('userModalSubmitBtn').innerHTML =
+            '<i class="fas fa-save"></i> ' + (isEdit ? 'Update User' : 'Create User');
+        document.getElementById('userForm').action = isEdit
+            ? USER_NEW_URL.replace(/\/new$/, '/' + userId + '/edit')
+            : USER_NEW_URL;
+
+        // Email/password only exist on create - store-api's admin-edit endpoint has
+        // neither field (email is self-service-only, password too).
+        document.getElementById('userEmail').required = !isEdit;
+        document.getElementById('userEmail').disabled = isEdit;
+        document.getElementById('userEmailReadonlyNote').style.display = isEdit ? 'block' : 'none';
+        document.getElementById('userPasswordGroup').style.display = isEdit ? 'none' : 'block';
+        document.getElementById('userIsActiveGroup').style.display = isEdit ? 'flex' : 'none';
+
+        document.getElementById('userName').value = isEdit ? user.user_name : '';
+        document.getElementById('userEmail').value = isEdit ? user.email : '';
+        document.getElementById('userPassword').value = '';
+        document.getElementById('userRoleTitle').value = isEdit ? user.role_title : '';
+        document.getElementById('userPhone').value = isEdit ? (user.phone_num || '') : '';
+        document.getElementById('userAddress').value = isEdit ? (user.address || '') : '';
+        document.getElementById('userIsActive').checked = isEdit ? !!user.is_active : true;
+
+        document.getElementById('permUserManagement').checked = isEdit ? !!user.user_management : false;
+        document.getElementById('permPriceListing').checked = isEdit ? !!user.price_listing : false;
+        document.getElementById('permProductManagement').checked = isEdit ? !!user.product_management : false;
+        document.getElementById('permCustomerManagement').checked = isEdit ? !!user.customer_management : false;
+
+        document.getElementById('userModalOverlay').classList.add('active');
+    }
+
+    function closeUserModal() {
+        document.getElementById('userModalOverlay').classList.remove('active');
+    }
+
+    document.getElementById('userModalOverlay').addEventListener('click', function(e) {
+        if (e.target === this) closeUserModal();
+    });
+
+    // Live search — filters the table client-side against the data-search
+    // attribute on each row (name, email, role title, lowercased).
+    function filterUsersTable() {
+        const query = document.getElementById('userSearchInput').value.trim().toLowerCase();
+        const rows = document.querySelectorAll('#usersTableBody tr');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const matches = !query || (row.dataset.search || '').includes(query);
+            row.style.display = matches ? '' : 'none';
+            if (matches) visibleCount++;
+        });
+
+        const noMatch = document.getElementById('usersNoMatch');
+        if (noMatch) noMatch.style.display = visibleCount === 0 ? 'block' : 'none';
+
+        document.getElementById('usersCountLabel').textContent =
+            query ? `Users (${visibleCount} of ${USERS_DATA.length})` : `All Users (${USERS_DATA.length})`;
+    }
+</script>
+{% endblock %}

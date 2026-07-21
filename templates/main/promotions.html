@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Promotions{% endblock %}
+
+{% block content %}
+<div id="productPage">
+    <div class="eb-promotion-page">
+        <div class="container">
+
+            <div class="promo-hero">
+                <h1>🔥 <span>Promotions</span> &amp; Special Offers</h1>
+                <p>Discover exclusive deals on premium dental products. Limited time offers — don't miss out!</p>
+            </div>
+
+            <div class="promo-grid">
+                {% if promotions|length == 0 %}
+                <div class="empty-promos">
+                    <div class="icon"><i class="fas fa-fire-extinguisher"></i></div>
+                    <h3>No active promotions</h3>
+                    <p>Check back later for exciting deals and special offers.</p>
+                </div>
+                {% endif %}
+
+                {% for promo in promotions %}
+                <a class="promo-card" href="{{ url_for('catalog.products_catalog') }}">
+                    <div class="promo-image-wrap">
+                        <img class="promo-image"
+                             src="{{ img(promo.promotion_image) }}"
+                             alt="{{ promo.promotion_name }}" loading="lazy" />
+                        <div class="promo-badge">🔥 Promo</div>
+                    </div>
+                    <div class="promo-body">
+                        <h3>{{ promo.promotion_name }}</h3>
+                        <div class="product-price">
+                            {{ price(promo.price) }}
+                            {% if promo.old_price %}<span class="old">{{ price(promo.old_price) }}</span>{% endif %}
+                        </div>
+                        <div class="view-detail">View Details <i class="fas fa-arrow-right"></i></div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

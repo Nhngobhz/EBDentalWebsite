@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<div id="homePage">
+    <div class="container">
+
+        {% include "partials/hero_slider.html" %}
+
+        <!-- Special Offers & Discounts (bold promo-banner style cards) -->
+        <section class="offers-wrap" id="hotCarouselWrap" style="margin-top: 24px;">
+            <div class="section-header">
+                <h3>Special Offers &amp; Discounts</h3>
+            </div>
+            <div class="hot-carousel-container" id="hotCarouselContainer">
+                <div class="offers-track" id="hotCarouselTrack">
+                    {% if active_promotions %}
+                    {% set colors = ['offer-orange', 'offer-blue', 'offer-green', 'offer-purple'] %}
+                    {% for promo in active_promotions %}
+                    <a class="offer-card {{ colors[loop.index0 % colors|length] }}" href="{{ url_for('catalog.promotions_page') }}"
+                       style="background-image: url('{{ img(promo.promotion_image) }}');">
+                    </a>
+                    {% endfor %}
+                    {% else %}
+                    <div style="flex:0 0 100%; text-align:center; padding:30px 10px; color:var(--text-light);">No active promotions.</div>
+                    {% endif %}
+                </div>
+                {% if active_promotions|length > 1 %}
+                <button class="hot-carousel-btn prev" id="hotPrev"><i class="fas fa-chevron-left"></i></button>
+                <button class="hot-carousel-btn next" id="hotNext"><i class="fas fa-chevron-right"></i></button>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- Brand Grid -->
+        <section style="margin-top: 30px;">
+            <div class="section-header">
+                <h3></i> Shop by Brand</h3>
+            </div>
+            <div class="categories" id="categoryGrid" style="margin-top: 10px;">
+                {% for brand in brands %}
+                <a class="category-card" href="{{ url_for('catalog.products_catalog') }}?brand={{ brand.id }}">
+                    <img src="{{ img(brand.brand_image) }}" alt="{{ brand.brand_name }}" class="card-img" />
+                    <h3>{{ brand.brand_name }}</h3>
+                </a>
+                {% endfor %}
+            </div>
+        </section>
+
+        <!-- About Teaser -->
+        
+
+    </div>
+</div>
+{% endblock %}

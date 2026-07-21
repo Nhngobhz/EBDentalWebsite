@@ -1,0 +1,270 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block title %}Manage Products{% endblock %}
+{% block admin_page_title %}Products{% endblock %}
+
+{% block admin_content %}
+<div class="page-title"><i class="fas fa-box"></i> Products</div>
+<p class="page-sub">Manage your product catalog.</p>
+
+<div class="dash-card">
+    <div class="card-header">
+        <h5 id="productsCountLabel">All Products ({{ products|length }})</h5>
+        <div class="card-actions">
+            <div class="search-box-dash">
+                <i class="fas fa-search"></i>
+                <input type="text" id="productSearchInput" class="search-input-dash" placeholder="Search products..." oninput="filterProductsTable()">
+            </div>
+            {% if has_permission('product_management') %}
+            <button type="button" class="btn-dash primary" onclick="openProductModal()"><i class="fas fa-plus"></i> Add Product</button>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body" style="padding:0;">
+        {% if products|length == 0 %}
+        <div class="empty-state"><i class="fas fa-box"></i> No products found.</div>
+        {% else %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Image</th><th>Name</th><th>Code</th><th>Brand</th><th>Category</th>
+                    <th>Price</th><th>UOM</th><th>Discount</th><th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="productsTableBody">
+                {% for p in products %}
+                <tr data-search="{{ (p.product_name ~ ' ' ~ (p.brand.brand_name if p.brand else '') ~ ' ' ~ (p.category.category_name if p.category else ''))|lower }}">
+                    <td>
+                        <img src="{{ img(p.product_image) }}"
+                             style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid var(--border);" />
+                    </td>
+                    <td><strong>{{ p.product_name }}</strong></td>
+                    <td style="font-size:0.75rem; color:var(--text-light);">{{ p.product_code or '—' }}</td>
+                    <td>{{ p.brand.brand_name if p.brand else '—' }}</td>
+                    <td style="font-size:0.7rem;">{{ p.category.category_name if p.category else '—' }}</td>
+                    <td>
+                        {{ price(p.price) }}
+                        {% if p.was_price %}<span style="text-decoration:line-through; color:var(--text-light); font-size:0.7rem;">{{ price(p.was_price) }}</span>{% endif %}
+                    </td>
+                    <td style="font-size:0.75rem;">{{ p.uom or 'PCS' }}</td>
+                    <td style="font-size:0.75rem;">{{ p.discount or 0 }}%</td>
+                    <td style="white-space:nowrap;">
+                        {% if has_permission('product_management') %}
+                        <button type="button" class="btn-dash primary sm" onclick="openProductModal({{ p.id }})" title="Edit"><i class="fas fa-edit"></i></button>
+                        <form method="post" action="{{ url_for('admin.products_delete', product_id=p.id) }}" style="display:inline;" onsubmit="return confirm('Delete this product?');">
+                            <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
+                        </form>
+                        {% elif has_permission('price_listing') %}
+                        <button type="button" class="btn-dash primary sm" onclick="openPriceModal({{ p.id }})" title="Edit Price"><i class="fas fa-tag"></i></button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="empty-state" id="productsNoMatch" style="display:none;"><i class="fas fa-search"></i> No products match your search.</div>
+        {% endif %}
+    </div>
+</div>
+
+{% if has_permission('product_management') %}
+<!-- Add/Edit Product Modal -->
+<div class="dash-modal-overlay" id="productModalOverlay">
+    <div class="dash-modal-box">
+        <button type="button" class="dash-modal-close" onclick="closeProductModal()"><i class="fas fa-times"></i></button>
+        <h3 class="dash-modal-title" id="productModalTitle">Add New Product</h3>
+        <form id="productForm" method="post" enctype="multipart/form-data">
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Product Name *</label>
+                <input type="text" name="product_name" id="prodName" required style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Description</label>
+                <textarea name="description" id="prodDesc" rows="2" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;resize:vertical;background:var(--surface);color:var(--text);"></textarea>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Price *</label>
+                    <input type="number" name="price" id="prodPrice" step="0.01" min="0.01" required style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                </div>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Discount %</label>
+                    <input type="number" name="discount" id="prodDiscount" step="1" min="0" max="100" value="0" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Product Code</label>
+                    <input type="text" name="product_code" id="prodCode" placeholder="e.g. WP-UDSJ" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                </div>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">UOM</label>
+                    <input type="text" name="uom" id="prodUom" placeholder="e.g. pcs, box, set" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                </div>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Type</label>
+                    <select name="product_type" id="prodType" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                        <option value="single">Single</option>
+                        <option value="combo">Combo</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Brand *</label>
+                <select name="brand_id" id="prodBrand" required style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                    <option value="">Select a brand</option>
+                    {% for b in brands %}
+                    <option value="{{ b.id }}">{{ b.brand_name }}</option>
+                    {% endfor %}
+                </select>
+                {% if brands|length == 0 %}
+                <div style="font-size:0.7rem;color:var(--danger);margin-top:4px;">⚠️ Please add a brand first.</div>
+                {% endif %}
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Category</label>
+                <select name="category_id" id="prodCategory" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                    <option value="">No category</option>
+                    {% for c in categories %}
+                    <option value="{{ c.id }}">{{ c.category_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Badge</label>
+                <select name="badge" id="prodBadge" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                    <option value="">None</option>
+                    <option value="sale">Sale</option>
+                    <option value="new">New</option>
+                    <option value="hot">Hot</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Product Image</label>
+                <input type="file" name="file" id="prodImageFile" accept="image/png,image/jpeg,image/webp,image/gif" style="width:100%;font-size:0.8rem;">
+                <img id="prodImagePreview" src="" alt="" style="display:none; margin-top:8px; width:70px; height:70px; border-radius:8px; object-fit:cover; border:1px solid var(--border);">
+            </div>
+            <button type="submit" class="btn-dash primary" style="width:100%;padding:10px;font-size:0.9rem;justify-content:center;margin-top:4px;" id="productModalSubmitBtn">
+                <i class="fas fa-save"></i> Create Product
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% if has_permission('price_listing') and not has_permission('product_management') %}
+<!-- Quick price-only modal, for a price_listing-only staffer without product_management
+     (uses store-api's dedicated PATCH /products/{id}/price endpoint) -->
+<div class="dash-modal-overlay" id="priceModalOverlay">
+    <div class="dash-modal-box">
+        <button type="button" class="dash-modal-close" onclick="closePriceModal()"><i class="fas fa-times"></i></button>
+        <h3 class="dash-modal-title" id="priceModalTitle">Update Price</h3>
+        <form id="priceForm" method="post">
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Price</label>
+                <input type="number" name="price" id="priceOnlyPrice" step="0.01" min="0.01" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Discount %</label>
+                <input type="number" name="discount" id="priceOnlyDiscount" step="1" min="0" max="100" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+            </div>
+            <button type="submit" class="btn-dash primary" style="width:100%;padding:10px;font-size:0.9rem;justify-content:center;"><i class="fas fa-save"></i> Update Price</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    {% set products_json = [] %}
+    {% for p in products %}
+    {% set _ = products_json.append(dict(p, image=img(p.product_image))) %}
+    {% endfor %}
+    const PRODUCTS_DATA = {{ products_json|tojson }};
+    {% if has_permission('product_management') %}
+    const PRODUCT_NEW_URL = {{ url_for('admin.products_new')|tojson }};
+    {% endif %}
+    {% if has_permission('price_listing') %}
+    const PRODUCT_PRICE_URL_TEMPLATE = {{ url_for('admin.products_price', product_id=0)|tojson }};
+    {% endif %}
+
+    function openProductModal(productId) {
+        const product = productId ? PRODUCTS_DATA.find(p => p.id === productId) : null;
+        const isEdit = !!product;
+
+        document.getElementById('productModalTitle').textContent = isEdit ? 'Edit Product' : 'Add New Product';
+        document.getElementById('productModalSubmitBtn').innerHTML =
+            '<i class="fas fa-save"></i> ' + (isEdit ? 'Update Product' : 'Create Product');
+        document.getElementById('productForm').action = isEdit
+            ? PRODUCT_NEW_URL.replace(/\/new$/, '/' + productId + '/edit')
+            : PRODUCT_NEW_URL;
+
+        document.getElementById('prodName').value = isEdit ? product.product_name : '';
+        document.getElementById('prodDesc').value = isEdit ? (product.description || '') : '';
+        document.getElementById('prodPrice').value = isEdit && typeof product.price === 'number' ? product.price : '';
+        document.getElementById('prodDiscount').value = isEdit ? (product.discount || 0) : 0;
+        document.getElementById('prodCode').value = isEdit ? (product.product_code || '') : '';
+        document.getElementById('prodUom').value = isEdit ? (product.uom || '') : '';
+        document.getElementById('prodType').value = isEdit ? (product.product_type || 'single') : 'single';
+        document.getElementById('prodBrand').value = isEdit && product.brand ? product.brand.id : '';
+        document.getElementById('prodCategory').value = isEdit && product.category ? product.category.id : '';
+        document.getElementById('prodBadge').value = isEdit ? (product.badge || '') : '';
+        document.getElementById('prodImageFile').value = '';
+
+        const preview = document.getElementById('prodImagePreview');
+        if (isEdit) {
+            preview.src = product.image;
+            preview.style.display = '';
+        } else {
+            preview.style.display = 'none';
+        }
+
+        document.getElementById('productModalOverlay').classList.add('active');
+    }
+
+    function closeProductModal() {
+        document.getElementById('productModalOverlay')?.classList.remove('active');
+    }
+
+    document.getElementById('productModalOverlay')?.addEventListener('click', function(e) {
+        if (e.target === this) closeProductModal();
+    });
+
+    function openPriceModal(productId) {
+        const product = PRODUCTS_DATA.find(p => p.id === productId);
+        if (!product) return;
+        document.getElementById('priceModalTitle').textContent = 'Update Price - ' + product.product_name;
+        document.getElementById('priceOnlyPrice').value = typeof product.price === 'number' ? product.price : '';
+        document.getElementById('priceOnlyDiscount').value = product.discount || 0;
+        document.getElementById('priceForm').action = PRODUCT_PRICE_URL_TEMPLATE.replace('/0/', '/' + productId + '/');
+        document.getElementById('priceModalOverlay').classList.add('active');
+    }
+
+    function closePriceModal() {
+        document.getElementById('priceModalOverlay')?.classList.remove('active');
+    }
+
+    document.getElementById('priceModalOverlay')?.addEventListener('click', function(e) {
+        if (e.target === this) closePriceModal();
+    });
+
+    function filterProductsTable() {
+        const query = document.getElementById('productSearchInput').value.trim().toLowerCase();
+        const rows = document.querySelectorAll('#productsTableBody tr');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const matches = !query || (row.dataset.search || '').includes(query);
+            row.style.display = matches ? '' : 'none';
+            if (matches) visibleCount++;
+        });
+
+        const noMatch = document.getElementById('productsNoMatch');
+        if (noMatch) noMatch.style.display = visibleCount === 0 ? 'block' : 'none';
+
+        document.getElementById('productsCountLabel').textContent =
+            query ? `Products (${visibleCount} of ${PRODUCTS_DATA.length})` : `All Products (${PRODUCTS_DATA.length})`;
+    }
+</script>
+{% endblock %}

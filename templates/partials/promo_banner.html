@@ -1,0 +1,17 @@
+{% if active_promotions %}
+{% set promo = active_promotions[0] %}
+<div class="promo-banner-strip" id="promoBannerStrip">
+    <a href="{{ url_for('catalog.promotions_page') }}" class="promo-banner-link">
+        <span class="promo-banner-icon">🔥</span>
+        <span class="promo-banner-text">
+            <strong>{{ promo.promotion_name }}</strong> is on sale for
+            <strong>{{ price(promo.price) }}</strong>
+            {% if active_promotions|length > 1 %}&nbsp;· +{{ active_promotions|length - 1 }} more deal{{ 's' if active_promotions|length > 2 }}{% endif %}
+        </span>
+        <span class="promo-banner-cta">View All <i class="fas fa-arrow-right"></i></span>
+    </a>
+    <button type="button" class="promo-banner-close" id="promoBannerClose" aria-label="Dismiss">
+        <i class="fas fa-times"></i>
+    </button>
+</div>
+{% endif %}

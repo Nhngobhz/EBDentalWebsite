@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.product_name }}{% endblock %}
+
+{% block content %}
+<div id="productPage">
+    <div class="container">
+
+        <a href="{{ url_for('catalog.products_catalog') }}" class="btn-hero" style="margin: 20px 0; display: inline-flex;">
+            <i class="fas fa-arrow-left"></i> All Products
+        </a>
+
+        <div class="product-detail">
+            <div class="product-detail-image-wrap">
+                <img src="{{ img(product.product_image) }}"
+                     alt="{{ product.product_name }}" />
+                {% if product.badge == 'sale' %}<div class="product-badge sale">Sale</div>
+                {% elif product.badge == 'new' %}<div class="product-badge new">New</div>
+                {% elif product.badge == 'hot' %}<div class="product-badge hot">🔥 Hot</div>{% endif %}
+            </div>
+
+            <div class="product-detail-info">
+                <div class="product-detail-brand">{{ product.brand.brand_name if product.brand else '' }}</div>
+                <h1 class="product-detail-title">{{ product.product_name }}</h1>
+                <p class="product-detail-desc">{{ product.description }}</p>
+
+                <div class="product-detail-price">
+                    {{ price(product.price) }}
+                    {% if product.was_price %}<span class="old">{{ price(product.was_price) }}</span>{% endif %}
+                </div>
+
+                <div class="product-detail-actions">
+                    {% if can_quote() %}
+                    <button type="button" class="btn-primary" id="detailAddToQuoteBtn"><i class="fas fa-shopping-cart"></i> Add to Quote</button>
+                    {% else %}
+                    <a class="btn-primary" href="{{ url_for('main.contact') }}" style="text-decoration:none; display:inline-flex; align-items:center; gap:8px;">
+                        <i class="fas fa-lock"></i> {{ 'Log in to request a quote' if not is_logged_in() else 'Contact us for pricing' }}
+                    </a>
+                    {% endif %}
+                    <a class="btn-outline" href="{{ url_for('main.contact') }}" style="text-decoration:none; display:inline-flex; align-items:center; gap:8px;">
+                        <i class="fas fa-phone"></i> Contact Us
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        {% if manual %}
+        <div class="dash-card" style="margin: 24px 0; padding: 24px;">
+            <h3 style="margin-bottom: 12px;"><i class="fas fa-book"></i> Product Manual</h3>
+            {% if manual.description %}<p style="color:var(--text-light);">{{ manual.description }}</p>{% endif %}
+            {% if manual.pdf %}
+            <a class="btn-hero" href="{{ file_url(manual.pdf) }}" target="_blank" style="margin-top:16px; display:inline-flex;">
+                <i class="fas fa-file-pdf"></i> View Manual PDF
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if can_quote() %}
+<script>
+    document.getElementById('detailAddToQuoteBtn').addEventListener('click', () => {
+        const shouldClearExisting = !QuoteCart.addMoreMode;
+        QuoteCart.addItem({
+            id: {{ product.id|tojson }},
+            product_name: {{ product.product_name|tojson }},
+            code: {{ product.product_code|tojson }},
+            uom: {{ product.uom|tojson }},
+            price: {{ product.price|tojson }},
+            discount: {{ (product.discount or 0)|tojson }},
+            was_price: {{ product.was_price|tojson }},
+            image: {{ img(product.product_image)|tojson }},
+        }, { clearExisting: shouldClearExisting });
+        QuoteCart.setAddMoreMode(false);
+        QuoteCart.open();
+    });
+</script>
+{% endif %}
+{% endblock %}

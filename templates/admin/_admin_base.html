@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}Admin{% endblock %} — EB Dental Supply</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+    <!-- Admin pages don't need home/auth/responsive-marketing CSS, but loading
+         the full set is harmless and keeps this in sync with base.html easily -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/products.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
+    {% block extra_css %}{% endblock %}
+    <style>
+        /* Ensures min-height:100vh below actually reaches the true viewport
+           bottom regardless of how short the page content is. */
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
+        /* Pin the sidebar to the full viewport height directly, instead of
+           relying on flexbox "stretch" to match its sibling's height —
+           that was inconsistent depending on how tall the content was.
+           Scoped to min-width:769px so it doesn't fight with dashboard.css's
+           mobile rule (position:fixed; left:-280px) that hides the sidebar
+           off-screen until the hamburger button opens it. */
+        .dashboard-page-wrap {
+            align-items: flex-start;
+        }
+        @media (min-width: 769px) {
+            .dashboard-sidebar {
+                position: sticky;
+                top: 0;
+                height: 100vh;
+            }
+        }
+        /* Mobile-only close (X) button inside the sidebar — the hamburger
+           button that opens it gets covered by the sidebar once open, so
+           there needs to be a way to close it from inside. */
+        .sidebar-mobile-close {
+            display: none;
+        }
+        .sidebar-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 99;
+        }
+        @media (max-width: 768px) {
+            .sidebar-mobile-close {
+                display: block;
+                position: absolute;
+                top: 14px;
+                right: 14px;
+                background: rgba(255, 255, 255, 0.1);
+                border: none;
+                color: white;
+                width: 30px;
+                height: 30px;
+                border-radius: 50%;
+                font-size: 0.9rem;
+                cursor: pointer;
+                z-index: 2;
+            }
+            .sidebar-backdrop.active {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body style="padding-bottom:0;">
+
+    {% include "partials/flash_messages.html" %}
+
+    <!-- NOTE: intentionally no header/promo-banner/bottom-nav/footer here —
+         this is the admin management area, not a public-facing page. -->
+    <div class="dashboard-page-wrap" style="display:flex; min-height:100vh;">
+        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+        {% include "partials/admin_sidebar.html" %}
+
+        <div class="dashboard-main" style="flex:1;">
+            <div class="dashboard-topbar">
+                <div class="left">
+                    <button class="menu-toggle" id="dashMenuToggle"><i class="fas fa-bars"></i></button>
+                    <h4>{% block admin_page_title %}Dashboard{% endblock %}</h4>
+                </div>
+                <div class="right">
+                    <div class="admin-info">
+                        <div class="avatar">{{ current_account().name[0]|upper if current_account() else 'A' }}</div>
+                        <span>{{ current_account().name if current_account() else 'Administrator' }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-content">
+                {% block admin_content %}{% endblock %}
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

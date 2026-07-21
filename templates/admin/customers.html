@@ -1,0 +1,157 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block title %}Customers{% endblock %}
+{% block admin_page_title %}Customers{% endblock %}
+
+{% block admin_content %}
+<div class="page-title"><i class="fas fa-users"></i> Customers</div>
+<p class="page-sub">
+    Everyone who buys from the site. Looking for staff accounts instead?
+    That's under <a href="{{ url_for('admin.users') }}" style="color:var(--accent); font-weight:600;">User Management</a>.
+</p>
+
+<div class="dash-card">
+    <div class="card-header">
+        <h5 id="customersCountLabel">All Customers ({{ customers|length }})</h5>
+        <div class="card-actions">
+            <div class="search-box-dash">
+                <i class="fas fa-search"></i>
+                <input type="text" id="customerSearchInput" class="search-input-dash" placeholder="Search customers..." oninput="filterCustomersTable()">
+            </div>
+            <button type="button" class="btn-dash primary" onclick="openCustomerModal()"><i class="fas fa-user-plus"></i> Add Customer</button>
+        </div>
+    </div>
+    <div class="card-body" style="padding:0;">
+        {% if customers|length == 0 %}
+        <div class="empty-state"><i class="fas fa-users"></i> No customers found.</div>
+        {% else %}
+        <table>
+            <thead>
+                <tr><th>Name</th><th>Email</th><th>Phone</th><th>Can View Prices</th><th>Verified</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="customersTableBody">
+                {% for c in customers %}
+                <tr data-search="{{ (c.customer_name ~ ' ' ~ c.email ~ ' ' ~ (c.phone_num or ''))|lower }}">
+                    <td><strong>{{ c.customer_name }}</strong></td>
+                    <td>{{ c.email }}</td>
+                    <td>{{ c.phone_num or '—' }}</td>
+                    <td>
+                        {% if c.access_permission %}
+                        <span class="badge-vip" style="background:#7c3aed; color:white; padding:2px 10px; border-radius:99px; font-size:0.7rem; font-weight:600;">⭐ VIP</span>
+                        {% else %}
+                        <span style="background:var(--bg); color:var(--text-light); padding:2px 10px; border-radius:99px; font-size:0.7rem;">Standard</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ '✅' if c.is_verified else '—' }}</td>
+                    <td style="white-space:nowrap;">
+                        <button type="button" class="btn-dash primary sm" onclick="openCustomerModal({{ c.id }})" title="Edit"><i class="fas fa-edit"></i></button>
+                        <form method="post" action="{{ url_for('admin.customers_delete', customer_id=c.id) }}" style="display:inline;" onsubmit="return confirm('Delete this customer permanently?');">
+                            <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="empty-state" id="customersNoMatch" style="display:none;"><i class="fas fa-search"></i> No customers match your search.</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add/Edit Customer Modal -->
+<div class="dash-modal-overlay" id="customerModalOverlay">
+    <div class="dash-modal-box">
+        <button type="button" class="dash-modal-close" onclick="closeCustomerModal()"><i class="fas fa-times"></i></button>
+        <h3 class="dash-modal-title" id="customerModalTitle">Add New Customer</h3>
+        <p style="font-size:0.7rem;color:var(--text-light);margin:-6px 0 12px;">
+            Staff-created customers have no password and cannot log in until they self-register with this same email address.
+        </p>
+        <form id="customerForm" method="post" enctype="multipart/form-data">
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Full Name *</label>
+                <input type="text" name="customer_name" id="custName" required style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Email *</label>
+                <input type="email" name="email" id="custEmail" required style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Phone</label>
+                <input type="tel" name="phone_num" id="custPhone" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Address</label>
+                <input type="text" name="address" id="custAddress" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Photo</label>
+                <input type="file" name="file" id="custImageFile" accept="image/png,image/jpeg,image/webp,image/gif" style="width:100%;font-size:0.8rem;">
+            </div>
+            <div class="form-group" style="margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" name="access_permission" id="custAccessPermission" style="width:auto;">
+                <label for="custAccessPermission" style="font-size:0.8rem;font-weight:600;color:var(--text-soft);margin:0;">Can view real prices (VIP)</label>
+            </div>
+            <button type="submit" class="btn-dash primary" style="width:100%;padding:10px;font-size:0.9rem;justify-content:center;margin-top:4px;" id="customerModalSubmitBtn">
+                <i class="fas fa-save"></i> Create Customer
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const CUSTOMERS_DATA = {{ customers|tojson }};
+    const CUSTOMER_NEW_URL = {{ url_for('admin.customers_new')|tojson }};
+
+    function openCustomerModal(customerId) {
+        const customer = customerId ? CUSTOMERS_DATA.find(c => c.id === customerId) : null;
+        const isEdit = !!customer;
+
+        document.getElementById('customerModalTitle').textContent = isEdit ? 'Edit Customer' : 'Add New Customer';
+        document.getElementById('customerModalSubmitBtn').innerHTML =
+            '<i class="fas fa-save"></i> ' + (isEdit ? 'Update Customer' : 'Create Customer');
+
+        document.getElementById('customerForm').action = isEdit
+            ? CUSTOMER_NEW_URL.replace(/\/new$/, '/' + customerId + '/edit')
+            : CUSTOMER_NEW_URL;
+
+        document.getElementById('custName').value = isEdit ? customer.customer_name : '';
+        document.getElementById('custEmail').value = isEdit ? customer.email : '';
+        document.getElementById('custPhone').value = isEdit ? (customer.phone_num || '') : '';
+        document.getElementById('custAddress').value = isEdit ? (customer.address || '') : '';
+        document.getElementById('custImageFile').value = '';
+        document.getElementById('custAccessPermission').checked = isEdit ? !!customer.access_permission : false;
+
+        document.getElementById('customerModalOverlay').classList.add('active');
+    }
+
+    function closeCustomerModal() {
+        document.getElementById('customerModalOverlay').classList.remove('active');
+    }
+
+    document.getElementById('customerModalOverlay').addEventListener('click', function(e) {
+        if (e.target === this) closeCustomerModal();
+    });
+
+    // Live search — filters the table client-side against the data-search
+    // attribute on each row (name, email, phone, lowercased).
+    function filterCustomersTable() {
+        const query = document.getElementById('customerSearchInput').value.trim().toLowerCase();
+        const rows = document.querySelectorAll('#customersTableBody tr');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const matches = !query || (row.dataset.search || '').includes(query);
+            row.style.display = matches ? '' : 'none';
+            if (matches) visibleCount++;
+        });
+
+        const noMatch = document.getElementById('customersNoMatch');
+        if (noMatch) noMatch.style.display = visibleCount === 0 ? 'block' : 'none';
+
+        document.getElementById('customersCountLabel').textContent =
+            query ? `Customers (${visibleCount} of ${CUSTOMERS_DATA.length})` : `All Customers (${CUSTOMERS_DATA.length})`;
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,116 @@
+<div class="dashboard-sidebar" id="dashSidebar">
+    <button type="button" class="sidebar-mobile-close" id="dashSidebarClose" aria-label="Close menu">
+        <i class="fas fa-times"></i>
+    </button>
+    <div class="sidebar-brand">
+        <div class="brand-icon"><i class="fas fa-tooth"></i></div>
+        <div class="brand-text">
+            <span>EB DENTAL</span>
+            <small>Admin Panel</small>
+        </div>
+    </div>
+    <nav class="sidebar-nav">
+
+        <div class="nav-group">
+            <div class="group-label" onclick="toggleGroup('group-overview')">
+                <span>Overview</span>
+                <i class="fas fa-chevron-right group-icon open"></i>
+            </div>
+            <div class="group-items open" id="group-overview">
+                <a class="nav-item {{ 'active' if request.endpoint == 'admin.dashboard' }}" href="{{ url_for('admin.dashboard') }}">
+                    <i class="fas fa-chart-pie"></i> Dashboard
+                </a>
+            </div>
+        </div>
+
+        {% if has_permission('product_management') %}
+        <div class="nav-group">
+            <div class="group-label" onclick="toggleGroup('group-catalog')">
+                <span>Catalog</span>
+                <i class="fas fa-chevron-right group-icon open"></i>
+            </div>
+            <div class="group-items open" id="group-catalog">
+                <a class="nav-item {{ 'active' if request.endpoint == 'admin.products' }}" href="{{ url_for('admin.products') }}">
+                    <i class="fas fa-box"></i> Products <span class="badge-dash">{{ products|length }}</span>
+                </a>
+                <a class="nav-item {{ 'active' if request.endpoint == 'admin.brands' }}" href="{{ url_for('admin.brands') }}">
+                    <i class="fas fa-tags"></i> Brands <span class="badge-dash">{{ brands|length }}</span>
+                </a>
+                <a class="nav-item {{ 'active' if request.endpoint == 'admin.categories' }}" href="{{ url_for('admin.categories') }}">
+                    <i class="fas fa-layer-group"></i> Categories
+                </a>
+                <a class="nav-item" href="#"><i class="fas fa-book"></i> Product Manuals</a>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_permission('customer_management') or has_permission('user_management') %}
+        <div class="nav-group">
+            <div class="group-label" onclick="toggleGroup('group-usermgmt')">
+                <span>User Management</span>
+                <i class="fas fa-chevron-right group-icon open"></i>
+            </div>
+            <div class="group-items open" id="group-usermgmt">
+                {% if has_permission('customer_management') %}
+                <a class="nav-item {{ 'active' if request.endpoint == 'admin.customers' }}" href="{{ url_for('admin.customers') }}">
+                    <i class="fas fa-users"></i> Customers</a>
+                {% endif %}
+                {% if has_permission('user_management') %}
+                <a class="nav-item {{ 'active' if request.endpoint == 'admin.users' }}" href="{{ url_for('admin.users') }}">
+                    <i class="fas fa-user-shield"></i> User Management</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if has_permission('price_listing') %}
+        <div class="nav-group">
+            <div class="group-label" onclick="toggleGroup('group-marketing')">
+                <span>Marketing &amp; Sales</span>
+                <i class="fas fa-chevron-right group-icon open"></i>
+            </div>
+            <div class="group-items open" id="group-marketing">
+                <a class="nav-item {{ 'active' if request.endpoint == 'admin.promotions' }}" href="{{ url_for('admin.promotions') }}">
+                    <i class="fas fa-fire"></i> Promotions <span class="badge-dash">{{ promotions|length }}</span>
+                </a>
+                <a class="nav-item {{ 'active' if request.endpoint == 'admin.orders' }}" href="{{ url_for('admin.orders') }}">
+                    <i class="fas fa-shopping-cart"></i> Orders
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="nav-group">
+            <div class="group-label" onclick="toggleGroup('group-analytics')">
+                <span>Analytics</span>
+                <i class="fas fa-chevron-right group-icon open"></i>
+            </div>
+            <div class="group-items open" id="group-analytics">
+                <a class="nav-item" href="#"><i class="fas fa-file-alt"></i> Reports</a>
+            </div>
+        </div>
+
+        <div class="nav-group">
+            <div class="group-label" onclick="toggleGroup('group-system')">
+                <span>System</span>
+                <i class="fas fa-chevron-right group-icon open"></i>
+            </div>
+            <div class="group-items open" id="group-system">
+                <a class="nav-item" href="#"><i class="fas fa-cog"></i> Settings</a>
+            </div>
+        </div>
+
+    </nav>
+    <div class="sidebar-footer">
+        <div class="logout-section">
+            <div class="user-info">
+                <div class="avatar-sm">{{ current_account().name[0]|upper if current_account() else 'A' }}</div>
+                <div>
+                    <div class="user-name">{{ current_account().name if current_account() else 'Administrator' }}</div>
+                    <div class="user-role">{{ current_account().role_title if current_account() else 'Admin' }}</div>
+                </div>
+            </div>
+            <a class="logout-btn" href="{{ url_for('auth.logout') }}" title="Logout"><i class="fas fa-sign-out-alt"></i></a>
+        </div>
+    </div>
+</div>

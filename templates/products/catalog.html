@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}Products{% endblock %}
+
+{% block content %}
+<div id="productPage">
+    <div class="container">
+
+        {% include "partials/hero_slider.html" %}
+
+        <!-- Brand Filter -->
+        <div class="eb-brand-filter-wrap" id="brandFilterWrap">
+            <div class="filter-label">
+                <i class="fas fa-tags"></i> Browse by Brand
+                <span style="margin-left:auto; font-weight:400; font-size:0.6rem; color:var(--text-light);">
+                    <i class="fas fa-arrows-left-right"></i> Swipe
+                </span>
+            </div>
+            <div class="eb-brand-scroll-container">
+                <button class="eb-scroll-arrow prev" id="brandScrollPrev" aria-label="Scroll left"><i class="fas fa-chevron-left"></i></button>
+                <div class="eb-brand-scroll" id="brandScroll">
+                    <a class="brand-card {{ 'active' if not selected_brand }}" href="{{ catalog_url(brand=None) }}">
+                        <div class="brand-img-wrap"><span class="brand-logo"><i class="fas fa-th-large"></i></span></div>
+                        <div class="brand-info">All</div>
+                    </a>
+                    {% for brand in brands %}
+                    <a class="brand-card {{ 'active' if selected_brand == brand.id }}" href="{{ catalog_url(brand=brand.id) }}">
+                        <div class="brand-img-wrap">
+                            {% if brand.brand_image %}
+                            <img src="{{ img(brand.brand_image) }}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;" />
+                            {% else %}
+                            <span class="brand-logo"><i class="fas fa-tag"></i></span>
+                            {% endif %}
+                        </div>
+                        <div class="brand-info">{{ brand.brand_name }}</div>
+                    </a>
+                    {% endfor %}
+                </div>
+                <button class="eb-scroll-arrow next" id="brandScrollNext" aria-label="Scroll right"><i class="fas fa-chevron-right"></i></button>
+            </div>
+        </div>
+
+        <!-- Category Filter - independent of brand (store-api's Category table has no
+             relationship to Brand at all, unlike the old mock's brand-nested subcategories) -->
+        {% if categories %}
+        <div id="categoryFilterWrap" style="margin-bottom:16px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <span class="filter-label"><i class="fas fa-filter"></i> Category:</span>
+            <a class="subcategory-pill {{ 'active' if not selected_category }}"
+               href="{{ catalog_url(category=None) }}">All Categories</a>
+            {% for cat in categories %}
+            <a class="subcategory-pill {{ 'active' if selected_category == cat.id }}"
+               href="{{ catalog_url(category=cat.id) }}">{{ cat.category_name }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Product Grid -->
+        <div class="product-grid-container" id="productGridContainer">
+            <div class="product-grid-header">
+                <div class="brand-icon-large"><i class="fas fa-{{ 'tooth' if selected_brand else 'th-large' }}"></i></div>
+                <div class="title-group">
+                    <h2 id="brandTitle">{{ page_title }}</h2>
+                    <span class="product-count" id="productCount">{{ products|length }} products</span>
+                </div>
+                {% if selected_brand %}
+                <a class="back-to-all visible" href="{{ catalog_url(brand=None) }}"><i class="fas fa-arrow-left"></i> All Brands</a>
+                {% endif %}
+                <form class="search-wrap" id="productSearchWrap" method="get" action="{{ url_for('catalog.products_catalog') }}">
+                    {% if selected_brand %}<input type="hidden" name="brand" value="{{ selected_brand }}">{% endif %}
+                    {% if selected_category %}<input type="hidden" name="category" value="{{ selected_category }}">{% endif %}
+                    <input type="text" name="q" id="productSearchInput" placeholder="Search products..." value="{{ search_query or '' }}" />
+                    <button type="submit" id="productSearchBtn"><i class="fas fa-search"></i></button>
+                </form>
+            </div>
+
+            <div class="product-grid" id="productGrid">
+                {% if products|length == 0 %}
+                <div class="empty-products">
+                    <div class="icon"><i class="fas fa-box-open"></i></div>
+                    <h3>No products found</h3>
+                    <p>{% if search_query %}No results for "{{ search_query }}"{% else %}Try a different brand or category.{% endif %}</p>
+                </div>
+                {% endif %}
+
+                {% for p in products %}
+                <div class="product-card product-card-vertical" style="cursor:pointer;" onclick="openProductModal({{ p.id }})">
+                    <div class="product-image-wrap">
+                        <img class="product-image"
+                             src="{{ img(p.product_image) }}"
+                             alt="{{ p.product_name }}" loading="lazy" />
+                        {% if p.badge == 'sale' %}<div class="product-badge sale">Sale</div>
+                        {% elif p.badge == 'new' %}<div class="product-badge new">New</div>
+                        {% elif p.badge == 'hot' %}<div class="product-badge hot">🔥 Hot</div>{% endif %}
+                    </div>
+                    <div class="product-body">
+                        <div class="product-brand-name">{{ p.brand.brand_name if p.brand else '' }}</div>
+                        <h3>{{ p.product_name }}</h3>
+                        <div class="product-desc">{{ p.description }}</div>
+                        <div class="product-price">
+                            {{ price(p.price) }}
+                            {% if p.was_price %}<span class="old">{{ price(p.was_price) }}</span>{% endif %}
+                        </div>
+                        <div class="view-detail">View Details <i class="fas fa-arrow-right"></i></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Read by openProductModal() / main.js when a product card is clicked.
+    // Image paths are resolved through img() here too, same as the cards
+    // above — otherwise the modal would show a broken image for anything
+    // using a local filename instead of a full URL.
+    {% set products_json = [] %}
+    {% for p in products %}
+    {% set _ = products_json.append(dict(p, image=img(p.product_image))) %}
+    {% endfor %}
+    const PRODUCTS_DATA = {{ products_json|tojson }};
+</script>
+{% endblock %}

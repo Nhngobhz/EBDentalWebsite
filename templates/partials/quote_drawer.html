@@ -1,0 +1,96 @@
+<!-- Quote Cart Drawer — slides in, shows items added via "Add to Quote"
+     with full line-item editing (code / qty / UOM / unit price / discount),
+     plus a customer & quote info form matching EB Dental's official
+     quotation template. "Download as PDF" renders a hidden print template
+     (#quotePrintTemplate below) styled like the paper form and snapshots it
+     with html2canvas — this is what lets Khmer text render correctly,
+     since jsPDF's built-in fonts can't draw Khmer glyphs on their own. -->
+<div class="quote-drawer-overlay" id="quoteDrawerOverlay"></div>
+<div class="quote-drawer" id="quoteDrawer">
+    <div class="quote-drawer-header">
+        <h3><i class="fas fa-shopping-cart"></i> Your Quote List</h3>
+        <button type="button" class="quote-drawer-close" id="quoteDrawerClose"><i class="fas fa-times"></i></button>
+    </div>
+
+    <div class="quote-drawer-body">
+        <!-- Customer / quote info — mirrors the fields on the official
+             EB Dental quotation form (clinic, contact, terms, staff). -->
+        <div class="quote-info-form" id="quoteInfoForm">
+            <div class="quote-info-toggle" id="quoteInfoToggle">
+                <span><i class="fas fa-file-invoice"></i> Quote Info</span>
+                <i class="fas fa-chevron-down toggle-caret"></i>
+            </div>
+            <div class="quote-info-fields" id="quoteInfoFields">
+                <div class="quote-info-col">
+                    <label>C. Code
+                        <input type="text" id="qiCode" placeholder="PP02118" oninput="QuoteCart.saveInfoField('code', this.value)">
+                    </label>
+                    <label>Clinic
+                        <input type="text" id="qiClinic" placeholder="Clinic name" oninput="QuoteCart.saveInfoField('clinic', this.value)">
+                    </label>
+                    <label>Contact Tel
+                        <input type="text" id="qiTel" placeholder="071 458 4444" oninput="QuoteCart.saveInfoField('tel', this.value)">
+                    </label>
+                    <label>Address
+                        <input type="text" id="qiAddress" placeholder="Clinic address" oninput="QuoteCart.saveInfoField('address', this.value)">
+                    </label>
+                </div>
+                <div class="quote-info-col">
+                    <label>Payment Term
+                        <input type="text" id="qiPaymentTerm" placeholder="COD" oninput="QuoteCart.saveInfoField('paymentTerm', this.value)">
+                    </label>
+                    <label>Salesperson
+                        <input type="text" id="qiSalesperson" placeholder="Salesperson name" oninput="QuoteCart.saveInfoField('salesperson', this.value)">
+                    </label>
+                    <label>User
+                        <input type="text" id="qiUser" placeholder="User name" oninput="QuoteCart.saveInfoField('user', this.value)">
+                    </label>
+                    <label>Installation Term
+                        <input type="text" id="qiInstallTerm" placeholder="Free within Phnom Penh" oninput="QuoteCart.saveInfoField('installTerm', this.value)">
+                    </label>
+                    <label>Contact Person
+                        <input type="text" id="qiContactPerson" placeholder="098 882 953" oninput="QuoteCart.saveInfoField('contactPerson', this.value)">
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="quote-drawer-items" id="quoteDrawerItems">
+            <!-- Populated by JS (renderItems in main.js) -->
+        </div>
+    </div>
+
+    <div class="quote-drawer-footer">
+        <!-- Discount by Cash — a flat $ amount off the whole quote, separate
+             from each product's own % discount (which is baked into its unit
+             price already). Defaults to 0, meaning Grand Total = Sub-Total. -->
+        <div class="quote-summary-rows">
+            <div class="quote-summary-row">
+                <span>Sub-Total</span>
+                <span id="quoteSubTotal">$0.00</span>
+            </div>
+            <div class="quote-summary-row quote-cash-discount-row">
+                <label for="quoteCashDiscount">Discount by Cash ($)</label>
+                <input type="number" id="quoteCashDiscount" min="0" step="0.01" value="0" oninput="QuoteCart.saveCashDiscount(this.value)">
+            </div>
+            <div class="quote-summary-row quote-grand-total-row">
+                <span>Grand Total</span>
+                <span id="quoteGrandTotal">$0.00</span>
+            </div>
+        </div>
+        <div class="quote-drawer-actions">
+            <button type="button" class="quote-add-more-btn" id="quoteAddMoreBtn">
+                <i class="fas fa-plus"></i> Add more
+            </button>
+            <button type="button" class="quote-download-pdf-btn" id="quoteDownloadPdfBtn">
+                <i class="fas fa-file-pdf"></i> Download as PDF
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden print template — built and populated by QuoteCart.downloadPDF()
+     right before capture, then snapshotted with html2canvas. Kept off-screen
+     (not display:none — html2canvas can't render that) rather than deleted,
+     so the same node is reused on every export. -->
+<div class="quote-print-template" id="quotePrintTemplate"></div>

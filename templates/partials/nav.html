@@ -1,0 +1,14 @@
+<nav class="eb-bottom-nav" id="ebBottomNav">
+    <a class="nav-item {{ 'active' if request.endpoint == 'main.home' }}" href="{{ url_for('main.home') }}">
+        <span class="nav-icon"><i class="fas fa-home"></i></span> Home
+    </a>
+    <a class="nav-item {{ 'active' if request.endpoint == 'catalog.products_catalog' }}" href="{{ url_for('catalog.products_catalog') }}">
+        <span class="nav-icon"><i class="fas fa-th-large"></i></span> Brands
+    </a>
+    <a class="nav-item {{ 'active' if request.endpoint == 'main.about' }}" href="{{ url_for('main.about') }}">
+        <span class="nav-icon"><i class="fas fa-info-circle"></i></span> About
+    </a>
+    <a class="nav-item {{ 'active' if request.endpoint == 'main.contact' }}" href="{{ url_for('main.contact') }}">
+        <span class="nav-icon"><i class="fas fa-phone"></i></span> Contact
+    </a>
+</nav>

@@ -1,0 +1,50 @@
+<!-- Hero Slider — shared across all main content pages -->
+<section class="hero-slider" id="heroSlider">
+    <div class="slides" id="slides">
+        {% if active_promotions %}
+        {% set promo = active_promotions[0] %}
+        {% set promo_img = img(promo.promotion_image) %}
+
+        <a class="slide no-overlay" href="{{ url_for('catalog.promotions_page') }}"
+          style="background-image: url('{{ promo_img }}'); cursor: pointer;">
+            <div class="slide-content">
+                
+                
+                <span class="btn-hero"><i class="fas fa-fire"></i> View All Promotions</span>
+            </div>
+        </a>
+        {% endif %}
+        <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=1400&h=900&fit=crop&auto=format');">
+            <div class="slide-content">
+                <div class="badge"><i class="fas fa-tooth"></i> Premium Dental Supply</div>
+                <h2>Equip Your Practice with <span>Excellence</span></h2>
+                <p>Discover high-quality dental instruments and equipment from world-class brands trusted by professionals.</p>
+                <a class="btn-hero" href="{{ url_for('catalog.products_catalog') }}"><i class="fas fa-arrow-down"></i> Explore Products</a>
+            </div>
+        </div>
+        <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1584017911766-d451b3d0e0de?w=1400&h=900&fit=crop&auto=format');">
+            <div class="slide-content">
+                <div class="badge"><i class="fas fa-microscope"></i> Precision Instruments</div>
+                <h2>Advanced Technology for <span>Better Outcomes</span></h2>
+                <p>From endodontic motors to digital X-ray systems — we bring you the latest in dental innovation.</p>
+                <a class="btn-hero" href="{{ url_for('catalog.products_catalog') }}"><i class="fas fa-arrow-down"></i> View Collection</a>
+            </div>
+        </div>
+        <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1587825140708-dfaf72ae4b04?w=1400&h=900&fit=crop&auto=format');">
+            <div class="slide-content">
+                <div class="badge"><i class="fas fa-medal"></i> Trusted Brands</div>
+                <h2>Partner with <span>Industry Leaders</span></h2>
+                <p>Woodpecker, NSK, KaVo, Dentsply, and more — curated for performance and reliability.</p>
+                <a class="btn-hero" href="{{ url_for('catalog.products_catalog') }}"><i class="fas fa-arrow-down"></i> Browse Brands</a>
+            </div>
+        </div>
+    </div>
+    <button class="arrow prev" id="prevSlide"><i class="fas fa-chevron-left"></i></button>
+    <button class="arrow next" id="nextSlide"><i class="fas fa-chevron-right"></i></button>
+    <div class="controls" id="dotControls">
+        {% set total_slides = 3 + (1 if active_promotions else 0) %}
+        {% for i in range(total_slides) %}
+        <button class="dot {{ 'active' if i == 0 }}" data-index="{{ i }}"></button>
+        {% endfor %}
+    </div>
+</section>

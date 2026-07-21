@@ -1,0 +1,23 @@
+<!-- Product Detail Modal — shared across pages that show products.
+     Pages that use it must define a JS `PRODUCTS_DATA` array (list of
+     product objects with id/name/description/price/oldPrice/image/brand_name)
+     before main.js runs, so openProductModal(id) can find the right one. -->
+<div class="product-modal" id="productModal">
+    <div class="modal-content">
+        <button class="modal-close" onclick="closeProductModal()"><i class="fas fa-times"></i></button>
+        <div class="modal-image-wrap" id="modalImageWrap">
+            <img id="modalImage" src="" alt="Product" />
+            <span class="zoom-hint"><i class="fas fa-search-plus"></i> Click to zoom</span>
+        </div>
+        <div class="modal-brand" id="modalBrand"></div>
+        <h3 class="modal-title" id="modalTitle"></h3>
+        <p class="modal-desc" id="modalDesc"></p>
+        <div class="modal-price" id="modalPrice"></div>
+        <div class="modal-actions">
+            <button type="button" class="btn-primary" id="modalAddToQuoteBtn">
+                <i class="fas fa-shopping-cart"></i> Add to Quote
+            </button>
+            <button type="button" class="btn-outline" onclick="closeProductModal()">Close</button>
+        </div>
+    </div>
+</div>

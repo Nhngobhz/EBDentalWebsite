@@ -1,0 +1,783 @@
+/* ============================================================
+   BASE — Root variables, reset, toast notifications
+   ============================================================ */
+
+/* ============================================================
+           ROOT & RESET
+           ============================================================ */
+:root {
+    --primary: #0f172a;
+    --accent: #0891b2;
+    --accent-light: #06b6d4;
+    --success: #10b981;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --bg: #f1f5f9;
+    --surface: #ffffff;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --text-soft: #475569;
+    --text-light: #64748b;
+    --radius: 16px;
+    --shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.08);
+    --transition: 0.25s cubic-bezier(.4, 0, .2, 1);
+    --finance-bg: #f8fafc;
+    --card-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+    --about-bg: #f8fafc;
+    --product-bg: #f0faff;
+    --dashboard-sidebar: #0f172a;
+    --max-image-size: 2;
+    --header-bg: rgba(255, 255, 255, 0.92);
+    --footer-bg: #0f172a;
+    --footer-text: #cbd5e1;
+    --modal-overlay: rgba(0, 0, 0, 0.6);
+    --toast-bg: #1e293b;
+    --toast-text: #fff;
+    --quote-sidebar-bg: #ffffff;
+    --quote-sidebar-border: #e2e8f0;
+    --sidebar-hover: rgba(255, 255, 255, 0.06);
+    --sidebar-active: rgba(255, 255, 255, 0.10);
+    --sidebar-text: rgba(255, 255, 255, 0.65);
+    --sidebar-text-hover: #ffffff;
+    --sidebar-text-active: #ffffff;
+    --sidebar-border: rgba(255, 255, 255, 0.06);
+    --sidebar-accent: #06b6d4;
+}
+
+/* Dark Mode */
+[data-theme="dark"] {
+    --primary: #e2e8f0;
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --border: #334155;
+    --text: #f1f5f9;
+    --text-soft: #cbd5e1;
+    --text-light: #94a3b8;
+    --shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.4);
+    --header-bg: rgba(15, 23, 42, 0.92);
+    --sidebar-hover: rgba(255, 255, 255, 0.04);
+    --sidebar-active: rgba(255, 255, 255, 0.08);
+    --sidebar-text: rgba(255, 255, 255, 0.55);
+    --sidebar-text-hover: #ffffff;
+    --sidebar-text-active: #ffffff;
+    --sidebar-border: rgba(255, 255, 255, 0.04);
+    --dashboard-sidebar: #0b1120;
+    --surface: #1e293b;
+    --finance-bg: #1e293b;
+    --about-bg: #0f172a;
+    --product-bg: #0f172a;
+    --card-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    --toast-bg: #1e293b;
+    --toast-text: #f1f5f9;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+html {
+    scroll-behavior: smooth;
+}
+body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow-x: hidden;
+    padding-bottom: 80px;
+    transition: background 0.3s ease, color 0.3s ease;
+}
+/* Headings use Plus Jakarta Sans for stronger visual hierarchy —
+   body text stays Inter (best-in-class for on-screen readability). */
+h1, h2, h3, h4, h5, h6,
+.logo-text, .brand-text, .btn-hero, .btn-login, .btn-primary, .btn-contact-now {
+    font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+    letter-spacing: -0.01em;
+}
+a {
+    text-decoration: none;
+    color: inherit;
+}
+img {
+    display: block;
+    max-width: 100%;
+}
+.container {
+    width: min(1200px, calc(100% - 32px));
+    margin: auto;
+}
+
+/* ============================================================
+           TOAST
+           ============================================================ */
+.toast-container {
+    position: fixed;
+    bottom: 90px;
+    right: 20px;
+    z-index: 999999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 360px;
+    width: 100%;
+    pointer-events: none;
+}
+.toast {
+    background: var(--toast-bg);
+    color: var(--toast-text);
+    padding: 12px 18px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(12px);
+    pointer-events: auto;
+    animation: slideInToast 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.toast.success {
+    border-left: 4px solid var(--success);
+}
+.toast.error {
+    border-left: 4px solid var(--danger);
+}
+.toast.info {
+    border-left: 4px solid var(--accent);
+}
+@keyframes slideInToast {
+    from {
+        opacity: 0;
+        transform: translateX(40px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+
+/* ============================================================
+   PROMO BANNER STRIP (site-wide)
+   NOTE: New component — the original never had a persistent
+   cross-page promo banner, only the popup-style promotion page.
+   Shows on every page when at least one promotion is active.
+   ============================================================ */
+.promo-banner-strip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    color: white;
+    padding: 10px 20px;
+    font-size: 0.8rem;
+}
+.promo-banner-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    color: white;
+    text-decoration: none;
+    min-width: 0;
+}
+.promo-banner-icon {
+    flex-shrink: 0;
+}
+.promo-banner-text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.promo-banner-cta {
+    flex-shrink: 0;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.promo-banner-close {
+    background: none;
+    border: none;
+    color: white;
+    opacity: 0.75;
+    cursor: pointer;
+    padding: 4px 6px;
+    flex-shrink: 0;
+    font-size: 0.85rem;
+}
+.promo-banner-close:hover {
+    opacity: 1;
+}
+@media (max-width: 600px) {
+    .promo-banner-strip {
+        font-size: 0.7rem;
+        padding: 8px 12px;
+    }
+    .promo-banner-cta span {
+        display: none;
+    }
+}
+
+/* ============================================================
+   QUOTE CART DRAWER (new component)
+   NOTE: "Add to Quote" existed as a dead button in the original
+   file with zero logic behind it. This whole drawer + cart system
+   is new, built to make that button actually do something.
+   ============================================================ */
+.quote-drawer-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999998;
+    background: var(--modal-overlay);
+    backdrop-filter: blur(8px);
+    display: none;
+}
+.quote-drawer-overlay.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+.quote-drawer {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: calc(100% - 40px);
+    max-width: 560px;
+    max-height: 88vh;
+    background: var(--surface);
+    border-radius: 20px;
+    z-index: 9999999;
+    display: none;
+    flex-direction: column;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
+}
+.quote-drawer.active {
+    display: flex;
+    animation: modalSlide 0.35s ease;
+}
+.quote-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 22px 26px;
+    border-bottom: 1px solid var(--border);
+}
+.quote-drawer-header h3 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.quote-drawer-close {
+    background: var(--bg);
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 1rem;
+    color: var(--text-soft);
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.quote-drawer-close:hover {
+    background: #fee2e2;
+    color: var(--danger);
+    transform: rotate(90deg);
+}
+.quote-drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 26px;
+}
+
+/* ---- Quote / customer info form ---- */
+.quote-info-form {
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+}
+.quote-info-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text);
+    user-select: none;
+}
+.quote-info-toggle span {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.quote-info-toggle .toggle-caret {
+    color: var(--text-light);
+    transition: transform 0.2s ease;
+    font-size: 0.75rem;
+}
+.quote-info-form.collapsed .toggle-caret {
+    transform: rotate(-90deg);
+}
+.quote-info-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 16px;
+    margin-top: 14px;
+}
+.quote-info-form.collapsed .quote-info-fields {
+    display: none;
+}
+.quote-info-col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.quote-info-fields label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-light);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.quote-info-fields input {
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text);
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    outline: none;
+    transition: var(--transition);
+}
+.quote-info-fields input:focus {
+    border-color: var(--accent);
+    background: var(--surface);
+}
+
+/* ---- Line items ---- */
+.quote-drawer-items {
+    padding: 14px 0;
+}
+.quote-drawer-empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-light);
+}
+.quote-drawer-empty i {
+    font-size: 2.5rem;
+    opacity: 0.3;
+    margin-bottom: 12px;
+    display: block;
+}
+.quote-item {
+    display: flex;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+}
+.quote-item img {
+    width: 56px;
+    height: 56px;
+    border-radius: 10px;
+    object-fit: cover;
+    background: var(--bg);
+    flex-shrink: 0;
+}
+.quote-item-info {
+    flex: 1;
+    min-width: 0;
+}
+.quote-item-name {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+/* Code / UOM / unit price / discount — admin-set on the product, shown
+   read-only here. Salespeople can only change quantity (buttons below). */
+.quote-item-fixed-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    font-size: 0.7rem;
+    color: var(--text-light);
+    margin-bottom: 8px;
+}
+.quote-item-fixed-meta span:not(:last-child)::after {
+    content: '·';
+    margin-left: 10px;
+    color: var(--border);
+}
+.quote-item-row-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 8px;
+}
+.quote-item-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.quote-qty-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.quote-qty-btn:hover {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+}
+.quote-qty-value {
+    font-size: 0.8rem;
+    font-weight: 700;
+    min-width: 18px;
+    text-align: center;
+}
+.quote-item-amount {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--accent);
+    margin-left: auto;
+}
+.quote-item-remove {
+    background: none;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+.quote-drawer-footer {
+    padding: 18px 26px 24px;
+    border-top: 1px solid var(--border);
+}
+.quote-summary-rows {
+    margin-bottom: 14px;
+}
+.quote-summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    color: var(--text-light);
+    padding: 5px 0;
+}
+.quote-summary-row span:last-child {
+    font-weight: 700;
+    color: var(--text);
+}
+.quote-cash-discount-row input {
+    width: 110px;
+    text-align: right;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text);
+    padding: 5px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    outline: none;
+}
+.quote-cash-discount-row input:focus {
+    border-color: var(--accent);
+    background: var(--surface);
+}
+.quote-grand-total-row {
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+    padding-top: 10px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text);
+}
+.quote-grand-total-row span:last-child {
+    font-size: 1.2rem;
+    color: var(--accent);
+}
+.quote-drawer-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+.quote-add-more-btn,
+.quote-download-pdf-btn {
+    flex: 1;
+    justify-content: center;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    border: none;
+    cursor: pointer;
+    transition: var(--transition);
+    font-family: inherit;
+}
+.quote-add-more-btn {
+    background: #f4f8fb;
+    color: var(--accent);
+    border: 1px solid rgba(8, 145, 178, 0.16);
+}
+.quote-add-more-btn:hover {
+    background: #eaf7fb;
+    transform: translateY(-2px);
+}
+.quote-download-pdf-btn {
+    background: var(--accent-light);
+    color: white;
+    box-shadow: 0 8px 24px rgba(8, 145, 178, 0.25);
+}
+.quote-download-pdf-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(8, 145, 178, 0.35);
+}
+.quote-cart-icon {
+    position: relative;
+    cursor: pointer;
+}
+
+/* Tablet / mobile responsiveness for the quote drawer */
+@media (max-width: 1024px) {
+    .quote-drawer {
+        width: min(92vw, 720px);
+        max-height: 90vh;
+        border-radius: 18px;
+    }
+    .quote-drawer-header,
+    .quote-drawer-body,
+    .quote-drawer-footer {
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+    .quote-drawer-actions {
+        flex-wrap: wrap;
+    }
+    .quote-add-more-btn,
+    .quote-download-pdf-btn {
+        flex-basis: calc(50% - 5px);
+    }
+}
+
+@media (max-width: 767px) {
+    .quote-drawer {
+        width: 100%;
+        max-width: none;
+        height: 100dvh;
+        max-height: 100dvh;
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        transform: none;
+        border-radius: 20px 20px 0 0;
+    }
+    .quote-drawer.active {
+        animation: drawerSlideUp 0.35s ease;
+    }
+    .quote-drawer-header {
+        padding: 16px 18px;
+    }
+    .quote-drawer-header h3 {
+        font-size: 1rem;
+    }
+    .quote-drawer-body {
+        padding: 0 18px;
+    }
+    .quote-drawer-footer {
+        padding: 14px 18px 20px;
+    }
+    .quote-info-fields {
+        grid-template-columns: 1fr;
+        gap: 10px 0;
+    }
+    .quote-item {
+        flex-direction: column;
+    }
+    .quote-item img {
+        width: 100%;
+        max-width: 120px;
+        height: 92px;
+    }
+    .quote-item-row-footer {
+        flex-wrap: wrap;
+    }
+    .quote-item-amount {
+        margin-left: 0;
+    }
+    .quote-drawer-actions {
+        flex-direction: column;
+    }
+    .quote-add-more-btn,
+    .quote-download-pdf-btn {
+        width: 100%;
+        flex-basis: auto;
+    }
+}
+
+@keyframes drawerSlideUp {
+    from {
+        transform: translateY(100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+/* ============================================================
+   QUOTE PRINT TEMPLATE — off-screen, built by QuoteCart.downloadPDF()
+   right before capture, styled to mirror the official EB Dental paper
+   quotation form (header, C.Code/Clinic/etc block, itemized table,
+   validity note + total, signature strip).
+   ============================================================ */
+.quote-print-template {
+    position: fixed;
+    top: 0;
+    left: -10000px;
+    width: 794px;
+    background: #ffffff;
+    color: #1a1a1a;
+    font-family: 'Inter', 'Noto Sans Khmer', sans-serif;
+    padding: 36px 40px;
+    box-sizing: border-box;
+}
+.qpt-khmer { font-family: 'Noto Sans Khmer', 'Inter', sans-serif; }
+.qpt-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 2px solid #1a1a1a;
+    padding-bottom: 14px;
+    margin-bottom: 16px;
+}
+.qpt-brand-name {
+    font-size: 1.7rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+}
+.qpt-brand-meta {
+    font-size: 0.72rem;
+    color: #444;
+    margin-top: 4px;
+    line-height: 1.5;
+}
+.qpt-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    text-align: right;
+}
+.qpt-meta-right {
+    font-size: 0.75rem;
+    text-align: right;
+    margin-top: 6px;
+    line-height: 1.6;
+}
+.qpt-meta-right b { font-weight: 700; }
+.qpt-info-block {
+    display: flex;
+    justify-content: space-between;
+    gap: 30px;
+    margin-bottom: 18px;
+}
+.qpt-info-col { flex: 1; }
+.qpt-info-row {
+    display: flex;
+    font-size: 0.75rem;
+    padding: 2px 0;
+}
+.qpt-info-label {
+    width: 105px;
+    flex-shrink: 0;
+    color: #444;
+}
+.qpt-info-value { font-weight: 600; }
+table.qpt-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.72rem;
+}
+table.qpt-table th, table.qpt-table td {
+    border: 1px solid #333;
+    padding: 6px 7px;
+}
+table.qpt-table thead th {
+    background: #f0f0f0;
+    font-weight: 700;
+    text-align: center;
+}
+table.qpt-table td.qpt-num { text-align: center; }
+table.qpt-table td.qpt-right { text-align: right; }
+.qpt-blank-row td {
+    height: 20px;
+}
+.qpt-subtotal-row td {
+    border-top: 2px solid #333;
+}
+.qpt-grand-total-row td {
+    font-weight: 800;
+    font-size: 0.78rem;
+}
+.qpt-validity {
+    font-size: 0.72rem;
+    padding-top: 8px;
+}
+.qpt-sign-strip {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 60px;
+}
+.qpt-sign-col {
+    text-align: center;
+    width: 18%;
+    font-size: 0.68rem;
+}
+.qpt-sign-line {
+    border-top: 1px solid #333;
+    margin-bottom: 6px;
+    padding-top: 4px;
+}
+.quote-cart-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: var(--accent);
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 700;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 99px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 3px;
+}

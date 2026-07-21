@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Contact Us{% endblock %}
+
+{% block content %}
+<div id="productPage">
+    <div class="eb-contact-page">
+        <div class="container">
+
+            {% include "partials/hero_slider.html" %}
+
+            <div class="contact-hero">
+                <div class="hero-badge"><i class="fas fa-phone-alt"></i> Get in Touch</div>
+                <h1>Contact <span>EB Dental</span> Supply</h1>
+                <p>We're here to help you with all your dental supply needs. Reach out to our dedicated team for support, inquiries, or to place an order.</p>
+            </div>
+
+            <div class="about-location-grid">
+                <div class="card">
+                    <div class="card-icon"><i class="fas fa-building"></i></div>
+                    <h3>About Us</h3>
+                    <p>EB Dental Supply has been a trusted partner for dental professionals for <span class="highlight">over 40 years</span>. We are committed to delivering high-quality dental instruments, equipment, and consumables from the world's leading brands.</p>
+                    <span class="years-badge">🏆 40+ Years of Excellence</span>
+                </div>
+                <div class="card">
+                    <div class="card-icon"><i class="fas fa-location-dot"></i></div>
+                    <h3>Our Location</h3>
+                    <p><strong>Orussey Market</strong>, Phnom Penh, Cambodia<br />We are conveniently located in the heart of Phnom Penh, serving dental professionals across the country with reliable products and exceptional service.</p>
+                    <span class="years-badge">📍 Orussey Market, Phnom Penh</span>
+                </div>
+            </div>
+
+            <div class="contact-info-bar">
+                <div class="info-item"><i class="fas fa-phone"></i><div class="text"><h4>Phone</h4><p>098 882 953</p></div></div>
+                <div class="info-item"><i class="fas fa-envelope"></i><div class="text"><h4>Email</h4><p>info@ebdental.com</p></div></div>
+                <div class="info-item"><i class="fas fa-clock"></i><div class="text"><h4>Hours</h4><p>Mon–Sat, 8am – 6pm</p></div></div>
+                <a class="btn-contact-now" href="tel:098882953" style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center;">
+                    <i class="fas fa-phone"></i> Call Now
+                </a>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="flash-messages">
+    {% for category, message in messages %}
+    <div class="flash-message flash-{{ 'error' if category == 'error' else 'success' }}">
+        <span>{{ message }}</span>
+        <button type="button" class="flash-close" onclick="this.parentElement.remove()">&times;</button>
+    </div>
+    {% endfor %}
+</div>
+<style>
+    .flash-messages { position: fixed; top: 16px; right: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; max-width: 380px; }
+    .flash-message { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-radius: 8px; font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    .flash-success { background: #e6f7ee; color: #1a7f4e; border: 1px solid #b7e6cc; }
+    .flash-error { background: #fdecec; color: #b3261e; border: 1px solid #f5c2c0; }
+    .flash-close { background: none; border: none; font-size: 18px; line-height: 1; cursor: pointer; color: inherit; opacity: 0.7; }
+    .flash-close:hover { opacity: 1; }
+</style>
+{% endif %}
+{% endwith %}

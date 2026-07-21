@@ -1,0 +1,58 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+{% block admin_page_title %}Dashboard{% endblock %}
+
+{% block admin_content %}
+<div class="page-title">Dashboard</div>
+<p class="page-sub">Welcome back, {{ current_account().name if current_account() else 'Administrator' }}.</p>
+
+<div class="dash-stats">
+    <div class="dash-stat">
+        <span class="stat-icon"><i class="fas fa-tags"></i></span>
+        <div class="stat-label">Brands</div>
+        <div class="stat-number">{{ brands|length }}</div>
+    </div>
+    <div class="dash-stat">
+        <span class="stat-icon"><i class="fas fa-box"></i></span>
+        <div class="stat-label">Products</div>
+        <div class="stat-number">{{ products|length }}</div>
+    </div>
+    <div class="dash-stat">
+        <span class="stat-icon"><i class="fas fa-fire"></i></span>
+        <div class="stat-label">Active Promos</div>
+        <div class="stat-number">{{ active_promotions|length }}</div>
+    </div>
+</div>
+
+<div class="dash-card">
+    <div class="card-header"><h5>System Overview</h5></div>
+    <div class="card-body">
+        <div style="font-size:0.8rem; color:var(--text-light);">
+            {{ products|length }} products across {{ brands|length }} brands, with {{ active_promotions|length }} active promotion{{ 's' if active_promotions|length != 1 }}.
+        </div>
+    </div>
+</div>
+
+<div class="dash-card" style="margin-top: 16px;">
+    <div class="card-header">
+        <h5>Recent Products</h5>
+        <a href="{{ url_for('admin.products') }}" style="font-size:0.75rem; font-weight:700; color:var(--accent);">View All →</a>
+    </div>
+    <div class="card-body" style="padding:0;">
+        <table>
+            <thead><tr><th>Name</th><th>Brand</th><th>Price</th><th>Badge</th></tr></thead>
+            <tbody>
+                {% for p in products[:5] %}
+                <tr>
+                    <td><strong>{{ p.product_name }}</strong></td>
+                    <td>{{ p.brand.brand_name if p.brand else '' }}</td>
+                    <td>{{ price(p.price) }}</td>
+                    <td>{{ p.badge or '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

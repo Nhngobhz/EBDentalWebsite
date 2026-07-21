@@ -1,0 +1,28 @@
+<footer class="footer eb-footer" id="ebFooter">
+    <div class="container">
+        <div class="footer-grid" id="ebFooterGrid">
+            <div class="footer-brand">
+                <h3><i class="fas fa-tooth" style="color:#06b6d4;"></i> EB Dental Supply</h3>
+                <p class="eb-tagline">Partner in Dentistry Since 1985</p>
+                <p>With over 40 years of experience, EB Dental Supply has been a trusted partner for dental professionals across Cambodia. We provide high-quality instruments, equipment, and consumables from the world's leading brands.</p>
+                <div class="eb-years"> 40+ Years of Excellence</div>
+                <div class="contact-phone"><i class="fas fa-phone"></i> 098 882 953</div>
+                <div style="margin-top:6px; font-size:0.8rem; color:#94a3b8;"><i class="fas fa-envelope"></i> info@ebdental.com</div>
+            </div>
+            <div class="footer-links">
+                <h4>Products</h4>
+                <a href="{{ url_for('catalog.products_catalog') }}">Endodontic</a>
+                <a href="{{ url_for('catalog.products_catalog') }}">Surgical</a>
+                <a href="{{ url_for('catalog.products_catalog') }}">Diagnostic</a>
+                <a href="{{ url_for('catalog.products_catalog') }}">Consumables</a>
+            </div>
+            <div class="footer-links">
+                <h4>Brands</h4>
+                {% for brand in (brands or []) %}
+                <a href="{{ url_for('catalog.products_catalog') }}?brand={{ brand.id }}">{{ brand.brand_name }}</a>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="footer-bottom">© 2026 EB Dental Supply. All rights reserved.</div>
+    </div>
+</footer>

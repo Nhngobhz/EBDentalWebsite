@@ -1,0 +1,144 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block title %}Manage Brands{% endblock %}
+{% block admin_page_title %}Brands{% endblock %}
+
+{% block admin_content %}
+<div class="page-title"><i class="fas fa-tags"></i> Brands</div>
+<p class="page-sub">Manage the brands shown on your site.</p>
+
+<div class="dash-card">
+    <div class="card-header">
+        <h5 id="brandsCountLabel">All Brands ({{ brands|length }})</h5>
+        <div class="card-actions">
+            <div class="search-box-dash">
+                <i class="fas fa-search"></i>
+                <input type="text" id="brandSearchInput" class="search-input-dash" placeholder="Search brands..." oninput="filterBrandsTable()">
+            </div>
+            {% if has_permission('product_management') %}
+            <button type="button" class="btn-dash primary" onclick="openBrandModal()"><i class="fas fa-plus"></i> Add Brand</button>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body" style="padding:0;">
+        {% if brands|length == 0 %}
+        <div class="empty-state"><i class="fas fa-tags"></i> No brands found.</div>
+        {% else %}
+        <table>
+            <thead>
+                <tr><th>Image</th><th>Name</th><th>Products</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="brandsTableBody">
+                {% for b in brands %}
+                <tr data-search="{{ b.brand_name|lower }}">
+                    <td>
+                        <img src="{{ img(b.brand_image) }}"
+                             style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1px solid var(--border);" />
+                    </td>
+                    <td><strong>{{ b.brand_name }}</strong></td>
+                    <td>{{ b.product_count }}</td>
+                    <td style="white-space:nowrap;">
+                        {% if has_permission('product_management') %}
+                        <button type="button" class="btn-dash primary sm" onclick="openBrandModal({{ b.id }})" title="Edit"><i class="fas fa-edit"></i></button>
+                        <form method="post" action="{{ url_for('admin.brands_delete', brand_id=b.id) }}" style="display:inline;" onsubmit="return confirm('Delete this brand? Products still assigned to it will block the delete.');">
+                            <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="empty-state" id="brandsNoMatch" style="display:none;"><i class="fas fa-search"></i> No brands match your search.</div>
+        {% endif %}
+    </div>
+</div>
+
+{% if has_permission('product_management') %}
+<!-- Add/Edit Brand Modal -->
+<div class="dash-modal-overlay" id="brandModalOverlay">
+    <div class="dash-modal-box">
+        <button type="button" class="dash-modal-close" onclick="closeBrandModal()"><i class="fas fa-times"></i></button>
+        <h3 class="dash-modal-title" id="brandModalTitle">Add New Brand</h3>
+        <form id="brandForm" method="post" enctype="multipart/form-data">
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Brand Name</label>
+                <input type="text" name="brand_name" id="brandName" required style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Brand Image</label>
+                <input type="file" name="file" id="brandImageFile" accept="image/png,image/jpeg,image/webp,image/gif" style="width:100%;font-size:0.8rem;">
+                <img id="brandImagePreview" src="" alt="" style="display:none; margin-top:8px; width:60px; height:60px; border-radius:50%; object-fit:cover; border:1px solid var(--border);">
+            </div>
+            <button type="submit" class="btn-dash primary" style="width:100%;padding:10px;font-size:0.9rem;justify-content:center;margin-top:16px;" id="brandModalSubmitBtn">
+                <i class="fas fa-save"></i> Create Brand
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    {% set brands_json = [] %}
+    {% for b in brands %}
+    {% set _ = brands_json.append(dict(b, image=img(b.brand_image))) %}
+    {% endfor %}
+    const BRANDS_DATA = {{ brands_json|tojson }};
+    const BRAND_NEW_URL = {{ url_for('admin.brands_new')|tojson }};
+
+    function openBrandModal(brandId) {
+        const brand = brandId ? BRANDS_DATA.find(b => b.id === brandId) : null;
+        const isEdit = !!brand;
+
+        document.getElementById('brandModalTitle').textContent = isEdit ? 'Edit Brand' : 'Add New Brand';
+        document.getElementById('brandModalSubmitBtn').innerHTML =
+            '<i class="fas fa-save"></i> ' + (isEdit ? 'Update Brand' : 'Create Brand');
+
+        document.getElementById('brandForm').action = isEdit
+            ? BRAND_NEW_URL.replace(/\/new$/, '/' + brandId + '/edit')
+            : BRAND_NEW_URL;
+
+        document.getElementById('brandName').value = isEdit ? brand.brand_name : '';
+        document.getElementById('brandImageFile').value = '';
+        const preview = document.getElementById('brandImagePreview');
+        if (isEdit && brand.image) {
+            preview.src = brand.image;
+            preview.style.display = '';
+        } else {
+            preview.style.display = 'none';
+        }
+
+        document.getElementById('brandModalOverlay').classList.add('active');
+    }
+
+    function closeBrandModal() {
+        document.getElementById('brandModalOverlay').classList.remove('active');
+    }
+
+    document.getElementById('brandModalOverlay')?.addEventListener('click', function(e) {
+        if (e.target === this) closeBrandModal();
+    });
+
+    // Live search — filters the table client-side against the data-search
+    // attribute on each row (brand name, lowercased).
+    function filterBrandsTable() {
+        const query = document.getElementById('brandSearchInput').value.trim().toLowerCase();
+        const rows = document.querySelectorAll('#brandsTableBody tr');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const matches = !query || (row.dataset.search || '').includes(query);
+            row.style.display = matches ? '' : 'none';
+            if (matches) visibleCount++;
+        });
+
+        const noMatch = document.getElementById('brandsNoMatch');
+        if (noMatch) noMatch.style.display = visibleCount === 0 ? 'block' : 'none';
+
+        document.getElementById('brandsCountLabel').textContent =
+            query ? `Brands (${visibleCount} of ${BRANDS_DATA.length})` : `All Brands (${BRANDS_DATA.length})`;
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,161 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block title %}Orders{% endblock %}
+{% block admin_page_title %}Orders{% endblock %}
+
+{% block admin_content %}
+<div class="page-title"><i class="fas fa-shopping-cart"></i> Orders</div>
+<p class="page-sub">Quotes finalized by customers/staff through the storefront's "Add to Quote" cart. Every price shown here was computed server-side at the moment the order was placed.</p>
+
+<div class="dash-card">
+    <div class="card-header">
+        <h5 id="ordersCountLabel">All Orders ({{ orders|length }})</h5>
+        <div class="card-actions">
+            <div class="search-box-dash">
+                <i class="fas fa-search"></i>
+                <input type="text" id="orderSearchInput" class="search-input-dash" placeholder="Search orders..." oninput="filterOrdersTable()">
+            </div>
+        </div>
+    </div>
+    <div class="card-body" style="padding:0;">
+        {% if orders|length == 0 %}
+        <div class="empty-state"><i class="fas fa-shopping-cart"></i> No orders yet - they appear here once a customer or staff member finalizes a quote on the storefront.</div>
+        {% else %}
+        <table>
+            <thead>
+                <tr><th>Order #</th><th>Clinic / Contact</th><th>Salesperson</th><th>Items</th><th>Grand Total</th><th>Status</th><th>Date</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="ordersTableBody">
+                {% for o in orders %}
+                <tr data-search="{{ (o.order_number ~ ' ' ~ (o.clinic_name or '') ~ ' ' ~ (o.contact_person or ''))|lower }}">
+                    <td><strong>{{ o.order_number }}</strong></td>
+                    <td>
+                        {{ o.clinic_name or '—' }}
+                        {% if o.contact_person %}<br><span style="font-size:0.7rem;color:var(--text-light);">{{ o.contact_person }}</span>{% endif %}
+                    </td>
+                    <td>{{ o.salesperson or '—' }}</td>
+                    <td>{{ o['items']|length }}</td>
+                    <td>{{ price(o.grand_total) }}</td>
+                    <td>
+                        <span class="badge-dash" style="text-transform:capitalize;">{{ o.status }}</span>
+                    </td>
+                    <td style="font-size:0.7rem; white-space:nowrap;">{{ format_date(o.created_at) }}</td>
+                    <td style="white-space:nowrap;">
+                        <button type="button" class="btn-dash primary sm" onclick="openOrderModal({{ o.id }})" title="View"><i class="fas fa-eye"></i></button>
+                        <form method="post" action="{{ url_for('admin.orders_delete', order_id=o.id) }}" style="display:inline;" onsubmit="return confirm('Delete this order permanently?');">
+                            <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="empty-state" id="ordersNoMatch" style="display:none;"><i class="fas fa-search"></i> No orders match your search.</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- View Order Modal -->
+<div class="dash-modal-overlay" id="orderModalOverlay">
+    <div class="dash-modal-box" style="max-width:640px;">
+        <button type="button" class="dash-modal-close" onclick="closeOrderModal()"><i class="fas fa-times"></i></button>
+        <h3 class="dash-modal-title" id="orderModalTitle">Order</h3>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:0.8rem; margin-bottom:14px;">
+            <div><strong>Clinic:</strong> <span id="orderClinic"></span></div>
+            <div><strong>Contact:</strong> <span id="orderContact"></span></div>
+            <div><strong>Phone:</strong> <span id="orderPhone"></span></div>
+            <div><strong>Address:</strong> <span id="orderAddress"></span></div>
+            <div><strong>Payment Term:</strong> <span id="orderPaymentTerm"></span></div>
+            <div><strong>Salesperson:</strong> <span id="orderSalesperson"></span></div>
+        </div>
+
+        <table style="width:100%; font-size:0.8rem; margin-bottom:12px;">
+            <thead><tr><th>Product</th><th>Code</th><th>Qty</th><th>Unit Price</th><th>Discount</th><th>Amount</th></tr></thead>
+            <tbody id="orderItemsBody"></tbody>
+        </table>
+
+        <div style="text-align:right; font-size:0.85rem; margin-bottom:16px;">
+            <div>Subtotal: <strong id="orderSubtotal"></strong></div>
+            <div>Cash Discount: <strong id="orderCashDiscount"></strong></div>
+            <div style="font-size:1rem;">Grand Total: <strong id="orderGrandTotal"></strong></div>
+        </div>
+
+        <form id="orderStatusForm" method="post" style="display:flex; gap:8px;">
+            <select name="status" id="orderStatusSelect" style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+            </select>
+            <button type="submit" class="btn-dash primary"><i class="fas fa-save"></i> Update Status</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const ORDERS_DATA = {{ orders|tojson }};
+    const ORDER_STATUS_URL_TEMPLATE = {{ url_for('admin.orders_status', order_id=0)|tojson }};
+
+    function formatMoney(value) {
+        return typeof value === 'number' ? '$' + value.toFixed(2) : (value || '—');
+    }
+
+    function openOrderModal(orderId) {
+        const order = ORDERS_DATA.find(o => o.id === orderId);
+        if (!order) return;
+
+        document.getElementById('orderModalTitle').textContent = 'Order ' + order.order_number;
+        document.getElementById('orderClinic').textContent = order.clinic_name || '—';
+        document.getElementById('orderContact').textContent = order.contact_person || '—';
+        document.getElementById('orderPhone').textContent = order.phone || '—';
+        document.getElementById('orderAddress').textContent = order.address || '—';
+        document.getElementById('orderPaymentTerm').textContent = order.payment_term || '—';
+        document.getElementById('orderSalesperson').textContent = order.salesperson || '—';
+
+        document.getElementById('orderItemsBody').innerHTML = order.items.map(item => `
+            <tr>
+                <td>${item.product_name}</td>
+                <td>${item.product_code || '—'}</td>
+                <td>${item.qty}</td>
+                <td>${formatMoney(item.unit_price)}</td>
+                <td>${item.discount || 0}%</td>
+                <td>${formatMoney(item.line_amount)}</td>
+            </tr>`).join('');
+
+        document.getElementById('orderSubtotal').textContent = formatMoney(order.subtotal);
+        document.getElementById('orderCashDiscount').textContent = formatMoney(order.cash_discount);
+        document.getElementById('orderGrandTotal').textContent = formatMoney(order.grand_total);
+        document.getElementById('orderStatusSelect').value = order.status;
+        document.getElementById('orderStatusForm').action = ORDER_STATUS_URL_TEMPLATE.replace('/0/', '/' + orderId + '/');
+
+        document.getElementById('orderModalOverlay').classList.add('active');
+    }
+
+    function closeOrderModal() {
+        document.getElementById('orderModalOverlay').classList.remove('active');
+    }
+
+    document.getElementById('orderModalOverlay').addEventListener('click', function(e) {
+        if (e.target === this) closeOrderModal();
+    });
+
+    function filterOrdersTable() {
+        const query = document.getElementById('orderSearchInput').value.trim().toLowerCase();
+        const rows = document.querySelectorAll('#ordersTableBody tr');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const matches = !query || (row.dataset.search || '').includes(query);
+            row.style.display = matches ? '' : 'none';
+            if (matches) visibleCount++;
+        });
+
+        document.getElementById('ordersNoMatch').style.display = visibleCount === 0 ? 'block' : 'none';
+        document.getElementById('ordersCountLabel').textContent =
+            query ? `Orders (${visibleCount} of ${ORDERS_DATA.length})` : `All Orders (${ORDERS_DATA.length})`;
+    }
+</script>
+{% endblock %}

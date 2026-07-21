@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}EB Dental Supply{% endblock %} — Partner in Dentistry Since 1985</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/products.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+    {% include "partials/flash_messages.html" %}
+    {% include "partials/header.html" %}
+    {% include "partials/promo_banner.html" %}
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    {% include "partials/nav.html" %}
+    {% include "partials/footer.html" %}
+    {% include "partials/product_modal.html" %}
+    {% include "partials/quote_drawer.html" %}
+
+    <script>
+        // Whether the current visitor is allowed to use the "Add to Quote" cart at
+        // all - see can_quote() in auth.py. Real enforcement happens server-side
+        // (routers/orders.py on store-api); this only controls what the UI offers.
+        const CAN_QUOTE = {{ can_quote()|tojson }};
+        const IS_LOGGED_IN = {{ is_logged_in()|tojson }};
+        const CONTACT_URL = {{ url_for('main.contact')|tojson }};
+        const LOGIN_URL = {{ url_for('auth.login')|tojson }};
+        const QUOTE_SUBMIT_URL = {{ url_for('quote.submit')|tojson }};
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

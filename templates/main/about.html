@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}About Us{% endblock %}
+
+{% block content %}
+<div id="productPage">
+    <div class="container">
+        {% include "partials/hero_slider.html" %}
+        <div class="product-about-page" style="display:block; padding: 30px 0;">
+            <section class="eb-about-section">
+                <h2 class="section-title">About EB Dental Supply</h2>
+                <p>For over 40 years, EB Dental Supply has been a trusted partner for dental professionals across Cambodia and the region. We provide high-quality instruments, equipment, and consumables from the world's leading brands, ensuring that practitioners have access to the best tools for patient care.</p>
+
+                <div class="stats-grid">
+                    <div class="stat-item"><div class="number">40+</div><div class="label">Years of Excellence</div></div>
+                    <div class="stat-item"><div class="number">100+</div><div class="label">Trusted Brands</div></div>
+                    <div class="stat-item"><div class="number">5000+</div><div class="label">Happy Clinicians</div></div>
+                </div>
+
+                <div style="margin-top:30px;">
+                    <h3 style="font-size:1.2rem; font-weight:700; color:var(--text); margin-bottom:10px;">Our Mission</h3>
+                    <p style="color:var(--text-soft); line-height:1.8;">To empower dental professionals with innovative, reliable, and high-quality products that enhance patient care and practice efficiency.</p>
+
+                    <h3 style="font-size:1.2rem; font-weight:700; color:var(--text); margin-top:20px; margin-bottom:10px;">Our Vision</h3>
+                    <p style="color:var(--text-soft); line-height:1.8;">To be the leading dental supply partner in the region, recognized for our commitment to quality, integrity, and customer satisfaction.</p>
+                </div>
+
+                <div style="margin-top:32px;">
+                    <a class="btn-hero" href="{{ url_for('catalog.products_catalog') }}">
+                        <i class="fas fa-arrow-right"></i> Browse Our Products
+                    </a>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock %}
