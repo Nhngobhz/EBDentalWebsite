@@ -183,6 +183,16 @@ function formatPrice(value) {
     return '$' + value.toFixed(2);
 }
 
+/* A per-product/per-order-item discount is either a percent or a flat $ amount, per
+   discount_type (see Product.discount_type / OrderItem.discount_type). Used anywhere a
+   line-item discount is displayed: the quote drawer, the printed quote, and the admin
+   Orders view modal. Returns null (not a placeholder string) when there's no discount,
+   so callers can decide their own "no discount" wording. */
+function formatItemDiscount(discount, discountType) {
+    if (!discount) return null;
+    return discountType === 'cash' ? '$' + Number(discount).toFixed(2) : Number(discount) + '%';
+}
+
 /* ============================================================
    QUOTE CART — new feature.
    The original "Add to Quote" button existed with zero logic
@@ -262,6 +272,7 @@ const QuoteCart = {
                 price: product.price,
                 oldPrice: product.was_price || product.price,
                 discount: product.discount || 0,
+                discountType: product.discount_type || 'percent',
                 productType: product.product_type || 'single',
                 image: product.image || '',
                 qty: 1,
@@ -449,7 +460,7 @@ const QuoteCart = {
                         <span>${item.code || '—'}</span>
                         <span>${item.uom || 'PCS'}</span>
                         <span>$${item.price.toFixed(2)} ea</span>
-                        <span>${(item.discount || 0) > 0 ? `${item.discount}%` : 'No discount'}</span>
+                        <span>${formatItemDiscount(item.discount, item.discountType) || 'No discount'}</span>
                     </div>
                     <div class="quote-item-row-footer">
                         <div class="quote-item-controls">
@@ -496,7 +507,7 @@ const QuoteCart = {
                 <td class="qpt-num">${item.qty}</td>
                 <td class="qpt-num">${item.uom || 'PCS'}</td>
                 <td class="qpt-right">$ ${Number(item.unit_price).toFixed(2)}</td>
-                <td class="qpt-num">${(item.discount || 0)}%</td>
+                <td class="qpt-num">${formatItemDiscount(item.discount, item.discount_type) || '—'}</td>
                 <td class="qpt-right">$ ${Number(item.line_amount).toFixed(2)}</td>
             </tr>`).join('');
 

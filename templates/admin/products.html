@@ -47,7 +47,7 @@
                         {% if p.was_price %}<span style="text-decoration:line-through; color:var(--text-light); font-size:0.7rem;">{{ price(p.was_price) }}</span>{% endif %}
                     </td>
                     <td style="font-size:0.75rem;">{{ p.uom or 'PCS' }}</td>
-                    <td style="font-size:0.75rem;">{{ p.discount or 0 }}%</td>
+                    <td style="font-size:0.75rem;">{% if p.discount_type == 'cash' %}{{ price(p.discount) if p.discount else '$0.00' }}{% else %}{{ p.discount or 0 }}%{% endif %}</td>
                     <td style="white-space:nowrap;">
                         {% if has_permission('product_management') %}
                         <button type="button" class="btn-dash primary sm" onclick="openProductModal({{ p.id }})" title="Edit"><i class="fas fa-edit"></i></button>
@@ -85,11 +85,19 @@
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                 <div class="form-group" style="margin-bottom:12px;">
                     <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Price *</label>
-                    <input type="number" name="price" id="prodPrice" step="0.01" min="0.01" required style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                    <input type="number" name="price" id="prodPrice" step="0.01" min="0.01" required oninput="_syncCashDiscountMax('prod')" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
                 </div>
                 <div class="form-group" style="margin-bottom:12px;">
-                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Discount %</label>
-                    <input type="number" name="discount" id="prodDiscount" step="1" min="0" max="100" value="0" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Discount</label>
+                    <div style="display:flex; gap:6px;">
+                        <div class="discount-type-toggle" id="prodDiscountTypeToggle">
+                            <button type="button" class="discount-type-btn active" data-type="percent" onclick="setProductDiscountType('percent')">%</button>
+                            <button type="button" class="discount-type-btn" data-type="cash" onclick="setProductDiscountType('cash')">$</button>
+                        </div>
+                        <input type="number" name="discount" id="prodDiscount" step="1" min="0" max="100" value="0" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                    </div>
+                    <input type="hidden" name="discount_type" id="prodDiscountType" value="percent">
+                    <div id="prodDiscountHint" style="font-size:0.7rem;color:var(--text-light);margin-top:4px;display:none;"></div>
                 </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
@@ -164,11 +172,19 @@
         <form id="priceForm" method="post">
             <div class="form-group" style="margin-bottom:12px;">
                 <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Price</label>
-                <input type="number" name="price" id="priceOnlyPrice" step="0.01" min="0.01" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                <input type="number" name="price" id="priceOnlyPrice" step="0.01" min="0.01" oninput="_syncCashDiscountMax('priceOnly')" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
             </div>
             <div class="form-group" style="margin-bottom:12px;">
-                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Discount %</label>
-                <input type="number" name="discount" id="priceOnlyDiscount" step="1" min="0" max="100" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Discount</label>
+                <div style="display:flex; gap:6px;">
+                    <div class="discount-type-toggle" id="priceOnlyDiscountTypeToggle">
+                        <button type="button" class="discount-type-btn active" data-type="percent" onclick="setPriceOnlyDiscountType('percent')">%</button>
+                        <button type="button" class="discount-type-btn" data-type="cash" onclick="setPriceOnlyDiscountType('cash')">$</button>
+                    </div>
+                    <input type="number" name="discount" id="priceOnlyDiscount" step="1" min="0" max="100" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                </div>
+                <input type="hidden" name="discount_type" id="priceOnlyDiscountType" value="percent">
+                <div id="priceOnlyDiscountHint" style="font-size:0.7rem;color:var(--text-light);margin-top:4px;display:none;"></div>
             </div>
             <button type="submit" class="btn-dash primary" style="width:100%;padding:10px;font-size:0.9rem;justify-content:center;"><i class="fas fa-save"></i> Update Price</button>
         </form>
@@ -191,6 +207,63 @@
     const PRODUCT_PRICE_URL_TEMPLATE = {{ url_for('admin.products_price', product_id=0)|tojson }};
     {% endif %}
 
+    // Shared by the product modal's Discount field and the price-only quick modal -
+    // toggles the active %/$ button, the hidden discount_type input, and the number
+    // input's step/max (percent is capped at 100 and whole-number steps; cash is capped
+    // just under the current Price, since store-api rejects a cash discount that would
+    // equal or exceed price - see _validate_discount_against_price in
+    // routers/products.py). Keeping that ceiling visible/enforced client-side means a
+    // too-large cash discount gets caught immediately (native browser validation) instead
+    // of only after a round-trip that silently leaves the old value in place.
+    function _setDiscountTypeUI(prefix, type) {
+        document.getElementById(prefix + 'DiscountType').value = type;
+        document.getElementById(prefix + 'DiscountTypeToggle')?.querySelectorAll('.discount-type-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.type === type);
+        });
+        const input = document.getElementById(prefix + 'Discount');
+        if (input) {
+            input.step = type === 'cash' ? '0.01' : '1';
+        }
+        _syncCashDiscountMax(prefix);
+    }
+
+    function _syncCashDiscountMax(prefix) {
+        const type = document.getElementById(prefix + 'DiscountType')?.value;
+        const input = document.getElementById(prefix + 'Discount');
+        const hint = document.getElementById(prefix + 'DiscountHint');
+        if (!input) return;
+
+        if (type !== 'cash') {
+            input.max = '100';
+            if (hint) hint.style.display = 'none';
+            return;
+        }
+
+        const price = parseFloat(document.getElementById(prefix + 'Price')?.value);
+        if (Number.isFinite(price) && price > 0) {
+            const maxDiscount = Math.max(0, price - 0.01);
+            input.max = String(maxDiscount);
+            if (hint) {
+                hint.textContent = `Must be less than the price ($${price.toFixed(2)}).`;
+                hint.style.display = 'block';
+            }
+        } else {
+            input.removeAttribute('max');
+            if (hint) {
+                hint.textContent = 'Enter a price first to set the maximum cash discount.';
+                hint.style.display = 'block';
+            }
+        }
+    }
+
+    function setProductDiscountType(type) {
+        _setDiscountTypeUI('prod', type);
+    }
+
+    function setPriceOnlyDiscountType(type) {
+        _setDiscountTypeUI('priceOnly', type);
+    }
+
     function openProductModal(productId) {
         const product = productId ? PRODUCTS_DATA.find(p => p.id === productId) : null;
         const isEdit = !!product;
@@ -205,6 +278,7 @@
         document.getElementById('prodName').value = isEdit ? product.product_name : '';
         document.getElementById('prodDesc').value = isEdit ? (product.description || '') : '';
         document.getElementById('prodPrice').value = isEdit && typeof product.price === 'number' ? product.price : '';
+        _setDiscountTypeUI('prod', isEdit ? (product.discount_type || 'percent') : 'percent');
         document.getElementById('prodDiscount').value = isEdit ? (product.discount || 0) : 0;
         document.getElementById('prodCode').value = isEdit ? (product.product_code || '') : '';
         document.getElementById('prodUom').value = isEdit ? (product.uom || '') : '';
@@ -238,6 +312,7 @@
         if (!product) return;
         document.getElementById('priceModalTitle').textContent = 'Update Price - ' + product.product_name;
         document.getElementById('priceOnlyPrice').value = typeof product.price === 'number' ? product.price : '';
+        _setDiscountTypeUI('priceOnly', product.discount_type || 'percent');
         document.getElementById('priceOnlyDiscount').value = product.discount || 0;
         document.getElementById('priceForm').action = PRODUCT_PRICE_URL_TEMPLATE.replace('/0/', '/' + productId + '/');
         document.getElementById('priceModalOverlay').classList.add('active');

@@ -29,7 +29,8 @@ def _product_form_payload():
     if price:
         payload["price"] = price
     if discount:
-        payload["discount"] = int(discount)
+        payload["discount_type"] = request.form.get("discount_type") or "percent"
+        payload["discount"] = discount
     return payload
 
 
@@ -95,7 +96,8 @@ def products_price(product_id):
     if price:
         payload["price"] = price
     if discount:
-        payload["discount"] = int(discount)
+        payload["discount_type"] = request.form.get("discount_type") or "percent"
+        payload["discount"] = discount
 
     client = get_api_client()
     try:

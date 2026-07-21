@@ -72,6 +72,8 @@
             uom: {{ product.uom|tojson }},
             price: {{ product.price|tojson }},
             discount: {{ (product.discount or 0)|tojson }},
+            discount_type: {{ (product.discount_type or 'percent')|tojson }},
+            product_type: {{ (product.product_type or 'single')|tojson }},
             was_price: {{ product.was_price|tojson }},
             image: {{ img(product.product_image)|tojson }},
         }, { clearExisting: shouldClearExisting });

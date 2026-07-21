@@ -78,17 +78,20 @@ def format_price(value):
         return ""
 
 
-def derive_old_price(price, discount):
-    """Product only stores the final `price` + an integer `discount` percent - there is
-    no absolute original price stored server-side (unlike Promotion, which keeps a real
-    old_price). Reconstruct one for "was $X" display, only when there's an actual
-    discount and price is a real (unmasked) number."""
+def derive_old_price(price, discount, discount_type="percent"):
+    """Product only stores the final `price` + a `discount` (percent or cash, per
+    discount_type) - there is no absolute original price stored server-side (unlike
+    Promotion, which keeps a real old_price). Reconstruct one for "was $X" display, only
+    when there's an actual discount and price is a real (unmasked) number."""
     if not discount or price is None or is_masked(price):
         return None
     try:
         price = float(price)
+        discount = float(discount)
     except (TypeError, ValueError):
         return None
+    if discount_type == "cash":
+        return price + discount
     if discount >= 100:
         return None
     return price / (1 - discount / 100)
@@ -110,7 +113,10 @@ def format_date(value, fmt="%b %d, %Y"):
 def adapt_product(product):
     product = dict(product)
     product["price"] = to_number(product.get("price"))
-    product["was_price"] = derive_old_price(product["price"], product.get("discount"))
+    product["discount"] = to_number(product.get("discount"))
+    product["was_price"] = derive_old_price(
+        product["price"], product["discount"], product.get("discount_type", "percent")
+    )
     return product
 
 
@@ -131,6 +137,7 @@ def adapt_order(order):
         {
             **item,
             "unit_price": to_number(item.get("unit_price")),
+            "discount": to_number(item.get("discount")),
             "line_amount": to_number(item.get("line_amount")),
         }
         for item in order.get("items", [])

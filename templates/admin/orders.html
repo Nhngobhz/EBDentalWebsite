@@ -144,7 +144,7 @@
                 <td>${item.product_code || '—'}</td>
                 <td>${item.qty}</td>
                 <td>${formatMoney(item.unit_price)}</td>
-                <td>${item.discount || 0}%</td>
+                <td>${formatItemDiscount(item.discount, item.discount_type) || '—'}</td>
                 <td>${formatMoney(item.line_amount)}</td>
             </tr>`).join('');
 
