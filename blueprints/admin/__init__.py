@@ -23,6 +23,7 @@ from blueprints.admin import (  # noqa: E402
     categories,
     customers,
     dashboard,
+    manuals,
     orders,
     products,
     promotions,

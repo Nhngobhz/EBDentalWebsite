@@ -123,7 +123,8 @@ def adapt_promotion(promotion):
 
 def adapt_order(order):
     order = dict(order)
-    order["cash_discount"] = to_number(order.get("cash_discount"))
+    order["discount_value"] = to_number(order.get("discount_value"))
+    order["discount_amount"] = to_number(order.get("discount_amount"))
     order["subtotal"] = to_number(order.get("subtotal"))
     order["grand_total"] = to_number(order.get("grand_total"))
     order["items"] = [

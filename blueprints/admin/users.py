@@ -74,6 +74,25 @@ def users_edit(user_id):
     return redirect(url_for("admin.users"))
 
 
+@admin_bp.route("/users/<int:user_id>/password", methods=["POST"])
+@permission_required("user_management")
+def users_set_password(user_id):
+    new_password = request.form.get("new_password", "")
+    if not new_password or len(new_password) < 8:
+        flash("New password must be at least 8 characters.", "error")
+        return redirect(url_for("admin.users"))
+
+    client = get_api_client()
+    try:
+        client.put_json(f"/users/{user_id}/password", {"new_password": new_password})
+    except StoreAPIError as e:
+        flash(e.detail, "error")
+        return redirect(url_for("admin.users"))
+
+    flash("Password updated.", "success")
+    return redirect(url_for("admin.users"))
+
+
 @admin_bp.route("/users/<int:user_id>/delete", methods=["POST"])
 @permission_required("user_management")
 def users_delete(user_id):

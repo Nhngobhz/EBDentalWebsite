@@ -1,0 +1,169 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block title %}Product Manuals{% endblock %}
+{% block admin_page_title %}Product Manuals{% endblock %}
+
+{% block admin_content %}
+<div class="page-title"><i class="fas fa-book"></i> Product Manuals</div>
+<p class="page-sub">PDF manuals attached to a product - shown on that product's detail page.</p>
+
+<div class="dash-card">
+    <div class="card-header">
+        <h5 id="manualsCountLabel">All Manuals ({{ manuals|length }})</h5>
+        <div class="card-actions">
+            <div class="search-box-dash">
+                <i class="fas fa-search"></i>
+                <input type="text" id="manualSearchInput" class="search-input-dash" placeholder="Search manuals..." oninput="filterManualsTable()">
+            </div>
+            <button type="button" class="btn-dash primary" onclick="openManualModal()"><i class="fas fa-plus"></i> Add Manual</button>
+        </div>
+    </div>
+    <div class="card-body" style="padding:0;">
+        {% if manuals|length == 0 %}
+        <div class="empty-state"><i class="fas fa-book"></i> No manuals found.</div>
+        {% else %}
+        <table>
+            <thead>
+                <tr><th>Thumbnail</th><th>Product</th><th>Description</th><th>PDF</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="manualsTableBody">
+                {% for m in manuals %}
+                <tr data-search="{{ ((m.product.product_name if m.product else '') ~ ' ' ~ (m.description or ''))|lower }}">
+                    <td>
+                        <img src="{{ img(m.manual_image) }}"
+                             style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid var(--border);" />
+                    </td>
+                    <td><strong>{{ m.product.product_name if m.product else '—' }}</strong></td>
+                    <td style="font-size:0.75rem; color:var(--text-light); max-width:280px;">{{ m.description or '—' }}</td>
+                    <td style="font-size:0.75rem;">
+                        {% if m.pdf %}
+                        <a href="{{ file_url(m.pdf) }}" target="_blank" rel="noopener"><i class="fas fa-file-pdf"></i> View PDF</a>
+                        {% else %}
+                        <span style="color:var(--text-light);">No PDF</span>
+                        {% endif %}
+                    </td>
+                    <td style="white-space:nowrap;">
+                        <button type="button" class="btn-dash primary sm" onclick="openManualModal({{ m.id }})" title="Edit"><i class="fas fa-edit"></i></button>
+                        <form method="post" action="{{ url_for('admin.manuals_delete', manual_id=m.id) }}" style="display:inline;" onsubmit="return confirm('Delete this manual?');">
+                            <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="empty-state" id="manualsNoMatch" style="display:none;"><i class="fas fa-search"></i> No manuals match your search.</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add/Edit Manual Modal -->
+<div class="dash-modal-overlay" id="manualModalOverlay">
+    <div class="dash-modal-box">
+        <button type="button" class="dash-modal-close" onclick="closeManualModal()"><i class="fas fa-times"></i></button>
+        <h3 class="dash-modal-title" id="manualModalTitle">Add Manual</h3>
+        <form id="manualForm" method="post" enctype="multipart/form-data">
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Product *</label>
+                <select name="product_id" id="manualProduct" required style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                    <option value="">Select a product</option>
+                    {% for p in products %}
+                    <option value="{{ p.id }}">{{ p.product_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Description</label>
+                <textarea name="description" id="manualDescription" rows="3" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;resize:vertical;background:var(--surface);color:var(--text);"></textarea>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">PDF File</label>
+                <input type="file" name="pdf" id="manualPdfFile" accept="application/pdf" style="width:100%;font-size:0.8rem;">
+                <div id="manualPdfCurrent" style="font-size:0.7rem;color:var(--text-light);margin-top:4px;display:none;">
+                    Current: <a href="#" id="manualPdfCurrentLink" target="_blank" rel="noopener">View existing PDF</a> (upload a new file to replace it)
+                </div>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Thumbnail Image</label>
+                <input type="file" name="image" id="manualImageFile" accept="image/png,image/jpeg,image/webp,image/gif" style="width:100%;font-size:0.8rem;">
+                <img id="manualImagePreview" src="" alt="" style="display:none; margin-top:8px; width:70px; height:70px; border-radius:8px; object-fit:cover; border:1px solid var(--border);">
+            </div>
+            <button type="submit" class="btn-dash primary" style="width:100%;padding:10px;font-size:0.9rem;justify-content:center;margin-top:4px;" id="manualModalSubmitBtn">
+                <i class="fas fa-save"></i> Add Manual
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    {% set manuals_json = [] %}
+    {% for m in manuals %}
+    {% set _ = manuals_json.append(dict(m, image=img(m.manual_image), pdf_url=file_url(m.pdf))) %}
+    {% endfor %}
+    const MANUALS_DATA = {{ manuals_json|tojson }};
+    const MANUAL_NEW_URL = {{ url_for('admin.manuals_new')|tojson }};
+
+    function openManualModal(manualId) {
+        const manual = manualId ? MANUALS_DATA.find(m => m.id === manualId) : null;
+        const isEdit = !!manual;
+
+        document.getElementById('manualModalTitle').textContent = isEdit ? 'Edit Manual' : 'Add Manual';
+        document.getElementById('manualModalSubmitBtn').innerHTML =
+            '<i class="fas fa-save"></i> ' + (isEdit ? 'Update Manual' : 'Add Manual');
+        document.getElementById('manualForm').action = isEdit
+            ? MANUAL_NEW_URL.replace(/\/new$/, '/' + manualId + '/edit')
+            : MANUAL_NEW_URL;
+
+        document.getElementById('manualProduct').value = isEdit && manual.product ? manual.product.id : '';
+        document.getElementById('manualDescription').value = isEdit ? (manual.description || '') : '';
+        document.getElementById('manualPdfFile').value = '';
+        document.getElementById('manualImageFile').value = '';
+
+        const pdfCurrent = document.getElementById('manualPdfCurrent');
+        if (isEdit && manual.pdf_url) {
+            document.getElementById('manualPdfCurrentLink').href = manual.pdf_url;
+            pdfCurrent.style.display = 'block';
+        } else {
+            pdfCurrent.style.display = 'none';
+        }
+
+        const preview = document.getElementById('manualImagePreview');
+        if (isEdit && manual.manual_image) {
+            preview.src = manual.image;
+            preview.style.display = '';
+        } else {
+            preview.style.display = 'none';
+        }
+
+        document.getElementById('manualModalOverlay').classList.add('active');
+    }
+
+    function closeManualModal() {
+        document.getElementById('manualModalOverlay')?.classList.remove('active');
+    }
+
+    document.getElementById('manualModalOverlay')?.addEventListener('click', function(e) {
+        if (e.target === this) closeManualModal();
+    });
+
+    function filterManualsTable() {
+        const query = document.getElementById('manualSearchInput').value.trim().toLowerCase();
+        const rows = document.querySelectorAll('#manualsTableBody tr');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const matches = !query || (row.dataset.search || '').includes(query);
+            row.style.display = matches ? '' : 'none';
+            if (matches) visibleCount++;
+        });
+
+        const noMatch = document.getElementById('manualsNoMatch');
+        if (noMatch) noMatch.style.display = visibleCount === 0 ? 'block' : 'none';
+
+        document.getElementById('manualsCountLabel').textContent =
+            query ? `Manuals (${visibleCount} of ${MANUALS_DATA.length})` : `All Manuals (${MANUALS_DATA.length})`;
+    }
+</script>
+{% endblock %}

@@ -27,8 +27,8 @@
             </thead>
             <tbody id="ordersTableBody">
                 {% for o in orders %}
-                <tr data-search="{{ (o.order_number ~ ' ' ~ (o.clinic_name or '') ~ ' ' ~ (o.contact_person or ''))|lower }}">
-                    <td><strong>{{ o.order_number }}</strong></td>
+                <tr data-search="{{ (o.order_number ~ ' ' ~ o.quote_code ~ ' ' ~ (o.clinic_name or '') ~ ' ' ~ (o.contact_person or ''))|lower }}">
+                    <td><strong>{{ o.order_number }}</strong><br><span style="font-size:0.65rem;color:var(--text-light);">{{ o.quote_code }}</span></td>
                     <td>
                         {{ o.clinic_name or '—' }}
                         {% if o.contact_person %}<br><span style="font-size:0.7rem;color:var(--text-light);">{{ o.contact_person }}</span>{% endif %}
@@ -37,7 +37,7 @@
                     <td>{{ o['items']|length }}</td>
                     <td>{{ price(o.grand_total) }}</td>
                     <td>
-                        <span class="badge-dash" style="text-transform:capitalize;">{{ o.status }}</span>
+                        <span class="status-badge status-{{ o.status }}">{{ o.status }}</span>
                     </td>
                     <td style="font-size:0.7rem; white-space:nowrap;">{{ format_date(o.created_at) }}</td>
                     <td style="white-space:nowrap;">
@@ -57,39 +57,53 @@
 
 <!-- View Order Modal -->
 <div class="dash-modal-overlay" id="orderModalOverlay">
-    <div class="dash-modal-box" style="max-width:640px;">
+    <div class="dash-modal-box" style="max-width:700px;">
         <button type="button" class="dash-modal-close" onclick="closeOrderModal()"><i class="fas fa-times"></i></button>
-        <h3 class="dash-modal-title" id="orderModalTitle">Order</h3>
 
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:0.8rem; margin-bottom:14px;">
-            <div><strong>Clinic:</strong> <span id="orderClinic"></span></div>
-            <div><strong>Contact:</strong> <span id="orderContact"></span></div>
-            <div><strong>Phone:</strong> <span id="orderPhone"></span></div>
-            <div><strong>Address:</strong> <span id="orderAddress"></span></div>
-            <div><strong>Payment Term:</strong> <span id="orderPaymentTerm"></span></div>
-            <div><strong>Salesperson:</strong> <span id="orderSalesperson"></span></div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:4px; padding-right:24px;">
+            <h3 class="dash-modal-title" id="orderModalTitle" style="margin-bottom:0;">Order</h3>
+            <span class="status-badge" id="orderStatusBadge"></span>
+        </div>
+        <div style="font-size:0.7rem; color:var(--text-light); margin-bottom:16px;">C. Code: <strong id="orderQuoteCode"></strong></div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px 20px; font-size:0.8rem; margin-bottom:16px; background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:14px 16px;">
+            <div><span style="color:var(--text-light);"><i class="fas fa-hospital fa-fw"></i> Clinic</span><br><strong id="orderClinic"></strong></div>
+            <div><span style="color:var(--text-light);"><i class="fas fa-user fa-fw"></i> Contact</span><br><strong id="orderContact"></strong></div>
+            <div><span style="color:var(--text-light);"><i class="fas fa-phone fa-fw"></i> Phone</span><br><strong id="orderPhone"></strong></div>
+            <div><span style="color:var(--text-light);"><i class="fas fa-map-marker-alt fa-fw"></i> Address</span><br><strong id="orderAddress"></strong></div>
+            <div><span style="color:var(--text-light);"><i class="fas fa-file-invoice-dollar fa-fw"></i> Payment Term</span><br><strong id="orderPaymentTerm"></strong></div>
+            <div><span style="color:var(--text-light);"><i class="fas fa-truck fa-fw"></i> Installation Term</span><br><strong id="orderInstallTerm"></strong></div>
+            <div><span style="color:var(--text-light);"><i class="fas fa-user-tie fa-fw"></i> Salesperson</span><br><strong id="orderSalesperson"></strong></div>
+            <div><span style="color:var(--text-light);"><i class="fas fa-user-check fa-fw"></i> Quoted By</span><br><strong id="orderQuotedBy"></strong></div>
         </div>
 
-        <table style="width:100%; font-size:0.8rem; margin-bottom:12px;">
-            <thead><tr><th>Product</th><th>Code</th><th>Qty</th><th>Unit Price</th><th>Discount</th><th>Amount</th></tr></thead>
-            <tbody id="orderItemsBody"></tbody>
-        </table>
-
-        <div style="text-align:right; font-size:0.85rem; margin-bottom:16px;">
-            <div>Subtotal: <strong id="orderSubtotal"></strong></div>
-            <div>Cash Discount: <strong id="orderCashDiscount"></strong></div>
-            <div style="font-size:1rem;">Grand Total: <strong id="orderGrandTotal"></strong></div>
+        <div class="dash-card" style="margin-bottom:14px;">
+            <div class="card-body" style="padding:0;">
+                <table>
+                    <thead><tr><th>Product</th><th>Code</th><th>Qty</th><th>Unit Price</th><th>Discount</th><th>Amount</th></tr></thead>
+                    <tbody id="orderItemsBody"></tbody>
+                </table>
+            </div>
         </div>
 
-        <form id="orderStatusForm" method="post" style="display:flex; gap:8px;">
-            <select name="status" id="orderStatusSelect" style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
-                <option value="pending">Pending</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="delivered">Delivered</option>
-                <option value="cancelled">Cancelled</option>
-            </select>
-            <button type="submit" class="btn-dash primary"><i class="fas fa-save"></i> Update Status</button>
-        </form>
+        <div class="quote-summary-rows" style="margin-bottom:16px;">
+            <div class="quote-summary-row"><span>Sub-Total</span><span id="orderSubtotal"></span></div>
+            <div class="quote-summary-row"><span id="orderDiscountLabel">Discount</span><span id="orderDiscountAmount"></span></div>
+            <div class="quote-summary-row quote-grand-total-row"><span>Grand Total</span><span id="orderGrandTotal"></span></div>
+        </div>
+
+        <div style="display:flex; gap:8px;">
+            <form id="orderStatusForm" method="post" style="display:flex; gap:8px; flex:1;">
+                <select name="status" id="orderStatusSelect" style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                    <option value="pending">Pending</option>
+                    <option value="confirmed">Confirmed</option>
+                    <option value="delivered">Delivered</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+                <button type="submit" class="btn-dash primary"><i class="fas fa-save"></i> Update Status</button>
+            </form>
+            <button type="button" class="btn-dash" id="orderPrintBtn" onclick="printOrder(currentOrderId)"><i class="fas fa-print"></i> Print</button>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -98,6 +112,7 @@
 <script>
     const ORDERS_DATA = {{ orders|tojson }};
     const ORDER_STATUS_URL_TEMPLATE = {{ url_for('admin.orders_status', order_id=0)|tojson }};
+    let currentOrderId = null;
 
     function formatMoney(value) {
         return typeof value === 'number' ? '$' + value.toFixed(2) : (value || '—');
@@ -106,14 +121,22 @@
     function openOrderModal(orderId) {
         const order = ORDERS_DATA.find(o => o.id === orderId);
         if (!order) return;
+        currentOrderId = orderId;
 
         document.getElementById('orderModalTitle').textContent = 'Order ' + order.order_number;
+        document.getElementById('orderQuoteCode').textContent = order.quote_code;
+        const statusBadge = document.getElementById('orderStatusBadge');
+        statusBadge.textContent = order.status;
+        statusBadge.className = 'status-badge status-' + order.status;
+
         document.getElementById('orderClinic').textContent = order.clinic_name || '—';
         document.getElementById('orderContact').textContent = order.contact_person || '—';
         document.getElementById('orderPhone').textContent = order.phone || '—';
         document.getElementById('orderAddress').textContent = order.address || '—';
         document.getElementById('orderPaymentTerm').textContent = order.payment_term || '—';
+        document.getElementById('orderInstallTerm').textContent = order.install_term || '—';
         document.getElementById('orderSalesperson').textContent = order.salesperson || '—';
+        document.getElementById('orderQuotedBy').textContent = order.quoted_by_name || '—';
 
         document.getElementById('orderItemsBody').innerHTML = order.items.map(item => `
             <tr>
@@ -126,7 +149,10 @@
             </tr>`).join('');
 
         document.getElementById('orderSubtotal').textContent = formatMoney(order.subtotal);
-        document.getElementById('orderCashDiscount').textContent = formatMoney(order.cash_discount);
+        document.getElementById('orderDiscountLabel').textContent = order.discount_type === 'cash'
+            ? 'Discount (Cash)'
+            : `Discount (${order.discount_value}%)`;
+        document.getElementById('orderDiscountAmount').textContent = formatMoney(order.discount_amount);
         document.getElementById('orderGrandTotal').textContent = formatMoney(order.grand_total);
         document.getElementById('orderStatusSelect').value = order.status;
         document.getElementById('orderStatusForm').action = ORDER_STATUS_URL_TEMPLATE.replace('/0/', '/' + orderId + '/');
@@ -136,6 +162,26 @@
 
     function closeOrderModal() {
         document.getElementById('orderModalOverlay').classList.remove('active');
+    }
+
+    // Re-generates the same PDF as the original customer/staff download, straight from
+    // the already-placed order's data - no resubmission, no new store-api endpoint (see
+    // QuoteCart.buildPrintTemplate/exportPDF in main.js).
+    async function printOrder(orderId) {
+        const order = ORDERS_DATA.find(o => o.id === orderId);
+        if (!order) return;
+
+        const btn = document.getElementById('orderPrintBtn');
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+        try {
+            QuoteCart.buildPrintTemplate(order);
+            await QuoteCart.exportPDF(order.quote_code);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
     }
 
     document.getElementById('orderModalOverlay').addEventListener('click', function(e) {

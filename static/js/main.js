@@ -201,7 +201,8 @@ function formatPrice(value) {
 const QuoteCart = {
     STORAGE_KEY: 'eb_quote_cart',
     INFO_KEY: 'eb_quote_customer_info',
-    CASH_DISCOUNT_KEY: 'eb_quote_cash_discount',
+    DISCOUNT_TYPE_KEY: 'eb_quote_discount_type',
+    DISCOUNT_VALUE_KEY: 'eb_quote_discount_value',
     addMoreMode: false,
 
     // ---- line items ----
@@ -220,7 +221,8 @@ const QuoteCart = {
     clearDraft() {
         localStorage.removeItem(this.STORAGE_KEY);
         localStorage.removeItem(this.INFO_KEY);
-        localStorage.removeItem(this.CASH_DISCOUNT_KEY);
+        localStorage.removeItem(this.DISCOUNT_TYPE_KEY);
+        localStorage.removeItem(this.DISCOUNT_VALUE_KEY);
     },
 
     setAddMoreMode(value) {
@@ -249,6 +251,9 @@ const QuoteCart = {
             // (set by admin) — salespeople only ever adjust qty on the quote.
             // was_price is the reconstructed pre-discount price; price is what's
             // actually charged (admin already applied the discount to it).
+            // productType is kept so the local discount preview (getDiscountAmount)
+            // can mirror the server's promotional-product exemption - see
+            // routers/orders.py::create_order's discountable_subtotal.
             items.push({
                 id: product.id,
                 name: product.product_name,
@@ -257,6 +262,7 @@ const QuoteCart = {
                 price: product.price,
                 oldPrice: product.was_price || product.price,
                 discount: product.discount || 0,
+                productType: product.product_type || 'single',
                 image: product.image || '',
                 qty: 1,
             });
@@ -305,23 +311,50 @@ const QuoteCart = {
         return this.getItems().reduce((sum, i) => sum + i.qty, 0);
     },
 
-    // ---- discount by cash ----
-    // A flat $ amount off the whole quote — separate from each product's own
-    // % discount (already baked into its unit price by admin). Defaults to 0,
-    // meaning Grand Total just equals Sub-Total.
-    getCashDiscount() {
-        const v = parseFloat(localStorage.getItem(this.CASH_DISCOUNT_KEY));
-        return Number.isNaN(v) ? 0 : Math.max(0, v);
+    // ---- order-level discount (percent or cash) ----
+    // Separate from each product's own % discount (already baked into its unit price by
+    // admin). Cash is staff-only (product_management) - the <select> in quote_drawer.html
+    // only renders that option for staff who hold it, and the server independently
+    // enforces the same rule (see routers/orders.py::create_order) since this is only a
+    // client-side preview, not the source of truth.
+    getDiscountType() {
+        const v = localStorage.getItem(this.DISCOUNT_TYPE_KEY);
+        return v === 'cash' ? 'cash' : 'percent';
     },
 
-    saveCashDiscount(value) {
-        const v = Math.max(0, parseFloat(value) || 0);
-        localStorage.setItem(this.CASH_DISCOUNT_KEY, String(v));
+    saveDiscountType(value) {
+        localStorage.setItem(this.DISCOUNT_TYPE_KEY, value === 'cash' ? 'cash' : 'percent');
         this.updateSummary();
     },
 
+    getDiscountValue() {
+        const v = parseFloat(localStorage.getItem(this.DISCOUNT_VALUE_KEY));
+        return Number.isNaN(v) ? 0 : Math.max(0, v);
+    },
+
+    saveDiscountValue(value) {
+        const v = Math.max(0, parseFloat(value) || 0);
+        localStorage.setItem(this.DISCOUNT_VALUE_KEY, String(v));
+        this.updateSummary();
+    },
+
+    // Promotional products carry a fixed promo price - the order-level discount below
+    // never applies to them, mirroring create_order's discountable_subtotal server-side.
+    getDiscountableTotal() {
+        return this.getItems().reduce(
+            (sum, i) => sum + (i.productType === 'promotional' ? 0 : this.lineAmount(i)), 0
+        );
+    },
+
+    getDiscountAmount() {
+        const base = this.getDiscountableTotal();
+        const value = this.getDiscountValue();
+        if (this.getDiscountType() === 'percent') return base * Math.min(value, 100) / 100;
+        return Math.min(value, base);
+    },
+
     getGrandTotal() {
-        return Math.max(0, this.getTotal() - this.getCashDiscount());
+        return Math.max(0, this.getTotal() - this.getDiscountAmount());
     },
 
     updateSummary() {
@@ -360,13 +393,10 @@ const QuoteCart = {
             const el = document.getElementById(id);
             if (el) el.value = info[key] || '';
         };
-        setVal('qiCode', 'code');
         setVal('qiClinic', 'clinic');
         setVal('qiTel', 'tel');
         setVal('qiAddress', 'address');
         setVal('qiPaymentTerm', 'paymentTerm');
-        setVal('qiSalesperson', 'salesperson');
-        setVal('qiUser', 'user');
         setVal('qiInstallTerm', 'installTerm');
         setVal('qiContactPerson', 'contactPerson');
     },
@@ -392,8 +422,10 @@ const QuoteCart = {
         this.renderInfoForm();
         this.updateSummary();
 
-        const cashDiscountInput = document.getElementById('quoteCashDiscount');
-        if (cashDiscountInput) cashDiscountInput.value = this.getCashDiscount();
+        const discountTypeSelect = document.getElementById('quoteDiscountType');
+        if (discountTypeSelect) discountTypeSelect.value = this.getDiscountType();
+        const discountValueInput = document.getElementById('quoteDiscountValue');
+        if (discountValueInput) discountValueInput.value = this.getDiscountValue();
 
         const itemsEl = document.getElementById('quoteDrawerItems');
         if (!itemsEl) return;
@@ -432,37 +464,192 @@ const QuoteCart = {
             </div>`).join('');
     },
 
-    // ---- PDF export ----
-    // Submits the cart to POST /quote/submit first - this creates a real store-api
-    // Order (server re-prices every line from the current Product row, never trusting
-    // what the browser sends - see routers/orders.py) - then builds the hidden
-    // #quotePrintTemplate to mirror the official EB Dental quotation layout using the
-    // SERVER's confirmed order_number/prices/totals, not locally-computed ones, and
-    // snapshots it with html2canvas so Khmer text renders correctly (jsPDF's built-in
-    // fonts can't draw Khmer glyphs). The snapshot is sliced across pages if it's
-    // taller than one A4 page.
+    // ---- print template + PDF export ----
+    // Split into two reusable pieces so an already-placed order can be re-printed later
+    // (see the admin Orders page's Print button) without resubmitting anything:
+    //   buildPrintTemplate(order) - pure: fills #quotePrintTemplate purely from a server
+    //     Order object (quote_code/clinic_name/.../items/discount_amount/grand_total) -
+    //     never from local cart/info state, so a reprint always matches what's actually
+    //     on record.
+    //   exportPDF(filenameSuffix) - snapshots the already-filled template with
+    //     html2canvas (needed for Khmer glyphs, which jsPDF's built-in fonts can't draw)
+    //     and saves it as a PDF, sliced across pages if taller than one A4 page.
+    _formatQuoteDate(iso) {
+        const d = iso ? new Date(iso) : new Date();
+        return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+    },
+
+    buildPrintTemplate(order) {
+        const discountLabel = order.discount_type === 'cash'
+            ? 'Discount (Cash):'
+            : `Discount (${Number(order.discount_value || 0)}%):`;
+
+        // "UP before & After Discount" — UP is the ORIGINAL price (unit_price before
+        // this line's discount was applied), Discount is the %, and Amount
+        // (line_amount) is the price actually charged × qty. All four come straight
+        // from the server's response, so the PDF always matches what was recorded.
+        const rows = order.items.map((item, i) => `
+            <tr>
+                <td class="qpt-num">${i + 1}</td>
+                <td>${item.product_code || '—'}</td>
+                <td>${item.product_name}</td>
+                <td class="qpt-num">${item.qty}</td>
+                <td class="qpt-num">${item.uom || 'PCS'}</td>
+                <td class="qpt-right">$ ${Number(item.unit_price).toFixed(2)}</td>
+                <td class="qpt-num">${(item.discount || 0)}%</td>
+                <td class="qpt-right">$ ${Number(item.line_amount).toFixed(2)}</td>
+            </tr>`).join('');
+
+        // Pad the table with blank rows so it always looks like a full,
+        // pre-printed form (like the paper original) even when there are
+        // only a few items on the quote.
+        const MIN_TABLE_ROWS = 22;
+        const blankRowsNeeded = Math.max(0, MIN_TABLE_ROWS - order.items.length);
+        const blankRows = Array.from({ length: blankRowsNeeded }).map(() => `
+            <tr class="qpt-blank-row">
+                <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+            </tr>`).join('');
+
+        const template = document.getElementById('quotePrintTemplate');
+        template.innerHTML = `
+            <div class="qpt-header">
+                <div>
+                    <div class="qpt-brand-name">EB DENTAL</div>
+                    <div class="qpt-brand-meta">
+                        Phnom Penh, Cambodia<br>
+                        Tel: 012 81 89 58 / 011 81 89 58
+                    </div>
+                </div>
+                <div>
+                    <div class="qpt-title">Quotation</div>
+                    <div class="qpt-meta-right">
+                        No : <b>${order.order_number}</b><br>
+                        Date: <b>${this._formatQuoteDate(order.created_at)}</b>
+                    </div>
+                </div>
+            </div>
+
+            <div class="qpt-info-block">
+                <div class="qpt-info-col">
+                    <div class="qpt-info-row"><span class="qpt-info-label">C. Code</span><span class="qpt-info-value">${order.quote_code || '—'}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Clinic</span><span class="qpt-info-value qpt-khmer">${order.clinic_name || '—'}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Contact Tel</span><span class="qpt-info-value">${order.phone || '—'}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Address</span><span class="qpt-info-value qpt-khmer">${order.address || '—'}</span></div>
+                </div>
+                <div class="qpt-info-col">
+                    <div class="qpt-info-row"><span class="qpt-info-label">Payment Term</span><span class="qpt-info-value">${order.payment_term || 'COD'}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Salesperson</span><span class="qpt-info-value">${order.salesperson || '—'}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">User</span><span class="qpt-info-value">${order.quoted_by_name || '—'}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Installation Term</span><span class="qpt-info-value">${order.install_term || 'Free within Phnom Penh'}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Contact Person</span><span class="qpt-info-value">${order.contact_person || '—'}</span></div>
+                </div>
+            </div>
+
+            <table class="qpt-table">
+                <thead>
+                    <tr>
+                        <th rowspan="2">No.</th>
+                        <th rowspan="2">Code</th>
+                        <th rowspan="2">Description</th>
+                        <th rowspan="2">Qty</th>
+                        <th rowspan="2">UOM</th>
+                        <th colspan="2">UP before &amp; After Discount</th>
+                        <th rowspan="2">Amount</th>
+                    </tr>
+                    <tr><th></th><th></th></tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                    ${blankRows}
+                    <tr class="qpt-total-row qpt-subtotal-row">
+                        <td colspan="6" class="qpt-validity" rowspan="3">Quotation valid for <b>30 days</b> from the date issued.</td>
+                        <td>Sub-Total($):</td>
+                        <td class="qpt-right">$ ${Number(order.subtotal).toFixed(2)}</td>
+                    </tr>
+                    <tr class="qpt-total-row">
+                        <td>${discountLabel}</td>
+                        <td class="qpt-right">$ ${Number(order.discount_amount).toFixed(2)}</td>
+                    </tr>
+                    <tr class="qpt-total-row qpt-grand-total-row">
+                        <td>Grand Total:</td>
+                        <td class="qpt-right">$ ${Number(order.grand_total).toFixed(2)}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="qpt-sign-strip">
+                <div class="qpt-sign-col"><div class="qpt-sign-line qpt-khmer">ទទួលប្រាក់ដោយ<br>Cash received by</div></div>
+                <div class="qpt-sign-col"><div class="qpt-sign-line qpt-khmer">ទទួលដោយ<br>Received by</div></div>
+                <div class="qpt-sign-col"><div class="qpt-sign-line qpt-khmer">ដឹកដោយ<br>Delivered by</div></div>
+                <div class="qpt-sign-col"><div class="qpt-sign-line qpt-khmer">បញ្ជូនដោយ<br>Issued by</div></div>
+                <div class="qpt-sign-col"><div class="qpt-sign-line qpt-khmer">រៀបចំដោយ<br>Prepared by</div></div>
+            </div>
+        `;
+    },
+
+    async exportPDF(filenameSuffix) {
+        const template = document.getElementById('quotePrintTemplate');
+
+        // Give web fonts a beat to be ready before the snapshot.
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+
+        const canvas = await html2canvas(template, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+        const imgData = canvas.toDataURL('image/png');
+
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        const imgWidth = pdfWidth;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+        let heightLeft = imgHeight;
+        let position = 0;
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pdfHeight;
+
+        while (heightLeft > 0) {
+            position = heightLeft - imgHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pdfHeight;
+        }
+
+        pdf.save('EB-Dental-Quotation-' + filenameSuffix + '.pdf');
+    },
+
+    // Submits the cart to POST /quote/submit - this creates a real store-api Order
+    // (server re-prices every line, derives salesperson/quoted_by_name, and computes the
+    // discount itself - never trusting what the browser sends, see routers/orders.py) -
+    // then builds and downloads the PDF from that server response.
     async downloadPDF() {
         const items = this.getItems();
         if (items.length === 0) return;
+
+        const info = this.getInfo();
+        if (!info.clinic || !info.tel || !info.address) {
+            alert('Please fill in Clinic, Contact Tel, and Address before downloading the quote.');
+            document.getElementById('quoteInfoForm')?.classList.remove('collapsed');
+            return;
+        }
 
         const btn = document.getElementById('quoteDownloadPdfBtn');
         if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting order...'; }
 
         let order;
         try {
-            const info = this.getInfo();
             const response = await fetch(QUOTE_SUBMIT_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    clinic_name: info.clinic || null,
+                    clinic_name: info.clinic,
                     contact_person: info.contactPerson || null,
-                    phone: info.tel || null,
-                    address: info.address || null,
+                    phone: info.tel,
+                    address: info.address,
                     payment_term: info.paymentTerm || null,
-                    salesperson: info.salesperson || null,
                     install_term: info.installTerm || null,
-                    cash_discount: this.getCashDiscount(),
+                    discount_type: this.getDiscountType(),
+                    discount_value: this.getDiscountValue(),
                     items: items.map(item => ({ id: item.id, qty: item.qty })),
                 }),
             });
@@ -479,143 +666,8 @@ const QuoteCart = {
         }
 
         try {
-            const info = this.getInfo();
-            const now = new Date();
-            const dateStr = String(now.getDate()).padStart(2, '0') + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' + now.getFullYear();
-            const quoteNo = order.order_number;
-            const subTotal = order.subtotal;
-            const cashDiscount = order.cash_discount;
-            const grandTotal = order.grand_total;
-
-            // "UP before & After Discount" — UP is the ORIGINAL price (unit_price before
-            // this line's discount was applied), Discount is the %, and Amount
-            // (line_amount) is the price actually charged × qty. All four come straight
-            // from the server's response, not the local cart, so the PDF always matches
-            // what was actually recorded.
-            const rows = order.items.map((item, i) => `
-                <tr>
-                    <td class="qpt-num">${i + 1}</td>
-                    <td>${item.product_code || '—'}</td>
-                    <td>${item.product_name}</td>
-                    <td class="qpt-num">${item.qty}</td>
-                    <td class="qpt-num">${item.uom || 'PCS'}</td>
-                    <td class="qpt-right">$ ${item.unit_price.toFixed(2)}</td>
-                    <td class="qpt-num">${(item.discount || 0)}%</td>
-                    <td class="qpt-right">$ ${item.line_amount.toFixed(2)}</td>
-                </tr>`).join('');
-
-            // Pad the table with blank rows so it always looks like a full,
-            // pre-printed form (like the paper original) even when there are
-            // only a few items on the quote.
-            const MIN_TABLE_ROWS = 22;
-            const blankRowsNeeded = Math.max(0, MIN_TABLE_ROWS - order.items.length);
-            const blankRows = Array.from({ length: blankRowsNeeded }).map(() => `
-                <tr class="qpt-blank-row">
-                    <td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
-                </tr>`).join('');
-
-            const template = document.getElementById('quotePrintTemplate');
-            template.innerHTML = `
-                <div class="qpt-header">
-                    <div>
-                        <div class="qpt-brand-name">EB DENTAL</div>
-                        <div class="qpt-brand-meta">
-                            Phnom Penh, Cambodia<br>
-                            Tel: 012 81 89 58 / 011 81 89 58
-                        </div>
-                    </div>
-                    <div>
-                        <div class="qpt-title">Quotation</div>
-                        <div class="qpt-meta-right">
-                            No : <b>${quoteNo}</b><br>
-                            Date: <b>${dateStr}</b>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="qpt-info-block">
-                    <div class="qpt-info-col">
-                        <div class="qpt-info-row"><span class="qpt-info-label">C. Code</span><span class="qpt-info-value">${info.code || '—'}</span></div>
-                        <div class="qpt-info-row"><span class="qpt-info-label">Clinic</span><span class="qpt-info-value qpt-khmer">${info.clinic || '—'}</span></div>
-                        <div class="qpt-info-row"><span class="qpt-info-label">Contact Tel</span><span class="qpt-info-value">${info.tel || '—'}</span></div>
-                        <div class="qpt-info-row"><span class="qpt-info-label">Address</span><span class="qpt-info-value qpt-khmer">${info.address || '—'}</span></div>
-                    </div>
-                    <div class="qpt-info-col">
-                        <div class="qpt-info-row"><span class="qpt-info-label">Payment Term</span><span class="qpt-info-value">${info.paymentTerm || 'COD'}</span></div>
-                        <div class="qpt-info-row"><span class="qpt-info-label">Salesperson</span><span class="qpt-info-value">${info.salesperson || '—'}</span></div>
-                        <div class="qpt-info-row"><span class="qpt-info-label">User</span><span class="qpt-info-value">${info.user || '—'}</span></div>
-                        <div class="qpt-info-row"><span class="qpt-info-label">Installation Term</span><span class="qpt-info-value">${info.installTerm || 'Free within Phnom Penh'}</span></div>
-                        <div class="qpt-info-row"><span class="qpt-info-label">Contact Person</span><span class="qpt-info-value">${info.contactPerson || '—'}</span></div>
-                    </div>
-                </div>
-
-                <table class="qpt-table">
-                    <thead>
-                        <tr>
-                            <th rowspan="2">No.</th>
-                            <th rowspan="2">Code</th>
-                            <th rowspan="2">Description</th>
-                            <th rowspan="2">Qty</th>
-                            <th rowspan="2">UOM</th>
-                            <th colspan="2">UP before &amp; After Discount</th>
-                            <th rowspan="2">Amount</th>
-                        </tr>
-                        <tr><th></th><th></th></tr>
-                    </thead>
-                    <tbody>
-                        ${rows}
-                        ${blankRows}
-                        <tr class="qpt-total-row qpt-subtotal-row">
-                            <td colspan="6" class="qpt-validity" rowspan="3">Quotation valid for <b>30 days</b> from the date issued.</td>
-                            <td>Sub-Total($):</td>
-                            <td class="qpt-right">$ ${subTotal.toFixed(2)}</td>
-                        </tr>
-                        <tr class="qpt-total-row">
-                            <td>Discount:</td>
-                            <td class="qpt-right">$ ${cashDiscount.toFixed(2)}</td>
-                        </tr>
-                        <tr class="qpt-total-row qpt-grand-total-row">
-                            <td>Grand Total:</td>
-                            <td class="qpt-right">$ ${grandTotal.toFixed(2)}</td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <div class="qpt-sign-strip">
-                    <div class="qpt-sign-col"><div class="qpt-sign-line qpt-khmer">ទទួលប្រាក់ដោយ<br>Cash received by</div></div>
-                    <div class="qpt-sign-col"><div class="qpt-sign-line qpt-khmer">ទទួលដោយ<br>Received by</div></div>
-                    <div class="qpt-sign-col"><div class="qpt-sign-line qpt-khmer">ដឹកដោយ<br>Delivered by</div></div>
-                    <div class="qpt-sign-col"><div class="qpt-sign-line qpt-khmer">បញ្ជូនដោយ<br>Issued by</div></div>
-                    <div class="qpt-sign-col"><div class="qpt-sign-line qpt-khmer">រៀបចំដោយ<br>Prepared by</div></div>
-                </div>
-            `;
-
-            // Give web fonts a beat to be ready before the snapshot.
-            if (document.fonts && document.fonts.ready) await document.fonts.ready;
-
-            const canvas = await html2canvas(template, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
-            const imgData = canvas.toDataURL('image/png');
-
-            const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
-            const imgWidth = pdfWidth;
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-            let heightLeft = imgHeight;
-            let position = 0;
-            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-            heightLeft -= pdfHeight;
-
-            while (heightLeft > 0) {
-                position = heightLeft - imgHeight;
-                pdf.addPage();
-                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-                heightLeft -= pdfHeight;
-            }
-
-            pdf.save('EB-Dental-Quotation-' + quoteNo + '.pdf');
+            this.buildPrintTemplate(order);
+            await this.exportPDF(order.quote_code);
             this.clearDraft();
             this.render();
             this.close();

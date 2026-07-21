@@ -493,9 +493,8 @@ img {
     font-weight: 700;
     color: var(--text);
 }
-.quote-cash-discount-row input {
-    width: 110px;
-    text-align: right;
+.quote-discount-row input,
+.quote-discount-row select {
     font-family: inherit;
     font-size: 0.85rem;
     font-weight: 700;
@@ -506,7 +505,15 @@ img {
     background: var(--bg);
     outline: none;
 }
-.quote-cash-discount-row input:focus {
+.quote-discount-row input {
+    width: 90px;
+    text-align: right;
+}
+.quote-discount-row select {
+    width: 70px;
+}
+.quote-discount-row input:focus,
+.quote-discount-row select:focus {
     border-color: var(--accent);
     background: var(--surface);
 }

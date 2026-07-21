@@ -24,15 +24,24 @@ def submit():
     if not items:
         return jsonify({"detail": "Your quote is empty."}), 400
 
+    clinic_name = (body.get("clinic_name") or "").strip()
+    phone = (body.get("phone") or "").strip()
+    address = (body.get("address") or "").strip()
+    if not clinic_name or not phone or not address:
+        return jsonify({"detail": "Clinic, Contact Tel, and Address are required."}), 400
+
+    # salesperson/quoted_by_name are NOT sent - store-api derives them server-side from
+    # whoever is actually calling (see routers/orders.py::create_order), never trusted
+    # from the client.
     payload = {
-        "clinic_name": body.get("clinic_name") or None,
+        "clinic_name": clinic_name,
         "contact_person": body.get("contact_person") or None,
-        "phone": body.get("phone") or None,
-        "address": body.get("address") or None,
+        "phone": phone,
+        "address": address,
         "payment_term": body.get("payment_term") or None,
-        "salesperson": body.get("salesperson") or None,
         "install_term": body.get("install_term") or None,
-        "cash_discount": body.get("cash_discount") or 0,
+        "discount_type": body.get("discount_type") or "percent",
+        "discount_value": body.get("discount_value") or 0,
         "items": [{"product_id": item["id"], "qty": item["qty"]} for item in items],
     }
 

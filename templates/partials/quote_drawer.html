@@ -22,37 +22,31 @@
             </div>
             <div class="quote-info-fields" id="quoteInfoFields">
                 <div class="quote-info-col">
-                    <label>C. Code
-                        <input type="text" id="qiCode" placeholder="PP02118" oninput="QuoteCart.saveInfoField('code', this.value)">
+                    <label>Clinic *
+                        <input type="text" id="qiClinic" placeholder="Clinic name" required oninput="QuoteCart.saveInfoField('clinic', this.value)">
                     </label>
-                    <label>Clinic
-                        <input type="text" id="qiClinic" placeholder="Clinic name" oninput="QuoteCart.saveInfoField('clinic', this.value)">
+                    <label>Contact Tel *
+                        <input type="text" id="qiTel" placeholder="071 458 4444" required oninput="QuoteCart.saveInfoField('tel', this.value)">
                     </label>
-                    <label>Contact Tel
-                        <input type="text" id="qiTel" placeholder="071 458 4444" oninput="QuoteCart.saveInfoField('tel', this.value)">
+                    <label>Address *
+                        <input type="text" id="qiAddress" placeholder="Clinic address" required oninput="QuoteCart.saveInfoField('address', this.value)">
                     </label>
-                    <label>Address
-                        <input type="text" id="qiAddress" placeholder="Clinic address" oninput="QuoteCart.saveInfoField('address', this.value)">
+                    <label>Contact Person
+                        <input type="text" id="qiContactPerson" placeholder="098 882 953" oninput="QuoteCart.saveInfoField('contactPerson', this.value)">
                     </label>
                 </div>
                 <div class="quote-info-col">
                     <label>Payment Term
                         <input type="text" id="qiPaymentTerm" placeholder="COD" oninput="QuoteCart.saveInfoField('paymentTerm', this.value)">
                     </label>
-                    <label>Salesperson
-                        <input type="text" id="qiSalesperson" placeholder="Salesperson name" oninput="QuoteCart.saveInfoField('salesperson', this.value)">
-                    </label>
-                    <label>User
-                        <input type="text" id="qiUser" placeholder="User name" oninput="QuoteCart.saveInfoField('user', this.value)">
-                    </label>
                     <label>Installation Term
                         <input type="text" id="qiInstallTerm" placeholder="Free within Phnom Penh" oninput="QuoteCart.saveInfoField('installTerm', this.value)">
                     </label>
-                    <label>Contact Person
-                        <input type="text" id="qiContactPerson" placeholder="098 882 953" oninput="QuoteCart.saveInfoField('contactPerson', this.value)">
-                    </label>
                 </div>
             </div>
+            <!-- C. Code / Salesperson / User are no longer typed in here - they're always
+                 server-derived (see routers/orders.py::create_order) and only appear on the
+                 resulting printed quote, sourced from the Order API response. -->
         </div>
 
         <div class="quote-drawer-items" id="quoteDrawerItems">
@@ -61,17 +55,28 @@
     </div>
 
     <div class="quote-drawer-footer">
-        <!-- Discount by Cash — a flat $ amount off the whole quote, separate
-             from each product's own % discount (which is baked into its unit
-             price already). Defaults to 0, meaning Grand Total = Sub-Total. -->
+        <!-- Order-level discount — either a percentage or a flat cash amount, separate
+             from each product's own % discount (already baked into its unit price).
+             Cash is staff-only (product_management, enforced server-side too - see
+             routers/orders.py::create_order) since it's a real reduction handed out at
+             discretion; Percent stays open to anyone who can already quote. Defaults to
+             0%, meaning Grand Total = Sub-Total. -->
         <div class="quote-summary-rows">
             <div class="quote-summary-row">
                 <span>Sub-Total</span>
                 <span id="quoteSubTotal">$0.00</span>
             </div>
-            <div class="quote-summary-row quote-cash-discount-row">
-                <label for="quoteCashDiscount">Discount by Cash ($)</label>
-                <input type="number" id="quoteCashDiscount" min="0" step="0.01" value="0" oninput="QuoteCart.saveCashDiscount(this.value)">
+            <div class="quote-summary-row quote-discount-row">
+                <label for="quoteDiscountValue">Discount</label>
+                <div style="display:flex; gap:6px; align-items:center;">
+                    <select id="quoteDiscountType" onchange="QuoteCart.saveDiscountType(this.value)">
+                        <option value="percent">%</option>
+                        {% if has_permission('product_management') %}
+                        <option value="cash">$ Cash</option>
+                        {% endif %}
+                    </select>
+                    <input type="number" id="quoteDiscountValue" min="0" step="0.01" value="0" oninput="QuoteCart.saveDiscountValue(this.value)">
+                </div>
             </div>
             <div class="quote-summary-row quote-grand-total-row">
                 <span>Grand Total</span>

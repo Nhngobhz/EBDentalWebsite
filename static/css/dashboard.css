@@ -497,6 +497,21 @@
     color: var(--border);
 }
 
+/* ---- Order status badge - used on the Orders list + View Order modal ---- */
+.status-badge {
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: 99px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: capitalize;
+    letter-spacing: 0.2px;
+}
+.status-badge.status-pending { background: rgba(245, 158, 11, 0.12); color: #b45309; }
+.status-badge.status-confirmed { background: rgba(6, 182, 212, 0.12); color: #0e7490; }
+.status-badge.status-delivered { background: rgba(34, 197, 94, 0.12); color: #15803d; }
+.status-badge.status-cancelled { background: rgba(239, 68, 68, 0.12); color: #b91c1c; }
+
 .btn-dash {
     padding: 6px 14px;
     border-radius: 8px;

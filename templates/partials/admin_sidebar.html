@@ -39,7 +39,7 @@
                 <a class="nav-item {{ 'active' if request.endpoint == 'admin.categories' }}" href="{{ url_for('admin.categories') }}">
                     <i class="fas fa-layer-group"></i> Categories
                 </a>
-                <a class="nav-item" href="#"><i class="fas fa-book"></i> Product Manuals</a>
+                <a class="nav-item {{ 'active' if request.endpoint == 'admin.manuals' }}" href="{{ url_for('admin.manuals') }}"><i class="fas fa-book"></i> Product Manuals</a>
             </div>
         </div>
         {% endif %}
@@ -110,7 +110,10 @@
                     <div class="user-role">{{ current_account().role_title if current_account() else 'Admin' }}</div>
                 </div>
             </div>
-            <a class="logout-btn" href="{{ url_for('auth.logout') }}" title="Logout"><i class="fas fa-sign-out-alt"></i></a>
+            <div style="display:flex; align-items:center; gap:2px;">
+                <a class="logout-btn" href="{{ url_for('main.home') }}" target="_blank" rel="noopener" title="View Site"><i class="fas fa-arrow-up-right-from-square"></i></a>
+                <a class="logout-btn" href="{{ url_for('auth.logout') }}" title="Logout"><i class="fas fa-sign-out-alt"></i></a>
+            </div>
         </div>
     </div>
 </div>
