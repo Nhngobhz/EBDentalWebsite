@@ -181,6 +181,17 @@ anything quote-related.
   resubmitting anything. If you need to change what the printed quote
   looks like, change `buildPrintTemplate` once - both the storefront
   download and the admin reprint use it.
+- **`exportPDF()` also returns the built PDF as a Blob** (added 2026-07-22,
+  alongside triggering the local download it always did) - `confirmPurchase()`
+  hands that Blob to `QuoteCart.uploadQuotationPDF(orderId, blob)`, which
+  POSTs it (fire-and-forget, errors swallowed) to `/quote/<order_id>/pdf` ->
+  store-api's `POST /orders/{id}/quotation-pdf`. This is what lets the
+  Telegram order alert carry the *exact* PDF the customer received instead
+  of store-api's own fpdf2 approximation (`services/invoice_pdf.py`) - see
+  that file's module docstring and `deliver_order_alert()` in
+  `services/telegram.py` for the full wait/fallback story. Never awaited and
+  never blocks/fails the purchase flow - store-api only waits ~20s for it
+  before falling back on its own.
 - Required fields (`clinic_name`, `phone`, `address`) are validated in
   three places on purpose - the HTML `required` attribute
   (`quote_drawer.html`), a JS check in `QuoteCart.confirmPurchase()` (since

@@ -639,6 +639,10 @@ const QuoteCart = {
         `;
     },
 
+    // Returns the built PDF as a Blob (in addition to triggering the local download)
+    // so confirmPurchase() can also hand it to store-api for the Telegram order alert
+    // - see uploadQuotationPDF(). The admin reprint button (admin/orders.html) calls
+    // this too and just ignores the return value.
     async exportPDF(filenameSuffix) {
         const template = document.getElementById('quotePrintTemplate');
 
@@ -668,6 +672,20 @@ const QuoteCart = {
         }
 
         pdf.save('EB-Dental-Quotation-' + filenameSuffix + '.pdf');
+        return pdf.output('blob');
+    },
+
+    // Best-effort hand-off of the real client-rendered PDF to store-api, which uses it
+    // for the order's Telegram alert instead of its own fpdf2 approximation - see
+    // deliver_order_alert/resolve_pending_quotation_pdf in store-api's
+    // services/telegram.py. Deliberately fire-and-forget (never awaited by the caller,
+    // errors swallowed): store-api only waits ~20s for this before falling back on its
+    // own, so a slow/failed upload here just means that fallback gets used - it must
+    // never block or fail the purchase flow the customer is already looking at.
+    uploadQuotationPDF(orderId, pdfBlob) {
+        const formData = new FormData();
+        formData.append('file', pdfBlob, 'quotation.pdf');
+        fetch(`/quote/${orderId}/pdf`, { method: 'POST', body: formData }).catch(() => {});
     },
 
     // "Confirm Purchase" submits the cart to POST /quote/submit - this creates a real
@@ -720,7 +738,8 @@ const QuoteCart = {
 
         try {
             this.buildPrintTemplate(order);
-            await this.exportPDF(order.quote_code);
+            const pdfBlob = await this.exportPDF(order.quote_code);
+            this.uploadQuotationPDF(order.id, pdfBlob);
             this.clearDraft();
             this.render();
             this.close();

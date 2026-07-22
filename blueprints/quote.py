@@ -52,3 +52,31 @@ def submit():
         return jsonify({"detail": e.detail}), (e.status_code or 400)
 
     return jsonify(adapt_order(order))
+
+
+@quote_bp.route("/<int:order_id>/pdf", methods=["POST"])
+def upload_pdf(order_id):
+    """Relays the browser's real client-rendered quotation PDF (QuoteCart.exportPDF() in
+    main.js, called right after confirmPurchase() places the order) to store-api, which
+    hands it to that order's Telegram alert if it's still waiting for one (see
+    deliver_order_alert in store-api's services/telegram.py) instead of falling back to
+    its own approximation. Purely a best-effort enhancement - the customer's order is
+    already placed by the time this is called, so any failure here is just logged away,
+    never surfaced to the customer."""
+    if not is_logged_in():
+        return jsonify({"detail": "Please log in."}), 401
+
+    file = request.files.get("file")
+    if file is None:
+        return jsonify({"detail": "No file uploaded."}), 400
+
+    client = get_api_client()
+    try:
+        client.post_form(
+            f"/orders/{order_id}/quotation-pdf",
+            files={"file": (file.filename, file.stream, file.mimetype)},
+        )
+    except StoreAPIError as e:
+        return jsonify({"detail": e.detail}), (e.status_code or 400)
+
+    return jsonify({"received": True})
