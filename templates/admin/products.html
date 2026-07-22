@@ -84,7 +84,7 @@
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                 <div class="form-group" style="margin-bottom:12px;">
-                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Price *</label>
+                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Price (before discount) *</label>
                     <input type="number" name="price" id="prodPrice" step="0.01" min="0.01" required oninput="_syncCashDiscountMax('prod')" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
                 </div>
                 <div class="form-group" style="margin-bottom:12px;">
@@ -171,7 +171,7 @@
         <h3 class="dash-modal-title" id="priceModalTitle">Update Price</h3>
         <form id="priceForm" method="post">
             <div class="form-group" style="margin-bottom:12px;">
-                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Price</label>
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Price (before discount)</label>
                 <input type="number" name="price" id="priceOnlyPrice" step="0.01" min="0.01" oninput="_syncCashDiscountMax('priceOnly')" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
             </div>
             <div class="form-group" style="margin-bottom:12px;">
@@ -277,7 +277,12 @@
 
         document.getElementById('prodName').value = isEdit ? product.product_name : '';
         document.getElementById('prodDesc').value = isEdit ? (product.description || '') : '';
-        document.getElementById('prodPrice').value = isEdit && typeof product.price === 'number' ? product.price : '';
+        // Price is the ORIGINAL (pre-discount) price - prefill with was_price (the
+        // reconstructed original) rather than product.price (the already-discounted
+        // amount actually charged), so re-saving without touching anything is a no-op
+        // and adjusting Discount recomputes the charged price instead of leaving it
+        // untouched (see _apply_discount in blueprints/admin/products.py).
+        document.getElementById('prodPrice').value = isEdit && typeof product.price === 'number' ? (product.was_price ?? product.price) : '';
         _setDiscountTypeUI('prod', isEdit ? (product.discount_type || 'percent') : 'percent');
         document.getElementById('prodDiscount').value = isEdit ? (product.discount || 0) : 0;
         document.getElementById('prodCode').value = isEdit ? (product.product_code || '') : '';
@@ -311,7 +316,8 @@
         const product = PRODUCTS_DATA.find(p => p.id === productId);
         if (!product) return;
         document.getElementById('priceModalTitle').textContent = 'Update Price - ' + product.product_name;
-        document.getElementById('priceOnlyPrice').value = typeof product.price === 'number' ? product.price : '';
+        // See openProductModal's prodPrice comment - same original-price prefill.
+        document.getElementById('priceOnlyPrice').value = typeof product.price === 'number' ? (product.was_price ?? product.price) : '';
         _setDiscountTypeUI('priceOnly', product.discount_type || 'percent');
         document.getElementById('priceOnlyDiscount').value = product.discount || 0;
         document.getElementById('priceForm').action = PRODUCT_PRICE_URL_TEMPLATE.replace('/0/', '/' + productId + '/');
