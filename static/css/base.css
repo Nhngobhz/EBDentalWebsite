@@ -493,8 +493,30 @@ img {
     font-weight: 700;
     color: var(--text);
 }
-.quote-discount-row input,
-.quote-discount-row select {
+.quote-discount-row {
+    position: relative;
+}
+.quote-discount-edit-btn {
+    background: none;
+    border: none;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 0.75rem;
+    margin-left: 4px;
+    padding: 2px 4px;
+}
+.quote-discount-editor {
+    display: none;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 4px 0 8px;
+}
+.quote-discount-editor.open {
+    display: flex;
+}
+.quote-discount-editor input,
+.quote-discount-editor select {
     font-family: inherit;
     font-size: 0.85rem;
     font-weight: 700;
@@ -505,15 +527,15 @@ img {
     background: var(--bg);
     outline: none;
 }
-.quote-discount-row input {
+.quote-discount-editor input {
     width: 90px;
     text-align: right;
 }
-.quote-discount-row select {
-    width: 70px;
+.quote-discount-editor select {
+    width: 80px;
 }
-.quote-discount-row input:focus,
-.quote-discount-row select:focus {
+.quote-discount-editor input:focus,
+.quote-discount-editor select:focus {
     border-color: var(--accent);
     background: var(--surface);
 }
@@ -534,7 +556,6 @@ img {
     gap: 10px;
     align-items: center;
 }
-.quote-add-more-btn,
 .quote-download-pdf-btn {
     flex: 1;
     justify-content: center;
@@ -549,15 +570,6 @@ img {
     cursor: pointer;
     transition: var(--transition);
     font-family: inherit;
-}
-.quote-add-more-btn {
-    background: #f4f8fb;
-    color: var(--accent);
-    border: 1px solid rgba(8, 145, 178, 0.16);
-}
-.quote-add-more-btn:hover {
-    background: #eaf7fb;
-    transform: translateY(-2px);
 }
 .quote-download-pdf-btn {
     background: var(--accent-light);
@@ -588,10 +600,6 @@ img {
     }
     .quote-drawer-actions {
         flex-wrap: wrap;
-    }
-    .quote-add-more-btn,
-    .quote-download-pdf-btn {
-        flex-basis: calc(50% - 5px);
     }
 }
 
@@ -644,7 +652,6 @@ img {
     .quote-drawer-actions {
         flex-direction: column;
     }
-    .quote-add-more-btn,
     .quote-download-pdf-btn {
         width: 100%;
         flex-basis: auto;

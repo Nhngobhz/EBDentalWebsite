@@ -453,6 +453,37 @@
     box-shadow: 0 2px 12px rgba(8, 145, 178, 0.2);
 }
 
+/* Category filter (products/catalog.html) - a horizontal scroll strip instead of
+   wrapping across multiple lines once there are more categories than fit one row. */
+.category-filter-wrap {
+    margin-bottom: 16px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+.category-filter-wrap .filter-label {
+    flex: 0 0 auto;
+}
+.category-filter-scroll {
+    display: flex;
+    gap: 8px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 4px 2px 8px;
+    scrollbar-width: thin;
+}
+.category-filter-scroll::-webkit-scrollbar {
+    height: 6px;
+}
+.category-filter-scroll::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+}
+.category-filter-scroll .subcategory-pill {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
 /* Product Card */
 .product-card .product-image-wrap {
     position: relative;
@@ -1451,6 +1482,29 @@
     }
 }
 
+/* "Added to cart successfully" toast - see showToast() in main.js */
+.eb-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 32px;
+    transform: translate(-50%, 20px);
+    background: var(--text);
+    color: var(--surface);
+    padding: 12px 24px;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    z-index: 3000;
+}
+.eb-toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
 /* EB Contact Page */
 .eb-contact-page {
     padding: 20px 0 40px;
@@ -1990,8 +2044,14 @@
 }
 
 /* EB About */
+/* Sits directly above .eb-about-section on the About page - no padding of its own
+   (the About page used to also add an inline 30px 0 here, stacking with
+   .eb-about-section's own padding below for up to 90px of dead space). */
+.product-about-page {
+    padding: 0;
+}
 .eb-about-section {
-    padding: 60px 0;
+    padding: 60px 48px;
     background: var(--surface);
     border-radius: 24px;
     margin: 20px 0;
@@ -2044,6 +2104,9 @@
     font-weight: 500;
 }
 @media (max-width: 480px) {
+    .eb-about-section {
+        padding: 36px 20px;
+    }
     .eb-about-section .stats-grid {
         gap: 12px;
     }

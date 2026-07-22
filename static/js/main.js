@@ -213,7 +213,6 @@ const QuoteCart = {
     INFO_KEY: 'eb_quote_customer_info',
     DISCOUNT_TYPE_KEY: 'eb_quote_discount_type',
     DISCOUNT_VALUE_KEY: 'eb_quote_discount_value',
-    addMoreMode: false,
 
     // ---- line items ----
     getItems() {
@@ -235,11 +234,7 @@ const QuoteCart = {
         localStorage.removeItem(this.DISCOUNT_VALUE_KEY);
     },
 
-    setAddMoreMode(value) {
-        this.addMoreMode = Boolean(value);
-    },
-
-    addItem(product, options = {}) {
+    addItem(product) {
         // Belt-and-suspenders: CAN_QUOTE should already have kept the "Add to
         // Quote" control from ever being wired up to a disallowed viewer (see
         // openProductModal() and products/detail.html), and a masked price is
@@ -248,10 +243,8 @@ const QuoteCart = {
         if (typeof CAN_QUOTE !== 'undefined' && !CAN_QUOTE) return;
         if (typeof product.price !== 'number') return;
 
-        if (options.clearExisting) {
-            this.clearDraft();
-        }
-
+        // Always appends to whatever is already in the cart - a normal cart never
+        // wipes itself out when you add a second product.
         const items = this.getItems();
         const existing = items.find(i => i.id === product.id);
         if (existing) {
@@ -324,11 +317,14 @@ const QuoteCart = {
 
     // ---- order-level discount (percent or cash) ----
     // Separate from each product's own % discount (already baked into its unit price by
-    // admin). Cash is staff-only (product_management) - the <select> in quote_drawer.html
-    // only renders that option for staff who hold it, and the server independently
+    // admin). Setting one at all is staff-only (product_management) - the edit button in
+    // quote_drawer.html only renders for staff who hold it, and the server independently
     // enforces the same rule (see routers/orders.py::create_order) since this is only a
-    // client-side preview, not the source of truth.
+    // client-side preview, not the source of truth. CAN_DISCOUNT (set in base.html) is
+    // checked here too so a stale stored value from an earlier session can never display
+    // or submit a discount for a viewer who isn't currently allowed to set one.
     getDiscountType() {
+        if (typeof CAN_DISCOUNT !== 'undefined' && !CAN_DISCOUNT) return 'percent';
         const v = localStorage.getItem(this.DISCOUNT_TYPE_KEY);
         return v === 'cash' ? 'cash' : 'percent';
     },
@@ -339,6 +335,7 @@ const QuoteCart = {
     },
 
     getDiscountValue() {
+        if (typeof CAN_DISCOUNT !== 'undefined' && !CAN_DISCOUNT) return 0;
         const v = parseFloat(localStorage.getItem(this.DISCOUNT_VALUE_KEY));
         return Number.isNaN(v) ? 0 : Math.max(0, v);
     },
@@ -378,6 +375,9 @@ const QuoteCart = {
 
         const subTotalEl = document.getElementById('quoteSubTotal');
         if (subTotalEl) subTotalEl.textContent = '$' + this.getTotal().toFixed(2);
+
+        const discountAmountEl = document.getElementById('quoteDiscountAmount');
+        if (discountAmountEl) discountAmountEl.textContent = '$' + this.getDiscountAmount().toFixed(2);
 
         const grandTotalEl = document.getElementById('quoteGrandTotal');
         if (grandTotalEl) grandTotalEl.textContent = '$' + this.getGrandTotal().toFixed(2);
@@ -464,12 +464,12 @@ const QuoteCart = {
                     </div>
                     <div class="quote-item-row-footer">
                         <div class="quote-item-controls">
-                            <button type="button" class="quote-qty-btn" onclick="QuoteCart.changeQty('${item.id}', -1)"><i class="fas fa-minus"></i></button>
+                            <button type="button" class="quote-qty-btn" onclick="QuoteCart.changeQty(${item.id}, -1)"><i class="fas fa-minus"></i></button>
                             <span class="quote-qty-value">${item.qty}</span>
-                            <button type="button" class="quote-qty-btn" onclick="QuoteCart.changeQty('${item.id}', 1)"><i class="fas fa-plus"></i></button>
+                            <button type="button" class="quote-qty-btn" onclick="QuoteCart.changeQty(${item.id}, 1)"><i class="fas fa-plus"></i></button>
                         </div>
                         <span class="quote-item-amount">$${this.lineAmount(item).toFixed(2)}</span>
-                        <button type="button" class="quote-item-remove" onclick="QuoteCart.removeItem('${item.id}')"><i class="fas fa-trash"></i></button>
+                        <button type="button" class="quote-item-remove" onclick="QuoteCart.removeItem(${item.id})"><i class="fas fa-trash"></i></button>
                     </div>
                 </div>
             </div>`).join('');
@@ -695,9 +695,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('quoteDrawerClose')?.addEventListener('click', () => QuoteCart.close());
     document.getElementById('quoteDrawerOverlay')?.addEventListener('click', () => QuoteCart.close());
     document.getElementById('quoteDownloadPdfBtn')?.addEventListener('click', () => QuoteCart.downloadPDF());
-    document.getElementById('quoteAddMoreBtn')?.addEventListener('click', () => {
-        QuoteCart.setAddMoreMode(true);
-        QuoteCart.close();
+    document.getElementById('quoteDiscountEditBtn')?.addEventListener('click', () => {
+        document.getElementById('quoteDiscountEditor')?.classList.toggle('open');
     });
     document.getElementById('quoteInfoToggle')?.addEventListener('click', () => {
         document.getElementById('quoteInfoForm')?.classList.toggle('collapsed');
@@ -727,13 +726,11 @@ function openProductModal(id) {
 
     const addBtn = document.getElementById('modalAddToQuoteBtn');
     if (typeof CAN_QUOTE !== 'undefined' && CAN_QUOTE && typeof p.price === 'number') {
-        addBtn.innerHTML = '<i class="fas fa-shopping-cart"></i> Add to Quote';
+        addBtn.innerHTML = '<i class="fas fa-shopping-cart"></i> Add to Cart';
         addBtn.onclick = () => {
-            const shouldClearExisting = !QuoteCart.addMoreMode;
-            QuoteCart.addItem(p, { clearExisting: shouldClearExisting });
-            QuoteCart.setAddMoreMode(false);
+            QuoteCart.addItem(p);
             closeProductModal();
-            QuoteCart.open();
+            showToast('Added to cart successfully');
         };
     } else if (typeof IS_LOGGED_IN !== 'undefined' && IS_LOGGED_IN) {
         addBtn.innerHTML = '<i class="fas fa-phone"></i> Contact Us for Pricing';
@@ -750,6 +747,20 @@ function openProductModal(id) {
 function closeProductModal() {
     document.getElementById('productModal').classList.remove('active');
     document.body.style.overflow = '';
+}
+
+/* ------------------------------------------------------------
+   TOAST — brief confirmation message (e.g. "Added to cart
+   successfully") shown instead of auto-opening the quote drawer.
+------------------------------------------------------------- */
+let _toastTimer = null;
+function showToast(message) {
+    const toast = document.getElementById('ebToast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add('show');
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => toast.classList.remove('show'), 2500);
 }
 
 /* ------------------------------------------------------------

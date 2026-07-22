@@ -38,6 +38,10 @@
         // all - see can_quote() in auth.py. Real enforcement happens server-side
         // (routers/orders.py on store-api); this only controls what the UI offers.
         const CAN_QUOTE = {{ can_quote()|tojson }};
+        // Whether the current visitor may set an order-level discount on the quote
+        // drawer at all - see routers/orders.py::create_order, which enforces the
+        // same product_management requirement server-side.
+        const CAN_DISCOUNT = {{ has_permission('product_management')|tojson }};
         const IS_LOGGED_IN = {{ is_logged_in()|tojson }};
         const CONTACT_URL = {{ url_for('main.contact')|tojson }};
         const LOGIN_URL = {{ url_for('auth.login')|tojson }};

@@ -18,7 +18,7 @@
             <a href="{{ url_for('auth.register') }}">Register</a>
         </div>
 
-        <div class="tab-content active">
+        <div class="tab-content active" id="loginTabContent">
             <form id="loginForm" method="post" action="{{ url_for('auth.login') }}">
                 <div class="form-group">
                     <label for="loginEmailInput">Email</label>
@@ -28,12 +28,130 @@
                     <label for="loginPasswordInput">Password</label>
                     <input type="password" id="loginPasswordInput" name="password" placeholder="Enter your password" required />
                 </div>
+                <div id="loginErrorMsg" class="login-error"></div>
                 <button type="submit" class="btn-login" id="loginBtn"><i class="fas fa-lock"></i> Sign In</button>
             </form>
             <div class="login-footer">
                 <span>Don't have an account? <a href="{{ url_for('auth.register') }}">Register here</a></span>
             </div>
         </div>
+
+        <!-- Shown instead of the form when login fails specifically because the
+             account's email isn't confirmed yet - polls the same login endpoint every
+             5s with the credentials already entered (kept only in memory, never
+             persisted) and logs the user in automatically as soon as it succeeds. -->
+        <div class="login-waiting" id="loginWaitingScreen" style="display:none;">
+            <div class="login-waiting-spinner"><i class="fas fa-spinner fa-spin"></i></div>
+            <h3>Waiting for email confirmation</h3>
+            <p>We've sent a confirmation link to your email. Once you click it, we'll sign you in automatically — this checks every few seconds.</p>
+            <button type="button" class="btn-outline" id="loginWaitingCancelBtn">Cancel</button>
+        </div>
     </div>
 </div>
+
+<script>
+(function () {
+    const form = document.getElementById('loginForm');
+    const loginBtn = document.getElementById('loginBtn');
+    const errorMsg = document.getElementById('loginErrorMsg');
+    const tabContent = document.getElementById('loginTabContent');
+    const waitingScreen = document.getElementById('loginWaitingScreen');
+
+    let pollTimer = null;
+    let pendingCredentials = null;
+
+    function showError(message) {
+        errorMsg.textContent = message;
+        errorMsg.classList.add('show');
+    }
+
+    function hideError() {
+        errorMsg.classList.remove('show');
+    }
+
+    function stopPolling() {
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = null;
+        pendingCredentials = null;
+    }
+
+    function enterWaitingScreen() {
+        tabContent.style.display = 'none';
+        waitingScreen.style.display = 'block';
+    }
+
+    function exitWaitingScreen() {
+        waitingScreen.style.display = 'none';
+        tabContent.style.display = '';
+    }
+
+    async function attemptLogin(email, password) {
+        const resp = await fetch(form.action, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({ email, password }),
+        });
+        return resp.json();
+    }
+
+    function onLoginSuccess(data) {
+        stopPolling();
+        // Same keys QuoteCart uses in main.js - a fresh login should never inherit
+        // whatever was left in the cart by a previous visitor/session on this browser.
+        localStorage.removeItem('eb_quote_cart');
+        localStorage.removeItem('eb_quote_customer_info');
+        localStorage.removeItem('eb_quote_discount_type');
+        localStorage.removeItem('eb_quote_discount_value');
+        window.location.href = data.redirect_url;
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        hideError();
+
+        const email = document.getElementById('loginEmailInput').value.trim();
+        const password = document.getElementById('loginPasswordInput').value;
+
+        loginBtn.disabled = true;
+        loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
+
+        try {
+            const data = await attemptLogin(email, password);
+            if (data.success) {
+                onLoginSuccess(data);
+                return;
+            }
+            if (data.reason === 'unverified') {
+                pendingCredentials = { email, password };
+                enterWaitingScreen();
+                pollTimer = setInterval(async () => {
+                    if (!pendingCredentials) return;
+                    try {
+                        const pollData = await attemptLogin(pendingCredentials.email, pendingCredentials.password);
+                        if (pollData.success) onLoginSuccess(pollData);
+                    } catch {
+                        // Transient network hiccup - just try again on the next tick.
+                    }
+                }, 5000);
+            } else {
+                showError(data.detail || 'Incorrect email or password.');
+            }
+        } catch (err) {
+            showError('Could not reach the server. Please check your connection and try again.');
+        } finally {
+            loginBtn.disabled = false;
+            loginBtn.innerHTML = '<i class="fas fa-lock"></i> Sign In';
+        }
+    });
+
+    document.getElementById('loginWaitingCancelBtn')?.addEventListener('click', () => {
+        stopPolling();
+        exitWaitingScreen();
+    });
+})();
+</script>
 {% endblock %}

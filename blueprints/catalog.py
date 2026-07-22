@@ -70,6 +70,13 @@ def product_detail(product_id):
     return render_template("products/detail.html", product=product, manual=manual)
 
 
+@catalog_bp.route("/manuals")
+def manuals():
+    client = get_api_client()
+    raw_manuals = client.get("/manuals/", params={"limit": 200})
+    return render_template("main/manuals.html", manuals=raw_manuals)
+
+
 @catalog_bp.route("/promotions")
 def promotions_page():
     client = get_api_client()

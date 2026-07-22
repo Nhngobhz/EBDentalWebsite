@@ -43,14 +43,16 @@
         <!-- Category Filter - independent of brand (store-api's Category table has no
              relationship to Brand at all, unlike the old mock's brand-nested subcategories) -->
         {% if categories %}
-        <div id="categoryFilterWrap" style="margin-bottom:16px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <div id="categoryFilterWrap" class="category-filter-wrap">
             <span class="filter-label"><i class="fas fa-filter"></i> Category:</span>
-            <a class="subcategory-pill {{ 'active' if not selected_category }}"
-               href="{{ catalog_url(category=None) }}">All Categories</a>
-            {% for cat in categories %}
-            <a class="subcategory-pill {{ 'active' if selected_category == cat.id }}"
-               href="{{ catalog_url(category=cat.id) }}">{{ cat.category_name }}</a>
-            {% endfor %}
+            <div class="category-filter-scroll">
+                <a class="subcategory-pill {{ 'active' if not selected_category }}"
+                   href="{{ catalog_url(category=None) }}">All Categories</a>
+                {% for cat in categories %}
+                <a class="subcategory-pill {{ 'active' if selected_category == cat.id }}"
+                   href="{{ catalog_url(category=cat.id) }}">{{ cat.category_name }}</a>
+                {% endfor %}
+            </div>
         </div>
         {% endif %}
 

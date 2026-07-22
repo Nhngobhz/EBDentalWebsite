@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Manuals{% endblock %}
+
+{% block content %}
+<div id="productPage">
+    <div class="eb-promotion-page">
+        <div class="container">
+
+            <div class="promo-hero">
+                <h1>📘 <span>Product</span> Manuals</h1>
+                <p>Download setup guides and instruction manuals for our dental products.</p>
+            </div>
+
+            <div class="promo-grid">
+                {% if manuals|length == 0 %}
+                <div class="empty-promos">
+                    <div class="icon"><i class="fas fa-book"></i></div>
+                    <h3>No manuals available yet</h3>
+                    <p>Check back later, or contact us if you need documentation for a specific product.</p>
+                </div>
+                {% endif %}
+
+                {% for manual in manuals %}
+                <div class="dash-card" style="padding:20px;">
+                    <h3 style="margin-bottom:8px;">
+                        <i class="fas fa-book"></i>
+                        {{ manual.product.product_name if manual.product else 'General Manual' }}
+                    </h3>
+                    {% if manual.description %}
+                    <p style="color:var(--text-light); margin-bottom:16px;">{{ manual.description }}</p>
+                    {% endif %}
+                    {% if manual.pdf %}
+                    <a class="btn-hero" href="{{ file_url(manual.pdf) }}" target="_blank" style="display:inline-flex;">
+                        <i class="fas fa-file-pdf"></i> View Manual PDF
+                    </a>
+                    {% else %}
+                    <span style="color:var(--text-light);"><i class="fas fa-hourglass-half"></i> PDF coming soon</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

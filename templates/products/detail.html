@@ -31,7 +31,7 @@
 
                 <div class="product-detail-actions">
                     {% if can_quote() %}
-                    <button type="button" class="btn-primary" id="detailAddToQuoteBtn"><i class="fas fa-shopping-cart"></i> Add to Quote</button>
+                    <button type="button" class="btn-primary" id="detailAddToQuoteBtn"><i class="fas fa-shopping-cart"></i> Add to Cart</button>
                     {% else %}
                     <a class="btn-primary" href="{{ url_for('main.contact') }}" style="text-decoration:none; display:inline-flex; align-items:center; gap:8px;">
                         <i class="fas fa-lock"></i> {{ 'Log in to request a quote' if not is_logged_in() else 'Contact us for pricing' }}
@@ -64,7 +64,6 @@
 {% if can_quote() %}
 <script>
     document.getElementById('detailAddToQuoteBtn').addEventListener('click', () => {
-        const shouldClearExisting = !QuoteCart.addMoreMode;
         QuoteCart.addItem({
             id: {{ product.id|tojson }},
             product_name: {{ product.product_name|tojson }},
@@ -76,9 +75,8 @@
             product_type: {{ (product.product_type or 'single')|tojson }},
             was_price: {{ product.was_price|tojson }},
             image: {{ img(product.product_image)|tojson }},
-        }, { clearExisting: shouldClearExisting });
-        QuoteCart.setAddMoreMode(false);
-        QuoteCart.open();
+        });
+        showToast('Added to cart successfully');
     });
 </script>
 {% endif %}

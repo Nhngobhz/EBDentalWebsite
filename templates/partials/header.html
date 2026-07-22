@@ -8,7 +8,7 @@
         <a href="{{ url_for('catalog.products_catalog') }}" class="{{ 'active' if request.endpoint == 'catalog.products_catalog' }}">Products</a>
         <a href="{{ url_for('main.about') }}" class="{{ 'active' if request.endpoint == 'main.about' }}">About</a>
         <a href="{{ url_for('main.contact') }}" class="{{ 'active' if request.endpoint == 'main.contact' }}">Contact</a>
-        <a href="#">📘 Manual</a>
+        <a href="{{ url_for('catalog.manuals') }}" class="{{ 'active' if request.endpoint == 'catalog.manuals' }}">📘 Manual</a>
     </nav>
     <div class="header-right">
         <img src="https://flagcdn.com/w40/kh.png" alt="KH" class="flag" />
@@ -24,7 +24,7 @@
         {% if is_staff() %}
         <a class="profile-btn" href="{{ url_for('admin.dashboard') }}" title="Admin Dashboard"><i class="fas fa-gauge"></i></a>
         {% endif %}
-        <a class="profile-btn" href="{{ url_for('auth.logout') }}" title="Log out"><i class="fas fa-right-from-bracket"></i></a>
+        <a class="profile-btn" href="{{ url_for('auth.logout') }}" title="Log out" onclick="localStorage.removeItem('eb_quote_cart'); localStorage.removeItem('eb_quote_customer_info'); localStorage.removeItem('eb_quote_discount_type'); localStorage.removeItem('eb_quote_discount_value');"><i class="fas fa-right-from-bracket"></i></a>
         {% else %}
         <a class="profile-btn" href="{{ url_for('auth.login') }}" title="Profile / Login">
             <i class="fas fa-user"></i>

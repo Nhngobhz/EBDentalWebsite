@@ -15,9 +15,12 @@
         <div class="modal-price" id="modalPrice"></div>
         <div class="modal-actions">
             <button type="button" class="btn-primary" id="modalAddToQuoteBtn">
-                <i class="fas fa-shopping-cart"></i> Add to Quote
+                <i class="fas fa-shopping-cart"></i> Add to Cart
             </button>
-            <button type="button" class="btn-outline" onclick="closeProductModal()">Close</button>
         </div>
     </div>
 </div>
+
+<!-- Transient "Added to cart" toast — shown by showToast() in main.js instead of
+     auto-opening the quote drawer every time a product is added. -->
+<div class="eb-toast" id="ebToast"></div>

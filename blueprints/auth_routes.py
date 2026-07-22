@@ -1,8 +1,12 @@
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 
 from store_api import StoreAPIError, get_api_client
 
 auth_bp = Blueprint("auth", __name__)
+
+
+def _wants_json():
+    return request.headers.get("Accept") == "application/json" or request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
 
 def _build_session_account(account_type, user=None, customer=None):
@@ -34,7 +38,10 @@ def login():
 
     email = request.form.get("email", "").strip()
     password = request.form.get("password", "")
+    wants_json = _wants_json()
     if not email or not password:
+        if wants_json:
+            return jsonify({"success": False, "reason": "invalid", "detail": "Please enter both email and password."}), 400
         flash("Please enter both email and password.", "error")
         return render_template("auth/login.html"), 400
 
@@ -42,6 +49,12 @@ def login():
     try:
         result = client.login(email, password)
     except StoreAPIError as e:
+        if wants_json:
+            # Distinguishes "account exists but hasn't confirmed their email yet" (which
+            # the login page's JS turns into a polling loading screen - see
+            # templates/auth/login.html) from any other login failure.
+            reason = "unverified" if "confirm your email" in e.detail.lower() else "invalid"
+            return jsonify({"success": False, "reason": reason, "detail": e.detail}), (e.status_code or 400)
         flash(e.detail, "error")
         return render_template("auth/login.html"), (e.status_code or 400)
 
@@ -54,10 +67,15 @@ def login():
 
     next_url = request.args.get("next")
     if next_url:
-        return redirect(next_url)
-    if result["account_type"] == "user":
-        return redirect(url_for("admin.dashboard"))
-    return redirect(url_for("main.home"))
+        redirect_url = next_url
+    elif result["account_type"] == "user":
+        redirect_url = url_for("admin.dashboard")
+    else:
+        redirect_url = url_for("main.home")
+
+    if wants_json:
+        return jsonify({"success": True, "redirect_url": redirect_url})
+    return redirect(redirect_url)
 
 
 @auth_bp.route("/register", methods=["GET", "POST"])

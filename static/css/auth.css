@@ -300,6 +300,46 @@
     display: block;
 }
 
+/* Shown instead of the sign-in form while polling for email confirmation - see
+   templates/auth/login.html. */
+.login-box .login-waiting {
+    text-align: center;
+    padding: 12px 0 4px;
+}
+.login-box .login-waiting-spinner {
+    font-size: 2rem;
+    color: var(--accent);
+    margin-bottom: 14px;
+}
+.login-box .login-waiting h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 8px;
+}
+.login-box .login-waiting p {
+    font-size: 0.85rem;
+    color: var(--text-light);
+    line-height: 1.6;
+    margin-bottom: 18px;
+}
+.login-box .login-waiting .btn-outline {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 8px 22px;
+    border-radius: 99px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: var(--transition);
+    font-family: inherit;
+    color: var(--text-soft);
+}
+.login-box .login-waiting .btn-outline:hover {
+    border-color: var(--text-soft);
+    background: var(--bg);
+}
+
 @media (max-width: 480px) {
     .login-box {
         padding: 24px 16px 20px;
