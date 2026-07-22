@@ -1,14 +1,15 @@
-<!-- Quote Cart Drawer — slides in, shows items added via "Add to Quote"
+<!-- Cart Drawer — slides in, shows items added via "Add to Cart"
      with full line-item editing (code / qty / UOM / unit price / discount),
      plus a customer & quote info form matching EB Dental's official
-     quotation template. "Download as PDF" renders a hidden print template
-     (#quotePrintTemplate below) styled like the paper form and snapshots it
-     with html2canvas — this is what lets Khmer text render correctly,
-     since jsPDF's built-in fonts can't draw Khmer glyphs on their own. -->
+     quotation template. "Confirm Purchase" submits the order then renders a
+     hidden print template (#quotePrintTemplate below) styled like the paper
+     form and snapshots it with html2canvas — this is what lets Khmer text
+     render correctly, since jsPDF's built-in fonts can't draw Khmer glyphs
+     on their own. -->
 <div class="quote-drawer-overlay" id="quoteDrawerOverlay"></div>
 <div class="quote-drawer" id="quoteDrawer">
     <div class="quote-drawer-header">
-        <h3><i class="fas fa-shopping-cart"></i> Your Quote List</h3>
+        <h3><i class="fas fa-shopping-cart"></i> Your Cart</h3>
         <button type="button" class="quote-drawer-close" id="quoteDrawerClose"><i class="fas fa-times"></i></button>
     </div>
 
@@ -55,22 +56,27 @@
     </div>
 
     <div class="quote-drawer-footer">
-        <!-- Order-level discount — either a percentage or a flat cash amount, separate
-             from each product's own % discount (already baked into its unit price).
-             Setting a discount is staff-only (product_management, enforced
-             server-side too - see routers/orders.py::create_order); everyone else
-             just sees the (read-only, always $0 for them) computed Discount amount.
-             Defaults to 0%, meaning Grand Total = Sub-Total. -->
+        <!-- Sub-Total/Discount are a plain read-only breakdown of each product's own
+             already-applied discount (Sub-Total = undiscounted combined price, Discount =
+             the money that per-product discount saved). Special Discount is the separate
+             order-level discount (percent or flat cash) - staff-only (product_management,
+             enforced server-side too - see routers/orders.py::create_order); everyone
+             else just sees the (read-only, always $0 for them) computed amount. Defaults
+             to 0%, meaning Grand Total = Sub-Total - Discount. -->
         <div class="quote-summary-rows">
             <div class="quote-summary-row">
                 <span>Sub-Total</span>
                 <span id="quoteSubTotal">$0.00</span>
             </div>
+            <div class="quote-summary-row">
+                <span>Discount</span>
+                <span id="quoteItemDiscount">$0.00</span>
+            </div>
             <div class="quote-summary-row quote-discount-row">
                 <span>
-                    Discount
+                    Special Discount
                     {% if has_permission('product_management') %}
-                    <button type="button" class="quote-discount-edit-btn" id="quoteDiscountEditBtn" title="Set discount">
+                    <button type="button" class="quote-discount-edit-btn" id="quoteDiscountEditBtn" title="Set special discount">
                         <i class="fas fa-pen"></i>
                     </button>
                     {% endif %}
@@ -93,13 +99,13 @@
         </div>
         <div class="quote-drawer-actions">
             <button type="button" class="quote-download-pdf-btn" id="quoteDownloadPdfBtn">
-                <i class="fas fa-file-pdf"></i> Download as PDF
+                <i class="fas fa-circle-check"></i> Confirm Purchase
             </button>
         </div>
     </div>
 </div>
 
-<!-- Hidden print template — built and populated by QuoteCart.downloadPDF()
+<!-- Hidden print template — built and populated by QuoteCart.confirmPurchase()
      right before capture, then snapshotted with html2canvas. Kept off-screen
      (not display:none — html2canvas can't render that) rather than deleted,
      so the same node is reused on every export. -->

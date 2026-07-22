@@ -193,6 +193,21 @@ function formatItemDiscount(discount, discountType) {
     return discountType === 'cash' ? '$' + Number(discount).toFixed(2) : Number(discount) + '%';
 }
 
+/* Reconstructs a line's undiscounted unit price from its charged unit_price + the
+   product-level discount snapshotted onto it (see OrderItem.discount/discount_type in
+   store-api) - mirrors formatting.py's derive_old_price() on the Flask side, which does
+   the same thing for the product catalog's "was $X" display. Used by the printed quote
+   and the admin Orders view modal to show "Sub-Total (undiscounted)"/"Discount (money
+   saved)" as a real breakdown instead of just the already-discounted charged price. */
+function deriveOldUnitPrice(unitPrice, discount, discountType) {
+    const price = Number(unitPrice);
+    const d = Number(discount || 0);
+    if (!d) return price;
+    if (discountType === 'cash') return price + d;
+    if (d >= 100) return price;
+    return price / (1 - d / 100);
+}
+
 /* ============================================================
    QUOTE CART — new feature.
    The original "Add to Quote" button existed with zero logic
@@ -206,7 +221,7 @@ function formatItemDiscount(discount, discountType) {
    the masked "XXXX" sentinel. Finalizing the drawer now also
    submits the cart to POST /quote/submit, which creates a real
    store-api Order (server-priced, never trusting these local
-   numbers) before generating the PDF - see downloadPDF().
+   numbers) before generating the PDF - see confirmPurchase().
    ============================================================ */
 const QuoteCart = {
     STORAGE_KEY: 'eb_quote_cart',
@@ -311,6 +326,19 @@ const QuoteCart = {
         return this.getItems().reduce((sum, i) => sum + this.lineAmount(i), 0);
     },
 
+    // ---- Sub-Total (undiscounted) / Discount (product-level money saved) ----
+    // Sub-Total is the combined list price before each product's own discount; Discount
+    // is the money that discount actually saved. getTotal() above (the charged total)
+    // stays == Sub-Total - Discount, so Grand Total's math is unaffected by this split -
+    // it's purely a display breakdown, same reconstruction as deriveOldUnitPrice().
+    getUndiscountedTotal() {
+        return this.getItems().reduce((sum, i) => sum + deriveOldUnitPrice(i.price, i.discount, i.discountType) * i.qty, 0);
+    },
+
+    getItemDiscountTotal() {
+        return Math.max(0, this.getUndiscountedTotal() - this.getTotal());
+    },
+
     getCount() {
         return this.getItems().reduce((sum, i) => sum + i.qty, 0);
     },
@@ -374,7 +402,10 @@ const QuoteCart = {
         }
 
         const subTotalEl = document.getElementById('quoteSubTotal');
-        if (subTotalEl) subTotalEl.textContent = '$' + this.getTotal().toFixed(2);
+        if (subTotalEl) subTotalEl.textContent = '$' + this.getUndiscountedTotal().toFixed(2);
+
+        const itemDiscountEl = document.getElementById('quoteItemDiscount');
+        if (itemDiscountEl) itemDiscountEl.textContent = '$' + this.getItemDiscountTotal().toFixed(2);
 
         const discountAmountEl = document.getElementById('quoteDiscountAmount');
         if (discountAmountEl) discountAmountEl.textContent = '$' + this.getDiscountAmount().toFixed(2);
@@ -446,7 +477,7 @@ const QuoteCart = {
             itemsEl.innerHTML = `
                 <div class="quote-drawer-empty">
                     <i class="fas fa-shopping-cart"></i>
-                    <p>Your quote list is empty.<br>Add products to get started.</p>
+                    <p>Your cart is empty.<br>Add products to get started.</p>
                 </div>`;
             return;
         }
@@ -491,14 +522,20 @@ const QuoteCart = {
     },
 
     buildPrintTemplate(order) {
-        const discountLabel = order.discount_type === 'cash'
-            ? 'Discount (Cash):'
-            : `Discount (${Number(order.discount_value || 0)}%):`;
+        const specialDiscountLabel = order.discount_type === 'cash'
+            ? 'Special Discount (Cash):'
+            : `Special Discount (${Number(order.discount_value || 0)}%):`;
 
-        // "UP before & After Discount" — UP is the ORIGINAL price (unit_price before
-        // this line's discount was applied), Discount is the %, and Amount
-        // (line_amount) is the price actually charged × qty. All four come straight
-        // from the server's response, so the PDF always matches what was recorded.
+        // "UP before & After Discount" — UP is the ORIGINAL price (unit_price
+        // reconstructed from the charged item.unit_price + its snapshotted
+        // discount, same reconstruction as deriveOldUnitPrice/derive_old_price),
+        // Discount is the %, and Amount (line_amount) is the price actually
+        // charged × qty.
+        const undiscountedSubtotal = order.items.reduce(
+            (sum, item) => sum + deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type) * item.qty, 0
+        );
+        const itemDiscountTotal = Math.max(0, undiscountedSubtotal - Number(order.subtotal));
+
         const rows = order.items.map((item, i) => `
             <tr>
                 <td class="qpt-num">${i + 1}</td>
@@ -506,7 +543,7 @@ const QuoteCart = {
                 <td>${item.product_name}</td>
                 <td class="qpt-num">${item.qty}</td>
                 <td class="qpt-num">${item.uom || 'PCS'}</td>
-                <td class="qpt-right">$ ${Number(item.unit_price).toFixed(2)}</td>
+                <td class="qpt-right">$ ${deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type).toFixed(2)}</td>
                 <td class="qpt-num">${formatItemDiscount(item.discount, item.discount_type) || '—'}</td>
                 <td class="qpt-right">$ ${Number(item.line_amount).toFixed(2)}</td>
             </tr>`).join('');
@@ -573,12 +610,16 @@ const QuoteCart = {
                     ${rows}
                     ${blankRows}
                     <tr class="qpt-total-row qpt-subtotal-row">
-                        <td colspan="6" class="qpt-validity" rowspan="3">Quotation valid for <b>30 days</b> from the date issued.</td>
+                        <td colspan="6" class="qpt-validity" rowspan="4">Quotation valid for <b>30 days</b> from the date issued.</td>
                         <td>Sub-Total($):</td>
-                        <td class="qpt-right">$ ${Number(order.subtotal).toFixed(2)}</td>
+                        <td class="qpt-right">$ ${undiscountedSubtotal.toFixed(2)}</td>
                     </tr>
                     <tr class="qpt-total-row">
-                        <td>${discountLabel}</td>
+                        <td>Discount($):</td>
+                        <td class="qpt-right">$ ${itemDiscountTotal.toFixed(2)}</td>
+                    </tr>
+                    <tr class="qpt-total-row">
+                        <td>${specialDiscountLabel}</td>
                         <td class="qpt-right">$ ${Number(order.discount_amount).toFixed(2)}</td>
                     </tr>
                     <tr class="qpt-total-row qpt-grand-total-row">
@@ -629,17 +670,18 @@ const QuoteCart = {
         pdf.save('EB-Dental-Quotation-' + filenameSuffix + '.pdf');
     },
 
-    // Submits the cart to POST /quote/submit - this creates a real store-api Order
-    // (server re-prices every line, derives salesperson/quoted_by_name, and computes the
-    // discount itself - never trusting what the browser sends, see routers/orders.py) -
-    // then builds and downloads the PDF from that server response.
-    async downloadPDF() {
+    // "Confirm Purchase" submits the cart to POST /quote/submit - this creates a real
+    // store-api Order (server re-prices every line, derives salesperson/quoted_by_name,
+    // and computes the discount itself - never trusting what the browser sends, see
+    // routers/orders.py) - then builds and downloads the printed quotation PDF from that
+    // server response.
+    async confirmPurchase() {
         const items = this.getItems();
         if (items.length === 0) return;
 
         const info = this.getInfo();
         if (!info.clinic || !info.tel || !info.address) {
-            alert('Please fill in Clinic, Contact Tel, and Address before downloading the quote.');
+            alert('Please fill in Clinic, Contact Tel, and Address before confirming your purchase.');
             document.getElementById('quoteInfoForm')?.classList.remove('collapsed');
             return;
         }
@@ -683,7 +725,7 @@ const QuoteCart = {
             this.render();
             this.close();
         } finally {
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-file-pdf"></i> Download as PDF'; }
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-circle-check"></i> Confirm Purchase'; }
         }
     },
 };
@@ -694,7 +736,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('quoteCartIcon')?.addEventListener('click', () => QuoteCart.open());
     document.getElementById('quoteDrawerClose')?.addEventListener('click', () => QuoteCart.close());
     document.getElementById('quoteDrawerOverlay')?.addEventListener('click', () => QuoteCart.close());
-    document.getElementById('quoteDownloadPdfBtn')?.addEventListener('click', () => QuoteCart.downloadPDF());
+    document.getElementById('quoteDownloadPdfBtn')?.addEventListener('click', () => QuoteCart.confirmPurchase());
     document.getElementById('quoteDiscountEditBtn')?.addEventListener('click', () => {
         document.getElementById('quoteDiscountEditor')?.classList.toggle('open');
     });

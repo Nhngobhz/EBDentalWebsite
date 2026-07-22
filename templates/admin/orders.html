@@ -5,7 +5,7 @@
 
 {% block admin_content %}
 <div class="page-title"><i class="fas fa-shopping-cart"></i> Orders</div>
-<p class="page-sub">Quotes finalized by customers/staff through the storefront's "Add to Quote" cart. Every price shown here was computed server-side at the moment the order was placed.</p>
+<p class="page-sub">Quotes finalized by customers/staff through the storefront's Cart. Every price shown here was computed server-side at the moment the order was placed.</p>
 
 <div class="dash-card">
     <div class="card-header">
@@ -88,7 +88,8 @@
 
         <div class="quote-summary-rows" style="margin-bottom:16px;">
             <div class="quote-summary-row"><span>Sub-Total</span><span id="orderSubtotal"></span></div>
-            <div class="quote-summary-row"><span id="orderDiscountLabel">Discount</span><span id="orderDiscountAmount"></span></div>
+            <div class="quote-summary-row"><span>Discount</span><span id="orderItemDiscount"></span></div>
+            <div class="quote-summary-row"><span id="orderDiscountLabel">Special Discount</span><span id="orderDiscountAmount"></span></div>
             <div class="quote-summary-row quote-grand-total-row"><span>Grand Total</span><span id="orderGrandTotal"></span></div>
         </div>
 
@@ -143,15 +144,23 @@
                 <td>${item.product_name}</td>
                 <td>${item.product_code || '—'}</td>
                 <td>${item.qty}</td>
-                <td>${formatMoney(item.unit_price)}</td>
+                <td>${formatMoney(deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type))}</td>
                 <td>${formatItemDiscount(item.discount, item.discount_type) || '—'}</td>
                 <td>${formatMoney(item.line_amount)}</td>
             </tr>`).join('');
 
-        document.getElementById('orderSubtotal').textContent = formatMoney(order.subtotal);
+        // Sub-Total/Discount are reconstructed from each item's charged unit_price + its
+        // snapshotted product-level discount (see deriveOldUnitPrice() in main.js) -
+        // store-api only stores the final charged price, never a separate original one.
+        const undiscountedSubtotal = order.items.reduce(
+            (sum, item) => sum + deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type) * item.qty, 0
+        );
+        const itemDiscountTotal = Math.max(0, undiscountedSubtotal - Number(order.subtotal));
+        document.getElementById('orderSubtotal').textContent = formatMoney(undiscountedSubtotal);
+        document.getElementById('orderItemDiscount').textContent = formatMoney(itemDiscountTotal);
         document.getElementById('orderDiscountLabel').textContent = order.discount_type === 'cash'
-            ? 'Discount (Cash)'
-            : `Discount (${order.discount_value}%)`;
+            ? 'Special Discount (Cash)'
+            : `Special Discount (${order.discount_value}%)`;
         document.getElementById('orderDiscountAmount').textContent = formatMoney(order.discount_amount);
         document.getElementById('orderGrandTotal').textContent = formatMoney(order.grand_total);
         document.getElementById('orderStatusSelect').value = order.status;

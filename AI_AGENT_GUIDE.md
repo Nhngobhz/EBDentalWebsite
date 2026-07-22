@@ -146,20 +146,33 @@ This is the most involved part of the app; read this before touching
 anything quote-related.
 
 - **The public quote flow** (`templates/partials/quote_drawer.html` +
-  `static/js/main.js`'s `QuoteCart` object) is a client-side cart backed
-  by `localStorage`, gated by `CAN_QUOTE`/`IS_LOGGED_IN` globals injected
-  in `base.html` from `can_quote()`/`is_logged_in()`. Adding an item,
-  changing quantity, and the discount type/value selector are all purely
-  local until the user hits "Download as PDF".
-- **"Download as PDF" is really "submit, then print".** It POSTs the cart
+  `static/js/main.js`'s `QuoteCart` object) is a client-side cart (labeled
+  "Your Cart" in the UI, though the object/file names still say "quote" -
+  not renamed) backed by `localStorage`, gated by `CAN_QUOTE`/`IS_LOGGED_IN`
+  globals injected in `base.html` from `can_quote()`/`is_logged_in()`.
+  Adding an item, changing quantity, and the special-discount type/value
+  selector are all purely local until the user hits "Confirm Purchase".
+- **"Confirm Purchase" is really "submit, then print".** It POSTs the cart
   to `blueprints/quote.py`'s `/quote/submit`, which forwards to
   store-api's `POST /orders/` (server re-prices everything, derives
-  `salesperson`/`quoted_by_name`, generates `quote_code`, computes the
-  discount - see the other guide's Orders section). **Nothing about the
-  quote is persisted until this call succeeds.** Only after a successful
-  response does the frontend build the printable PDF - and it builds that
-  PDF from the *server's response*, not the local cart, so what's printed
-  always matches what's actually on record.
+  `salesperson`/`quoted_by_name`, generates `quote_code` (a readable
+  `yymmddhhmmss` timestamp, "-N" suffixed on same-second collisions),
+  computes the discount - see the other guide's Orders section). **Nothing
+  about the quote is persisted until this call succeeds.** Only after a
+  successful response does the frontend build the printable PDF - and it
+  builds that PDF from the *server's response*, not the local cart, so
+  what's printed always matches what's actually on record.
+- **Sub-Total/Discount/Special Discount/Grand Total, in both the cart
+  drawer and the printed PDF**: Sub-Total is the undiscounted combined list
+  price, Discount is the money each product's own (admin-set) discount
+  already saved, Special Discount is the separate order-level
+  percent/cash discount only `product_management` staff can set
+  (`QuoteCart.getDiscountType()/getDiscountValue()`), and Grand Total is
+  what's actually charged. Sub-Total/Discount are reconstructed client-side
+  via `deriveOldUnitPrice()` (mirrors `formatting.py`'s
+  `derive_old_price()`) since store-api only stores the final charged
+  `unit_price` + the discount that produced it, never a separate original
+  price column.
 - `QuoteCart.buildPrintTemplate(order)` and `QuoteCart.exportPDF(suffix)`
   (both in `main.js`) are deliberately split out as reusable, order-only
   functions (no dependency on the local cart/session) - this is what lets
@@ -170,7 +183,7 @@ anything quote-related.
   download and the admin reprint use it.
 - Required fields (`clinic_name`, `phone`, `address`) are validated in
   three places on purpose - the HTML `required` attribute
-  (`quote_drawer.html`), a JS check in `QuoteCart.downloadPDF()` (since
+  (`quote_drawer.html`), a JS check in `QuoteCart.confirmPurchase()` (since
   the fetch call bypasses native form validation), and `blueprints/quote.py`'s
   own check before it even calls store-api (which would 422 anyway, but
   with a less friendly message). If you loosen one, loosen all three

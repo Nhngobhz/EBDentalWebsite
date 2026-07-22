@@ -668,7 +668,7 @@ img {
 }
 
 /* ============================================================
-   QUOTE PRINT TEMPLATE — off-screen, built by QuoteCart.downloadPDF()
+   QUOTE PRINT TEMPLATE — off-screen, built by QuoteCart.confirmPurchase()
    right before capture, styled to mirror the official EB Dental paper
    quotation form (header, C.Code/Clinic/etc block, itemized table,
    validity note + total, signature strip).
