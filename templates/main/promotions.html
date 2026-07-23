@@ -22,7 +22,7 @@
                 {% endif %}
 
                 {% for promo in promotions %}
-                <a class="promo-card" href="{{ url_for('catalog.products_catalog') }}">
+                <div class="promo-card">
                     <div class="promo-image-wrap">
                         <img class="promo-image"
                              src="{{ img(promo.promotion_image) }}"
@@ -35,13 +35,40 @@
                             {{ price(promo.price) }}
                             {% if promo.old_price %}<span class="old">{{ price(promo.old_price) }}</span>{% endif %}
                         </div>
-                        <div class="view-detail">View Details <i class="fas fa-arrow-right"></i></div>
+                        {% if can_quote() %}
+                        <button type="button" class="btn-primary promo-buy-btn" id="promoAddBtn-{{ promo.id }}">
+                            <i class="fas fa-shopping-cart"></i> Add to Cart
+                        </button>
+                        {% else %}
+                        <a class="btn-primary promo-buy-btn" href="{{ url_for('main.contact') if is_logged_in() else url_for('auth.login') }}">
+                            <i class="fas fa-lock"></i> {{ 'Contact us for pricing' if is_logged_in() else 'Log in to buy' }}
+                        </a>
+                        {% endif %}
                     </div>
-                </a>
+                </div>
                 {% endfor %}
             </div>
 
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{% if can_quote() %}
+<script>
+    {% for promo in promotions %}
+    document.getElementById('promoAddBtn-{{ promo.id }}')?.addEventListener('click', () => {
+        QuoteCart.addPromotion({
+            id: {{ promo.id|tojson }},
+            promotion_name: {{ promo.promotion_name|tojson }},
+            price: {{ promo.price|tojson }},
+            old_price: {{ promo.old_price|tojson }},
+            image: {{ img(promo.promotion_image)|tojson }},
+        });
+        showToast('Added to cart successfully');
+    });
+    {% endfor %}
+</script>
+{% endif %}
 {% endblock %}

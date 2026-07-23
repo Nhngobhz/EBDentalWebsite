@@ -10,9 +10,9 @@ quote_bp = Blueprint("quote", __name__, url_prefix="/quote")
 @quote_bp.route("/submit", methods=["POST"])
 def submit():
     """Finalizes the client-side quote drawer (QuoteCart in main.js) into a real
-    store-api Order. Accepts only product_id + qty per line - store-api itself looks up
-    and snapshots each line's authoritative current price server-side (see
-    store-api/app/routers/orders.py), so a tampered request can never record a
+    store-api Order. Accepts only product_id/promotion_id + qty per line - store-api
+    itself looks up and snapshots each line's authoritative current price server-side
+    (see store-api/app/routers/orders.py), so a tampered request can never record a
     fabricated price here."""
     if not is_logged_in():
         return jsonify({"detail": "Please log in to submit a quote."}), 401
@@ -42,7 +42,12 @@ def submit():
         "install_term": body.get("install_term") or None,
         "discount_type": body.get("discount_type") or "percent",
         "discount_value": body.get("discount_value") or 0,
-        "items": [{"product_id": item["id"], "qty": item["qty"]} for item in items],
+        "items": [
+            {"promotion_id": item["id"], "qty": item["qty"]}
+            if item.get("kind") == "promotion"
+            else {"product_id": item["id"], "qty": item["qty"]}
+            for item in items
+        ],
     }
 
     client = get_api_client()

@@ -35,17 +35,6 @@
                 <span>Don't have an account? <a href="{{ url_for('auth.register') }}">Register here</a></span>
             </div>
         </div>
-
-        <!-- Shown instead of the form when login fails specifically because the
-             account's email isn't confirmed yet - polls the same login endpoint every
-             5s with the credentials already entered (kept only in memory, never
-             persisted) and logs the user in automatically as soon as it succeeds. -->
-        <div class="login-waiting" id="loginWaitingScreen" style="display:none;">
-            <div class="login-waiting-spinner"><i class="fas fa-spinner fa-spin"></i></div>
-            <h3>Waiting for email confirmation</h3>
-            <p>We've sent a confirmation link to your email. Once you click it, we'll sign you in automatically — this checks every few seconds.</p>
-            <button type="button" class="btn-outline" id="loginWaitingCancelBtn">Cancel</button>
-        </div>
     </div>
 </div>
 
@@ -54,11 +43,6 @@
     const form = document.getElementById('loginForm');
     const loginBtn = document.getElementById('loginBtn');
     const errorMsg = document.getElementById('loginErrorMsg');
-    const tabContent = document.getElementById('loginTabContent');
-    const waitingScreen = document.getElementById('loginWaitingScreen');
-
-    let pollTimer = null;
-    let pendingCredentials = null;
 
     function showError(message) {
         errorMsg.textContent = message;
@@ -67,22 +51,6 @@
 
     function hideError() {
         errorMsg.classList.remove('show');
-    }
-
-    function stopPolling() {
-        if (pollTimer) clearInterval(pollTimer);
-        pollTimer = null;
-        pendingCredentials = null;
-    }
-
-    function enterWaitingScreen() {
-        tabContent.style.display = 'none';
-        waitingScreen.style.display = 'block';
-    }
-
-    function exitWaitingScreen() {
-        waitingScreen.style.display = 'none';
-        tabContent.style.display = '';
     }
 
     async function attemptLogin(email, password) {
@@ -99,7 +67,6 @@
     }
 
     function onLoginSuccess(data) {
-        stopPolling();
         // Same keys QuoteCart uses in main.js - a fresh login should never inherit
         // whatever was left in the cart by a previous visitor/session on this browser.
         localStorage.removeItem('eb_quote_cart');
@@ -126,17 +93,10 @@
                 return;
             }
             if (data.reason === 'unverified') {
-                pendingCredentials = { email, password };
-                enterWaitingScreen();
-                pollTimer = setInterval(async () => {
-                    if (!pendingCredentials) return;
-                    try {
-                        const pollData = await attemptLogin(pendingCredentials.email, pendingCredentials.password);
-                        if (pollData.success) onLoginSuccess(pollData);
-                    } catch {
-                        // Transient network hiccup - just try again on the next tick.
-                    }
-                }, 5000);
+                // The waiting-for-confirmation screen now only lives on the register
+                // page (right after signup) - someone landing here with an
+                // unconfirmed account just gets told to go confirm it.
+                showError(data.detail || 'Please confirm your email address before logging in.');
             } else {
                 showError(data.detail || 'Incorrect email or password.');
             }
@@ -146,11 +106,6 @@
             loginBtn.disabled = false;
             loginBtn.innerHTML = '<i class="fas fa-lock"></i> Sign In';
         }
-    });
-
-    document.getElementById('loginWaitingCancelBtn')?.addEventListener('click', () => {
-        stopPolling();
-        exitWaitingScreen();
     });
 })();
 </script>

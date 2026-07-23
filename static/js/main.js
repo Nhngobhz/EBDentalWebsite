@@ -232,7 +232,11 @@ const QuoteCart = {
     // ---- line items ----
     getItems() {
         try {
-            return JSON.parse(localStorage.getItem(this.STORAGE_KEY)) || [];
+            const items = JSON.parse(localStorage.getItem(this.STORAGE_KEY)) || [];
+            // 'kind' distinguishes a product line from a promotion line (product ids
+            // and promotion ids come from separate tables and can collide) - default it
+            // for anything saved before this field existed.
+            return items.map(i => ({ kind: i.kind || 'product', ...i }));
         } catch {
             return [];
         }
@@ -261,7 +265,7 @@ const QuoteCart = {
         // Always appends to whatever is already in the cart - a normal cart never
         // wipes itself out when you add a second product.
         const items = this.getItems();
-        const existing = items.find(i => i.id === product.id);
+        const existing = items.find(i => i.id === product.id && i.kind === 'product');
         if (existing) {
             existing.qty += 1;
         } else {
@@ -273,6 +277,7 @@ const QuoteCart = {
             // can mirror the server's promotional-product exemption - see
             // routers/orders.py::create_order's discountable_subtotal.
             items.push({
+                kind: 'product',
                 id: product.id,
                 name: product.product_name,
                 code: product.code || product.product_code || '',
@@ -290,26 +295,66 @@ const QuoteCart = {
         this.render();
     },
 
-    removeItem(id) {
-        this.saveItems(this.getItems().filter(i => i.id !== id));
+    // A Promotion (homepage/promotions-page marketing deal) is bought the same way as
+    // a product - see promo.id, which lives in a separate table from Product.id and
+    // can collide with it, hence 'kind' to disambiguate cart lookups.
+    addPromotion(promo) {
+        if (typeof CAN_QUOTE !== 'undefined' && !CAN_QUOTE) return;
+        if (typeof promo.price !== 'number') return;
+
+        const items = this.getItems();
+        const existing = items.find(i => i.id === promo.id && i.kind === 'promotion');
+        if (existing) {
+            existing.qty += 1;
+        } else {
+            const oldPrice = typeof promo.old_price === 'number' ? promo.old_price : promo.price;
+            // Reproduces old_price as a cash "discount" (see routers/orders.py's
+            // create_order) so the existing deriveOldUnitPrice() math shows it the
+            // same way a product's own discount is shown - no separate code path.
+            const discount = oldPrice > promo.price ? oldPrice - promo.price : 0;
+            items.push({
+                kind: 'promotion',
+                id: promo.id,
+                name: promo.promotion_name,
+                code: '',
+                uom: '',
+                price: promo.price,
+                oldPrice: oldPrice,
+                discount: discount,
+                discountType: 'cash',
+                // Excluded from the order-level discount base, same as a
+                // "promotional"-type product - see getDiscountableTotal().
+                productType: 'promotional',
+                image: promo.image || '',
+                qty: 1,
+            });
+        }
+        this.saveItems(items);
+        this.render();
+    },
+
+    removeItem(id, kind) {
+        kind = kind || 'product';
+        this.saveItems(this.getItems().filter(i => !(i.id === id && i.kind === kind)));
         this.render();
     },
 
     // Salespeople can only adjust quantity on the quote — code, UOM, unit
-    // price, and discount are all admin-set on the product and shown
+    // price, and discount are all admin-set on the product/promotion and shown
     // read-only here. Updates the row's amount + totals directly via the
     // DOM rather than a full render(), so nothing else in the drawer flickers.
-    changeQty(id, delta) {
+    changeQty(id, delta, kind) {
+        kind = kind || 'product';
         const items = this.getItems();
-        const item = items.find(i => i.id === id);
+        const item = items.find(i => i.id === id && i.kind === kind);
         if (!item) return;
         item.qty = Math.max(1, item.qty + delta);
         this.saveItems(items);
 
-        const qtyEl = document.querySelector(`.quote-item[data-id="${id}"] .quote-qty-value`);
+        const qtyEl = document.querySelector(`.quote-item[data-id="${id}"][data-kind="${kind}"] .quote-qty-value`);
         if (qtyEl) qtyEl.textContent = item.qty;
 
-        const amountEl = document.querySelector(`.quote-item[data-id="${id}"] .quote-item-amount`);
+        const amountEl = document.querySelector(`.quote-item[data-id="${id}"][data-kind="${kind}"] .quote-item-amount`);
         if (amountEl) amountEl.textContent = '$' + this.lineAmount(item).toFixed(2);
 
         this.updateSummary();
@@ -483,24 +528,24 @@ const QuoteCart = {
         }
 
         itemsEl.innerHTML = items.map(item => `
-            <div class="quote-item" data-id="${item.id}">
+            <div class="quote-item" data-id="${item.id}" data-kind="${item.kind}">
                 <img src="${item.image || 'https://images.unsplash.com/photo-1587825140708-dfaf72ae4b04?w=100&h=100&fit=crop&auto=format'}" alt="${item.name}">
                 <div class="quote-item-info">
                     <div class="quote-item-name">${item.name}</div>
                     <div class="quote-item-fixed-meta">
-                        <span>${item.code || '—'}</span>
-                        <span>${item.uom || 'PCS'}</span>
+                        <span>${item.code || (item.kind === 'promotion' ? 'Promo' : '—')}</span>
+                        <span>${item.uom || (item.kind === 'promotion' ? '' : 'PCS')}</span>
                         <span>$${item.price.toFixed(2)} ea</span>
                         <span>${formatItemDiscount(item.discount, item.discountType) || 'No discount'}</span>
                     </div>
                     <div class="quote-item-row-footer">
                         <div class="quote-item-controls">
-                            <button type="button" class="quote-qty-btn" onclick="QuoteCart.changeQty(${item.id}, -1)"><i class="fas fa-minus"></i></button>
+                            <button type="button" class="quote-qty-btn" onclick="QuoteCart.changeQty(${item.id}, -1, '${item.kind}')"><i class="fas fa-minus"></i></button>
                             <span class="quote-qty-value">${item.qty}</span>
-                            <button type="button" class="quote-qty-btn" onclick="QuoteCart.changeQty(${item.id}, 1)"><i class="fas fa-plus"></i></button>
+                            <button type="button" class="quote-qty-btn" onclick="QuoteCart.changeQty(${item.id}, 1, '${item.kind}')"><i class="fas fa-plus"></i></button>
                         </div>
                         <span class="quote-item-amount">$${this.lineAmount(item).toFixed(2)}</span>
-                        <button type="button" class="quote-item-remove" onclick="QuoteCart.removeItem(${item.id})"><i class="fas fa-trash"></i></button>
+                        <button type="button" class="quote-item-remove" onclick="QuoteCart.removeItem(${item.id}, '${item.kind}')"><i class="fas fa-trash"></i></button>
                     </div>
                 </div>
             </div>`).join('');
@@ -721,7 +766,7 @@ const QuoteCart = {
                     install_term: info.installTerm || null,
                     discount_type: this.getDiscountType(),
                     discount_value: this.getDiscountValue(),
-                    items: items.map(item => ({ id: item.id, qty: item.qty })),
+                    items: items.map(item => ({ id: item.id, qty: item.qty, kind: item.kind })),
                 }),
             });
             order = await response.json();
