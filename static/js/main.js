@@ -46,6 +46,18 @@ function initHeroSlider(sliderEl) {
         dots.forEach((dot, i) => {
             dot.classList.toggle('active', i === currentIndex);
         });
+        // Drives the slow Ken Burns zoom + content fade-up on the visible
+        // slide only (see .hero-slider .slide.active in home.css) — restarting
+        // the CSS animation each time by toggling the class off then on.
+        slides.forEach((slide, i) => {
+            if (i === currentIndex) {
+                slide.classList.remove('active');
+                void slide.offsetWidth; // force reflow so the animation restarts
+                slide.classList.add('active');
+            } else {
+                slide.classList.remove('active');
+            }
+        });
     }
 
     function nextSlide() {
@@ -99,6 +111,32 @@ function initHeroSlider(sliderEl) {
 ------------------------------------------------------------- */
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.hero-slider, .product-hero-slider').forEach(initHeroSlider);
+});
+
+/* ------------------------------------------------------------
+   SCROLL REVEAL — see .reveal/.reveal-stagger in base.css.
+   Progressive enhancement: if IntersectionObserver isn't available,
+   everything is just revealed immediately instead of staying hidden.
+------------------------------------------------------------- */
+document.addEventListener('DOMContentLoaded', () => {
+    const revealEls = document.querySelectorAll('.reveal, .reveal-stagger');
+    if (!revealEls.length) return;
+
+    if (!('IntersectionObserver' in window)) {
+        revealEls.forEach(el => el.classList.add('is-visible'));
+        return;
+    }
+
+    const io = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('is-visible');
+                io.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.12, rootMargin: '0px 0px -60px 0px' });
+
+    revealEls.forEach(el => io.observe(el));
 });
 
 /* ------------------------------------------------------------
@@ -737,11 +775,38 @@ const QuoteCart = {
         `;
     },
 
+    // jsPDF + html2canvas are deliberately NOT in base.html anymore - they're only
+    // needed for PDF export, so they're injected here on first use. The promise is
+    // cached so repeated exports load them once; on failure it's cleared so a retry
+    // can attempt the download again.
+    _pdfLibsPromise: null,
+    _ensurePdfLibs() {
+        if (window.jspdf && window.html2canvas) return Promise.resolve();
+        if (!this._pdfLibsPromise) {
+            const urls = [
+                'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+            ];
+            this._pdfLibsPromise = Promise.all(urls.map(src => new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = () => reject(new Error('Failed to load ' + src));
+                document.head.appendChild(script);
+            }))).catch(err => {
+                this._pdfLibsPromise = null;
+                throw err;
+            });
+        }
+        return this._pdfLibsPromise;
+    },
+
     // Returns the built PDF as a Blob (in addition to triggering the local download)
     // so confirmPurchase() can also hand it to store-api for the Telegram order alert
     // - see uploadQuotationPDF(). The admin reprint button (admin/orders.html) calls
     // this too and just ignores the return value.
     async exportPDF(filenameSuffix) {
+        await this._ensurePdfLibs();
         const template = document.getElementById('quotePrintTemplate');
 
         // Give web fonts a beat to be ready before the snapshot.

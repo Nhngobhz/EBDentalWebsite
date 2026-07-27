@@ -15,11 +15,24 @@ def _set_form_payload():
     }
 
 
-def _file_from_request():
-    file = request.files.get("file")
+def _file_from_request(field="file"):
+    file = request.files.get(field)
     if file and file.filename:
         return {"file": (file.filename, file.stream, file.mimetype)}
     return None
+
+
+def _upload_set_images(client, set_id):
+    """Both images are optional and independent - the main thumbnail and the
+    detail image under the name/description (see Set.detail_image in
+    store-api). Each is only sent when that particular input was filled in, so
+    editing a set without re-picking a file leaves the existing image alone."""
+    main = _file_from_request("file")
+    if main:
+        client.post_form(f"/sets/{set_id}/image", files=main)
+    detail = _file_from_request("detail_file")
+    if detail:
+        client.post_form(f"/sets/{set_id}/detail-image", files=detail)
 
 
 @admin_bp.route("/sets")
@@ -40,9 +53,7 @@ def sets_new():
     client = get_api_client()
     try:
         created = client.post_json("/sets/", payload)
-        files = _file_from_request()
-        if files:
-            client.post_form(f"/sets/{created['id']}/image", files=files)
+        _upload_set_images(client, created["id"])
     except StoreAPIError as e:
         flash(e.detail, "error")
         return redirect(url_for("admin.sets"))
@@ -58,9 +69,7 @@ def sets_edit(set_id):
     client = get_api_client()
     try:
         client.put_json(f"/sets/{set_id}", payload)
-        files = _file_from_request()
-        if files:
-            client.post_form(f"/sets/{set_id}/image", files=files)
+        _upload_set_images(client, set_id)
     except StoreAPIError as e:
         flash(e.detail, "error")
         return redirect(url_for("admin.sets"))

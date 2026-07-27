@@ -30,7 +30,7 @@
                 {% for p in promotions %}
                 <tr data-search="{{ p.promotion_name|lower }}">
                     <td>
-                        <img src="{{ img(p.promotion_image) }}"
+                        <img src="{{ img(p.promotion_image) }}" loading="lazy"
                              style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid var(--border);" />
                     </td>
                     <td><strong>{{ p.promotion_name }}</strong></td>

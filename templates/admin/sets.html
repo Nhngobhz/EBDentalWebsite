@@ -30,7 +30,7 @@
                 {% for s in sets %}
                 <tr data-search="{{ s.set_name|lower }}">
                     <td>
-                        <img src="{{ img(s.set_image) }}"
+                        <img src="{{ img(s.set_image) }}" loading="lazy"
                              style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid var(--border);" />
                     </td>
                     <td><strong>{{ s.set_name }}</strong></td>
@@ -79,9 +79,15 @@
             </div>
             <div class="form-group" style="margin-bottom:12px;">
                 <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Set Image</label>
-                <div style="font-size:0.7rem;color:var(--text-light);margin-bottom:6px;">Shown as a small square/rectangle thumbnail on the Promotions page.</div>
+                <div style="font-size:0.7rem;color:var(--text-light);margin-bottom:6px;">The main image on the Promotions page set card.</div>
                 <input type="file" name="file" id="setImageFile" accept="image/png,image/jpeg,image/webp,image/gif" style="width:100%;font-size:0.8rem;">
                 <img id="setImagePreview" src="" alt="" style="display:none; margin-top:8px; width:70px; height:70px; border-radius:8px; object-fit:cover; border:1px solid var(--border);">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Detail Image <span style="font-weight:400;color:var(--text-light);">(optional)</span></label>
+                <div style="font-size:0.7rem;color:var(--text-light);margin-bottom:6px;">Small extra image shown under the name &amp; description — e.g. what's inside the bundle. Leave empty for none.</div>
+                <input type="file" name="detail_file" id="setDetailImageFile" accept="image/png,image/jpeg,image/webp,image/gif" style="width:100%;font-size:0.8rem;">
+                <img id="setDetailImagePreview" src="" alt="" style="display:none; margin-top:8px; width:70px; height:70px; border-radius:8px; object-fit:cover; border:1px solid var(--border);">
             </div>
             <button type="submit" class="btn-dash primary" style="width:100%;padding:10px;font-size:0.9rem;justify-content:center;margin-top:4px;" id="setModalSubmitBtn">
                 <i class="fas fa-save"></i> Create Set
@@ -95,7 +101,10 @@
 <script>
     {% set sets_json = [] %}
     {% for s in sets %}
-    {% set _ = sets_json.append(dict(s, image=img(s.set_image))) %}
+    {# detail_image stays raw/None here (not run through img()) so the edit
+       modal can tell "no detail image" apart from "has one" - img() would
+       hand back the 404 placeholder for both. #}
+    {% set _ = sets_json.append(dict(s, image=img(s.set_image), detail_image_url=img(s.detail_image) if s.detail_image else None)) %}
     {% endfor %}
     const SETS_DATA = {{ sets_json|tojson }};
     const SET_NEW_URL = {{ url_for('admin.sets_new')|tojson }};
@@ -124,6 +133,18 @@
             preview.style.display = '';
         } else {
             preview.style.display = 'none';
+        }
+
+        // Detail image is optional, so it only previews when the set actually
+        // has one - unlike the main image above, which every set is expected
+        // to have (and falls back to a placeholder when it doesn't).
+        const detailPreview = document.getElementById('setDetailImagePreview');
+        document.getElementById('setDetailImageFile').value = '';
+        if (isEdit && set_.detail_image_url) {
+            detailPreview.src = set_.detail_image_url;
+            detailPreview.style.display = '';
+        } else {
+            detailPreview.style.display = 'none';
         }
 
         document.getElementById('setModalOverlay').classList.add('active');

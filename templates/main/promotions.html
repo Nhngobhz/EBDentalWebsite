@@ -69,11 +69,20 @@
                          src="{{ img(set_.set_image) }}"
                          alt="{{ set_.set_name }}" loading="lazy" />
                     <div class="set-body">
-                        <h3>{{ set_.set_name }}</h3>
-                        {% if set_.description %}<p class="set-desc">{{ set_.description }}</p>{% endif %}
-                        <div class="product-price">
-                            {{ price(set_.price) }}
-                            {% if set_.old_price %}<span class="old">{{ price(set_.old_price) }}</span>{% endif %}
+                        <div class="set-headline">
+                            <div class="set-headline-text">
+                                <h3>{{ set_.set_name }}</h3>
+                                {% if set_.description %}<p class="set-desc">{{ set_.description }}</p>{% endif %}
+                                {% if set_.detail_image %}
+                                <img class="set-detail-image"
+                                     src="{{ img(set_.detail_image) }}"
+                                     alt="" loading="lazy" />
+                                {% endif %}
+                            </div>
+                            <div class="product-price set-price">
+                                {{ price(set_.price) }}
+                                {% if set_.old_price %}<span class="old">{{ price(set_.old_price) }}</span>{% endif %}
+                            </div>
                         </div>
                         {% if can_quote() %}
                         <button type="button" class="btn-primary set-buy-btn" id="setAddBtn-{{ set_.id }}">

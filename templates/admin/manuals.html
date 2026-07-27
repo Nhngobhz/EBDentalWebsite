@@ -30,7 +30,7 @@
                 {% for m in manuals %}
                 <tr data-search="{{ ((m.product.product_name if m.product else '') ~ ' ' ~ (m.description or ''))|lower }}">
                     <td>
-                        <img src="{{ img(m.manual_image) }}"
+                        <img src="{{ img(m.manual_image) }}" loading="lazy"
                              style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid var(--border);" />
                     </td>
                     <td><strong>{{ m.product.product_name if m.product else '—' }}</strong></td>

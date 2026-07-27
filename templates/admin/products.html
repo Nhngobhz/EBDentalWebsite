@@ -35,7 +35,7 @@
                 {% for p in products %}
                 <tr data-search="{{ (p.product_name ~ ' ' ~ (p.brand.brand_name if p.brand else '') ~ ' ' ~ (p.category.category_name if p.category else ''))|lower }}">
                     <td>
-                        <img src="{{ img(p.product_image) }}"
+                        <img src="{{ img(p.product_image) }}" loading="lazy"
                              style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid var(--border);" />
                     </td>
                     <td><strong>{{ p.product_name }}</strong></td>

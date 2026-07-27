@@ -245,8 +245,17 @@ Exposed as Jinja globals in `app.py` (`img`, `file_url`, `price`,
    the storefront download and the admin reprint button. Don't duplicate
    the HTML-building logic into `orders.html`'s inline script.
 7. **Forgetting `_admin_base.html` doesn't include `quote_drawer.html`.**
-   The hidden `#quotePrintTemplate` div and the jsPDF/html2canvas
-   `<script>` tags that `buildPrintTemplate`/`exportPDF` depend on are
+   The hidden `#quotePrintTemplate` div that `buildPrintTemplate` fills is
    added directly in `_admin_base.html` for this reason - if you create a
-   new base template that also needs to print, it needs its own copies of
-   both.
+   new base template that also needs to print, it needs its own copy.
+   jsPDF/html2canvas are NOT `<script>` tags in any base template anymore
+   (removed 2026-07-27 for page-load speed) - `QuoteCart._ensurePdfLibs()`
+   in `main.js` injects them from cdnjs on the first `exportPDF()` call.
+8. **Assuming the sitewide `brands`/`products`/`promotions`/`sets`/
+   `active_promotions` template globals are plain lists.** Since 2026-07-27
+   they're lazy per-request proxies (`app.py::inject_catalog_globals`) -
+   each store-api fetch only fires if the rendered template actually uses
+   that variable. They behave like lists inside Jinja (`|length`, iteration,
+   truthiness), but don't pass them to `|tojson` or code that needs a real
+   `list` - fetch and adapt your own list in the route instead (which also
+   shadows the global, skipping the sitewide fetch entirely).
