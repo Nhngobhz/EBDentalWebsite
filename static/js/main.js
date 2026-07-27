@@ -208,6 +208,34 @@ function deriveOldUnitPrice(unitPrice, discount, discountType) {
     return price / (1 - d / 100);
 }
 
+/* Printed quote/invoice item table only (buildPrintTemplate + the admin Orders view
+   modal) - NOT the live Cart drawer, which still shows every item's real discount/price
+   as it builds the order. In the printed table, a $ (cash) item discount is rolled into
+   the combined "Discount($)" total row instead of being called out per-item, so that
+   row's own Discount column goes blank and its Amount shows the undiscounted price -
+   only a % discount still displays inline on its own row. */
+function printedItemDiscountText(item) {
+    return item.discount_type === 'percent' ? formatItemDiscount(item.discount, item.discount_type) : null;
+}
+
+function printedItemAmount(item) {
+    return item.discount_type === 'cash'
+        ? deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type) * item.qty
+        : Number(item.line_amount);
+}
+
+/* The printed "Discount($)" total row is ONLY the money saved by $ (cash) item
+   discounts - a % item discount is already visible inline on its own row (see
+   printedItemDiscountText/printedItemAmount above), so folding it into this aggregate
+   too would double-count the same discount both per-row and in the total. */
+function printedCashDiscountTotal(items) {
+    return items.reduce((sum, item) => {
+        if (item.discount_type !== 'cash') return sum;
+        const oldUnitPrice = deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type);
+        return sum + (oldUnitPrice - Number(item.unit_price)) * item.qty;
+    }, 0);
+}
+
 /* ============================================================
    QUOTE CART — new feature.
    The original "Add to Quote" button existed with zero logic
@@ -579,7 +607,7 @@ const QuoteCart = {
         const undiscountedSubtotal = order.items.reduce(
             (sum, item) => sum + deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type) * item.qty, 0
         );
-        const itemDiscountTotal = Math.max(0, undiscountedSubtotal - Number(order.subtotal));
+        const itemDiscountTotal = printedCashDiscountTotal(order.items);
 
         const rows = order.items.map((item, i) => `
             <tr>
@@ -589,8 +617,8 @@ const QuoteCart = {
                 <td class="qpt-num">${item.qty}</td>
                 <td class="qpt-num">${item.uom || 'PCS'}</td>
                 <td class="qpt-right">$ ${deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type).toFixed(2)}</td>
-                <td class="qpt-num">${formatItemDiscount(item.discount, item.discount_type) || '—'}</td>
-                <td class="qpt-right">$ ${Number(item.line_amount).toFixed(2)}</td>
+                <td class="qpt-num">${printedItemDiscountText(item) || '—'}</td>
+                <td class="qpt-right">$ ${printedItemAmount(item).toFixed(2)}</td>
             </tr>`).join('');
 
         // Pad the table with blank rows so it always looks like a full,

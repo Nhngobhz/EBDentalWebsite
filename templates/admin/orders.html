@@ -145,8 +145,8 @@
                 <td>${item.product_code || '—'}</td>
                 <td>${item.qty}</td>
                 <td>${formatMoney(deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type))}</td>
-                <td>${formatItemDiscount(item.discount, item.discount_type) || '—'}</td>
-                <td>${formatMoney(item.line_amount)}</td>
+                <td>${printedItemDiscountText(item) || '—'}</td>
+                <td>${formatMoney(printedItemAmount(item))}</td>
             </tr>`).join('');
 
         // Sub-Total/Discount are reconstructed from each item's charged unit_price + its
@@ -155,7 +155,7 @@
         const undiscountedSubtotal = order.items.reduce(
             (sum, item) => sum + deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type) * item.qty, 0
         );
-        const itemDiscountTotal = Math.max(0, undiscountedSubtotal - Number(order.subtotal));
+        const itemDiscountTotal = printedCashDiscountTotal(order.items);
         document.getElementById('orderSubtotal').textContent = formatMoney(undiscountedSubtotal);
         document.getElementById('orderItemDiscount').textContent = formatMoney(itemDiscountTotal);
         document.getElementById('orderDiscountLabel').textContent = order.discount_type === 'cash'
