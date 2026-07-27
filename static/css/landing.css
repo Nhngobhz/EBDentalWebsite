@@ -1,0 +1,213 @@
+.landing-page {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 30px 20px;
+    background-image: url('/static/images/landing-bg.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.landing-page::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(15, 30, 46, 0.85) 0%, rgba(26, 52, 72, 0.85) 100%);
+    z-index: 0;
+}
+
+.landing-corner-logo,
+.landing-inner {
+    position: relative;
+    z-index: 1;
+}
+
+.tile-logo {
+    max-width: 170px;
+    width: 100%;
+    height: 75px;
+    object-fit: contain;
+    margin-bottom: 24px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    position: relative;
+    top: 10px;
+}
+
+.landing-corner-logo {
+    position: absolute;
+    top: 24px;
+    left: 32px;
+    max-width: 240px;
+    width: auto;
+    height: auto;
+}
+
+.landing-inner {
+    max-width: 820px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+.landing-title {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: #ffffff;
+    margin: 0 0 6px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.landing-subtitle {
+    color: #a8bccb;
+    font-size: 1rem;
+    margin: 0 0 36px;
+}
+
+.landing-tiles {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+}
+
+.landing-tile {
+    background: #fff;
+    border-radius: 5px;
+    padding: 48px 24px;
+    text-align: center;
+    text-decoration: none;
+    color: inherit;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.04);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.landing-tile:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 14px 32px rgba(0,0,0,0.12);
+}
+
+.tile-icon {
+    font-size: 2.8rem;
+    margin-bottom: 18px;
+    display: inline-block;
+}
+
+.tile-machinery .tile-icon {
+    background: linear-gradient(135deg, #7ec8e3, #4aa8c9);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.tile-materials .tile-icon {
+    background: linear-gradient(135deg, #a8e6cf, #4fc79a);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.landing-tile h2 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: #1f2937;
+}
+
+.landing-tile p {
+    color: #6b7280;
+    font-size: 0.95rem;
+}
+
+@media (max-width: 640px) {
+    .landing-tiles {
+        grid-template-columns: 1fr;
+    }
+    .landing-title {
+        font-size: 1.8rem;
+    }
+}
+
+/* Tablet (max 1024px) */
+@media (max-width: 1024px) {
+    .landing-corner-logo {
+        max-width: 180px;
+        top: 16px;
+        left: 20px;
+    }
+
+    .landing-title {
+        font-size: 2rem;
+    }
+
+    .landing-tiles {
+        max-width: 600px;
+        gap: 20px;
+    }
+
+    .landing-tile {
+        min-height: 220px;
+        padding: 28px 20px;
+    }
+}
+
+/* Tablet / large phone (max 768px) */
+@media (max-width: 768px) {
+    .landing-page {
+        padding: 20px 16px;
+        min-height: 100svh; /* handles mobile browser toolbar height changes better than 100vh */
+    }
+
+    .landing-corner-logo {
+    max-width: 240px;
+    top: 25px;
+    left: 9px;
+    }
+
+    .landing-title {
+        font-size: 1.6rem;
+    }
+
+    .landing-subtitle {
+        font-size: 0.9rem;
+        margin-bottom: 28px;
+    }
+
+    .landing-tiles {
+        grid-template-columns: 1fr;
+        max-width: 380px;
+        gap: 16px;
+    }
+
+    .landing-tile {
+        min-height: 200px;
+        padding: 24px 20px;
+    }
+
+    .tile-logo {
+        max-width: 110px;
+        height: 48px;
+    }
+
+    .tile-icon {
+        font-size: 2.2rem;
+    }
+}
+
+/* Small phone (max 400px) */
+@media (max-width: 400px) {
+    .landing-title {
+        font-size: 1.3rem;
+    }
+
+    .landing-tile h2 {
+        font-size: 1.2rem;
+    }
+
+    .landing-tile p {
+        font-size: 0.85rem;
+    }
+}

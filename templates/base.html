@@ -16,20 +16,25 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/products.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
 
     {% include "partials/flash_messages.html" %}
+    {% if request.endpoint != "main.landing" %}
     {% include "partials/header.html" %}
     {% include "partials/promo_banner.html" %}
+    {% endif %}
 
     <main>
         {% block content %}{% endblock %}
     </main>
 
+    {% if request.endpoint != "main.landing" %}
     {% include "partials/nav.html" %}
     {% include "partials/footer.html" %}
+    {% endif %}
     {% include "partials/product_modal.html" %}
     {% include "partials/quote_drawer.html" %}
 
@@ -51,6 +56,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/lang-dropdown.js') }}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

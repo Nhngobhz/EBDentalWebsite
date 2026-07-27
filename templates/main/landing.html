@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="landing-page">
+    <!-- <img src="{{ url_for('static', filename='images/eb-logo.png') }}" alt="EB Dental Supply" class="landing-corner-logo" /> -->
+
+    <div class="landing-inner">
+        <h1 class="landing-title">Welcome to EB Dental Supply</h1>
+        <p class="landing-subtitle">Choose a category to get started</p>
+
+        <div class="landing-tiles">
+            <a href="{{ url_for('main.home') }}" class="landing-tile tile-machinery">
+                <img src="{{ url_for('static', filename='images/machinery-logo.png') }}" alt="EB Dental Supply" class="tile-logo" /> 
+                <h2>Machinery</h2>
+                <p>Browse dental machines &amp; equipment</p>
+            </a>
+
+            <a href="{{ url_for('main.materials') }}" class="landing-tile tile-materials">
+                <img src="{{ url_for('static', filename='images/home-49.png') }}" alt="EB Dental Supply" class="tile-logo" />
+                <!-- <i class="fas fa-flask tile-icon"></i> -->
+                <h2>Materials</h2>
+                <p>Browse dental consumables &amp; materials</p>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

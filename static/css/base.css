@@ -795,3 +795,67 @@ table.qpt-table td.qpt-right { text-align: right; }
     justify-content: center;
     padding: 0 3px;
 }
+
+.lang-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.lang-dropdown-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: 1px solid rgba(0,0,0,0.1);
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.lang-dropdown-btn img {
+    width: 20px;
+    height: auto;
+    border-radius: 2px;
+}
+
+.lang-dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 110%;
+    right: 0;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    overflow: hidden;
+    min-width: 140px;
+    z-index: 100;
+}
+
+.lang-dropdown-menu.open {
+    display: block;
+}
+
+.lang-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 14px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    text-align: left;
+}
+
+.lang-option:hover {
+    background: #f1f5f9;
+}
+
+.lang-option img {
+    width: 20px;
+    height: auto;
+    border-radius: 2px;
+}

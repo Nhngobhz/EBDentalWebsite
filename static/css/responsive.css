@@ -402,3 +402,33 @@
 .product-card-horizontal:hover .product-body .view-detail i {
     transform: translateX(4px);
 }
+@media (max-width: 480px) {
+    .lang-dropdown-btn {
+        padding: 4px 6px;
+        font-size: 0.75rem;
+        gap: 4px;
+    }
+
+    .lang-dropdown-btn img {
+        width: 16px;
+    }
+
+    .lang-dropdown-btn span {
+        display: none;
+    }
+}
+@media (max-width: 480px) {
+    .header-account-name {
+        display: none;
+    }
+
+    .eb-header .header-right {
+        gap: 8px;
+    }
+
+    .eb-header .header-right .profile-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 0.75rem;
+    }
+}

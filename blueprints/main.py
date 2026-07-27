@@ -6,12 +6,22 @@ main_bp = Blueprint("main", __name__)
 
 
 @main_bp.route("/")
+def landing():
+    return render_template("main/landing.html")
+
+
+@main_bp.route("/machinery")
 def home():
     # brands/active_promotions are also available via the sitewide context
     # processor, but passed explicitly too (matches the original mock's own pattern).
     client = get_api_client()
     brands = client.get("/brands/", params={"limit": 200})
     return render_template("main/home.html", brands=brands)
+
+
+@main_bp.route("/materials")
+def materials():
+    return render_template("main/materials_coming_soon.html")
 
 
 @main_bp.route("/about")

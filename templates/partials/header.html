@@ -1,17 +1,30 @@
 <header class="eb-header" id="ebHeader">
-    <div class="logo">
-        <div class="logo-icon"><i class="fas fa-tooth"></i></div>
-        <div class="logo-text">EB <span>DENTAL</span></div>
-    </div>
+    <a href="{{ url_for('main.landing') }}" class="logo">
+    <img src="{{ url_for('static', filename='images/machinery-logo.png') }}" alt="EB Dental Supply" class="header-logo-img" />
+    </a>
     <nav class="eb-nav-center" id="ebNav">
         <a href="{{ url_for('main.home') }}" class="{{ 'active' if request.endpoint == 'main.home' }}">Home</a>
         <a href="{{ url_for('catalog.products_catalog') }}" class="{{ 'active' if request.endpoint == 'catalog.products_catalog' }}">Products</a>
         <a href="{{ url_for('main.about') }}" class="{{ 'active' if request.endpoint == 'main.about' }}">About</a>
         <a href="{{ url_for('main.contact') }}" class="{{ 'active' if request.endpoint == 'main.contact' }}">Contact</a>
-        <a href="{{ url_for('catalog.manuals') }}" class="{{ 'active' if request.endpoint == 'catalog.manuals' }}">📘 Manual</a>
+        <a href="{{ url_for('catalog.manuals') }}" class="{{ 'active' if request.endpoint == 'catalog.manuals' }}"> Manual</a>
     </nav>
     <div class="header-right">
-        <img src="https://flagcdn.com/w40/kh.png" alt="KH" class="flag" />
+        <div class="lang-dropdown" id="langDropdown">
+    <button class="lang-dropdown-btn" id="langDropdownBtn" type="button">
+        <img src="https://flagcdn.com/w40/gb.png" alt="EN" id="langFlagIcon" />
+        <span id="langLabel">EN</span>
+        <i class="fas fa-chevron-down" style="font-size:0.7rem;"></i>
+    </button>
+    <div class="lang-dropdown-menu" id="langDropdownMenu">
+        <button type="button" class="lang-option" data-lang="en" data-flag="https://flagcdn.com/w40/gb.png" >
+            <img src="https://flagcdn.com/w40/gb.png" alt="EN" /> English
+        </button>
+        <button type="button" class="lang-option" data-lang="km" data-flag="https://flagcdn.com/w40/kh.png" >
+            <img src="https://flagcdn.com/w40/kh.png" alt="KH" /> Khmer
+        </button>
+    </div>
+</div>
 
         <span class="icon-btn quote-cart-icon" id="quoteCartIcon" title="Your Quote List">
             <i class="fas fa-shopping-cart"></i>
