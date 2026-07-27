@@ -27,5 +27,6 @@ from blueprints.admin import (  # noqa: E402
     orders,
     products,
     promotions,
+    sets,
     users,
 )

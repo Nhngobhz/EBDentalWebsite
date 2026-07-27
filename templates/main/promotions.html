@@ -49,6 +49,46 @@
                 {% endfor %}
             </div>
 
+            <div class="sets-hero">
+                <h2>📦 <span>Sets</span></h2>
+                <p>Bundle deals, always on sale.</p>
+            </div>
+
+            <div class="set-grid">
+                {% if sets|length == 0 %}
+                <div class="empty-promos">
+                    <div class="icon"><i class="fas fa-box-open"></i></div>
+                    <h3>No sets available</h3>
+                    <p>Check back later for bundle deals.</p>
+                </div>
+                {% endif %}
+
+                {% for set_ in sets %}
+                <div class="set-card">
+                    <img class="set-image"
+                         src="{{ img(set_.set_image) }}"
+                         alt="{{ set_.set_name }}" loading="lazy" />
+                    <div class="set-body">
+                        <h3>{{ set_.set_name }}</h3>
+                        {% if set_.description %}<p class="set-desc">{{ set_.description }}</p>{% endif %}
+                        <div class="product-price">
+                            {{ price(set_.price) }}
+                            {% if set_.old_price %}<span class="old">{{ price(set_.old_price) }}</span>{% endif %}
+                        </div>
+                        {% if can_quote() %}
+                        <button type="button" class="btn-primary set-buy-btn" id="setAddBtn-{{ set_.id }}">
+                            <i class="fas fa-shopping-cart"></i> Add to Cart
+                        </button>
+                        {% else %}
+                        <a class="btn-primary set-buy-btn" href="{{ url_for('main.contact') if is_logged_in() else url_for('auth.login') }}">
+                            <i class="fas fa-lock"></i> {{ 'Contact us for pricing' if is_logged_in() else 'Log in to buy' }}
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
         </div>
     </div>
 </div>
@@ -65,6 +105,19 @@
             price: {{ promo.price|tojson }},
             old_price: {{ promo.old_price|tojson }},
             image: {{ img(promo.promotion_image)|tojson }},
+        });
+        showToast('Added to cart successfully');
+    });
+    {% endfor %}
+
+    {% for set_ in sets %}
+    document.getElementById('setAddBtn-{{ set_.id }}')?.addEventListener('click', () => {
+        QuoteCart.addSet({
+            id: {{ set_.id|tojson }},
+            set_name: {{ set_.set_name|tojson }},
+            price: {{ set_.price|tojson }},
+            old_price: {{ set_.old_price|tojson }},
+            image: {{ img(set_.set_image)|tojson }},
         });
         showToast('Added to cart successfully');
     });

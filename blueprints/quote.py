@@ -45,6 +45,8 @@ def submit():
         "items": [
             {"promotion_id": item["id"], "qty": item["qty"]}
             if item.get("kind") == "promotion"
+            else {"set_id": item["id"], "qty": item["qty"]}
+            if item.get("kind") == "set"
             else {"product_id": item["id"], "qty": item["qty"]}
             for item in items
         ],

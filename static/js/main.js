@@ -301,9 +301,6 @@ const QuoteCart = {
             // (set by admin) — salespeople only ever adjust qty on the quote.
             // was_price is the reconstructed pre-discount price; price is what's
             // actually charged (admin already applied the discount to it).
-            // productType is kept so the local discount preview (getDiscountAmount)
-            // can mirror the server's promotional-product exemption - see
-            // routers/orders.py::create_order's discountable_subtotal.
             items.push({
                 kind: 'product',
                 id: product.id,
@@ -314,7 +311,6 @@ const QuoteCart = {
                 oldPrice: product.was_price || product.price,
                 discount: product.discount || 0,
                 discountType: product.discount_type || 'percent',
-                productType: product.product_type || 'single',
                 image: product.image || '',
                 qty: 1,
             });
@@ -350,10 +346,39 @@ const QuoteCart = {
                 oldPrice: oldPrice,
                 discount: discount,
                 discountType: 'cash',
-                // Excluded from the order-level discount base, same as a
-                // "promotional"-type product - see getDiscountableTotal().
-                productType: 'promotional',
                 image: promo.image || '',
+                qty: 1,
+            });
+        }
+        this.saveItems(items);
+        this.render();
+    },
+
+    // A Set (Promotions-page bundle deal) is bought the same way a Promotion is - see
+    // set.id, which lives in a separate table from Product.id/Promotion.id and can
+    // collide with either, hence 'kind' to disambiguate cart lookups.
+    addSet(set) {
+        if (typeof CAN_QUOTE !== 'undefined' && !CAN_QUOTE) return;
+        if (typeof set.price !== 'number') return;
+
+        const items = this.getItems();
+        const existing = items.find(i => i.id === set.id && i.kind === 'set');
+        if (existing) {
+            existing.qty += 1;
+        } else {
+            const oldPrice = typeof set.old_price === 'number' ? set.old_price : set.price;
+            const discount = oldPrice > set.price ? oldPrice - set.price : 0;
+            items.push({
+                kind: 'set',
+                id: set.id,
+                name: set.set_name,
+                code: '',
+                uom: '',
+                price: set.price,
+                oldPrice: oldPrice,
+                discount: discount,
+                discountType: 'cash',
+                image: set.image || '',
                 qty: 1,
             });
         }
@@ -447,11 +472,11 @@ const QuoteCart = {
         this.updateSummary();
     },
 
-    // Promotional products carry a fixed promo price - the order-level discount below
-    // never applies to them, mirroring create_order's discountable_subtotal server-side.
+    // A Promotion/Set line carries a fixed deal price - the order-level discount below
+    // never applies to it, mirroring create_order's discountable_subtotal server-side.
     getDiscountableTotal() {
         return this.getItems().reduce(
-            (sum, i) => sum + (i.productType === 'promotional' ? 0 : this.lineAmount(i)), 0
+            (sum, i) => sum + (i.kind === 'product' ? this.lineAmount(i) : 0), 0
         );
     },
 
@@ -561,8 +586,8 @@ const QuoteCart = {
                 <div class="quote-item-info">
                     <div class="quote-item-name">${item.name}</div>
                     <div class="quote-item-fixed-meta">
-                        <span>${item.code || (item.kind === 'promotion' ? 'Promo' : '—')}</span>
-                        <span>${item.uom || (item.kind === 'promotion' ? '' : 'PCS')}</span>
+                        <span>${item.code || (item.kind === 'promotion' ? 'Promo' : item.kind === 'set' ? 'Set' : '—')}</span>
+                        <span>${item.uom || (item.kind === 'product' ? 'PCS' : '')}</span>
                         <span>$${item.price.toFixed(2)} ea</span>
                         <span>${formatItemDiscount(item.discount, item.discountType) || 'No discount'}</span>
                     </div>

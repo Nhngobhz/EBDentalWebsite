@@ -38,7 +38,6 @@ def _product_form_payload():
         "product_name": request.form.get("product_name", "").strip(),
         "description": request.form.get("description", "").strip() or None,
         "badge": request.form.get("badge", "").strip() or None,
-        "product_type": request.form.get("product_type") or "single",
         "product_code": request.form.get("product_code", "").strip() or None,
         "uom": request.form.get("uom", "").strip() or None,
         "brand_id": request.form.get("brand_id", type=int),

@@ -2,7 +2,7 @@ from urllib.parse import urlencode
 
 from flask import Blueprint, abort, render_template, request, url_for
 
-from formatting import adapt_product, adapt_promotion
+from formatting import adapt_product, adapt_promotion, adapt_set
 from store_api import StoreAPIError, get_api_client
 
 catalog_bp = Blueprint("catalog", __name__)
@@ -82,4 +82,6 @@ def promotions_page():
     client = get_api_client()
     raw_promotions = client.get("/promotions/", params={"active_only": True, "limit": 200})
     promotions = [adapt_promotion(p) for p in raw_promotions]
-    return render_template("main/promotions.html", promotions=promotions)
+    raw_sets = client.get("/sets/", params={"limit": 200})
+    sets = [adapt_set(s) for s in raw_sets]
+    return render_template("main/promotions.html", promotions=promotions, sets=sets)

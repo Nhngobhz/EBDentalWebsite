@@ -100,7 +100,7 @@
                     <div id="prodDiscountHint" style="font-size:0.7rem;color:var(--text-light);margin-top:4px;display:none;"></div>
                 </div>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                 <div class="form-group" style="margin-bottom:12px;">
                     <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Product Code</label>
                     <input type="text" name="product_code" id="prodCode" placeholder="e.g. WP-UDSJ" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
@@ -108,15 +108,6 @@
                 <div class="form-group" style="margin-bottom:12px;">
                     <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">UOM</label>
                     <input type="text" name="uom" id="prodUom" placeholder="e.g. pcs, box, set" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
-                </div>
-                <div class="form-group" style="margin-bottom:12px;">
-                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Type</label>
-                    <select name="product_type" id="prodType" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
-                        <option value="single">Single</option>
-                        <option value="combo">Combo</option>
-                        <option value="promotional">Promotional</option>
-                    </select>
-                    <div style="font-size:0.7rem;color:var(--text-light);margin-top:4px;">Promotional products keep a fixed price - quote-level discounts never apply to them.</div>
                 </div>
             </div>
             <div class="form-group" style="margin-bottom:12px;">
@@ -287,7 +278,6 @@
         document.getElementById('prodDiscount').value = isEdit ? (product.discount || 0) : 0;
         document.getElementById('prodCode').value = isEdit ? (product.product_code || '') : '';
         document.getElementById('prodUom').value = isEdit ? (product.uom || '') : '';
-        document.getElementById('prodType').value = isEdit ? (product.product_type || 'single') : 'single';
         document.getElementById('prodBrand').value = isEdit && product.brand ? product.brand.id : '';
         document.getElementById('prodCategory').value = isEdit && product.category ? product.category.id : '';
         document.getElementById('prodBadge').value = isEdit ? (product.badge || '') : '';
