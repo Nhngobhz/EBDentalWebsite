@@ -13,12 +13,31 @@ def _file_from_request():
     return None
 
 
+def _apply_discount(price, discount, discount_type):
+    """The Price field the admin fills in is the original (pre-discount) price - Product
+    has no separate original-price column, so the actual discounted amount has to be
+    computed here and sent as `price` to store-api. `discount`/`discount_type` are still
+    sent alongside as display metadata (formatting.derive_old_price uses them to
+    reconstruct this same original price for the "was $X" strikethrough)."""
+    try:
+        p = float(price)
+        d = float(discount)
+    except (TypeError, ValueError):
+        return price
+    if discount_type == "cash":
+        final = p - d
+    elif d < 100:
+        final = p * (1 - d / 100)
+    else:
+        final = p
+    return f"{max(final, 0.01):.2f}"
+
+
 def _product_form_payload():
     payload = {
         "product_name": request.form.get("product_name", "").strip(),
         "description": request.form.get("description", "").strip() or None,
         "badge": request.form.get("badge", "").strip() or None,
-        "product_type": request.form.get("product_type") or "single",
         "product_code": request.form.get("product_code", "").strip() or None,
         "uom": request.form.get("uom", "").strip() or None,
         "brand_id": request.form.get("brand_id", type=int),
@@ -29,8 +48,11 @@ def _product_form_payload():
     if price:
         payload["price"] = price
     if discount:
-        payload["discount_type"] = request.form.get("discount_type") or "percent"
+        discount_type = request.form.get("discount_type") or "percent"
+        payload["discount_type"] = discount_type
         payload["discount"] = discount
+        if price:
+            payload["price"] = _apply_discount(price, discount, discount_type)
     return payload
 
 
@@ -96,8 +118,11 @@ def products_price(product_id):
     if price:
         payload["price"] = price
     if discount:
-        payload["discount_type"] = request.form.get("discount_type") or "percent"
+        discount_type = request.form.get("discount_type") or "percent"
+        payload["discount_type"] = discount_type
         payload["discount"] = discount
+        if price:
+            payload["price"] = _apply_discount(price, discount, discount_type)
 
     client = get_api_client()
     try:

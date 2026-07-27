@@ -60,6 +60,10 @@ def create_app():
         except StoreAPIError:
             promotions = []
         try:
+            sets = client.get("/sets/", params={"limit": 200})
+        except StoreAPIError:
+            sets = []
+        try:
             active_promotions_raw = client.get("/promotions/", params={"active_only": True, "limit": 50})
         except StoreAPIError:
             active_promotions_raw = []
@@ -67,6 +71,7 @@ def create_app():
             "brands": brands,
             "products": products,
             "promotions": promotions,
+            "sets": sets,
             "active_promotions": [adapt_promotion(p) for p in active_promotions_raw],
         }
 

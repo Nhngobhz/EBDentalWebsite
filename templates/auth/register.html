@@ -18,7 +18,7 @@
             <a href="{{ url_for('auth.register') }}" class="active">Register</a>
         </div>
 
-        <div class="tab-content active">
+        <div class="tab-content active" id="registerTabContent">
             <form id="registerForm" method="post" action="{{ url_for('auth.register') }}">
                 <div class="form-group">
                     <label for="regName">Full Name</label>
@@ -40,12 +40,142 @@
                     <label for="regAddress">Address</label>
                     <input type="text" id="regAddress" name="address" placeholder="Enter your address" />
                 </div>
+                <div id="registerErrorMsg" class="login-error"></div>
                 <button type="submit" class="btn-login" id="registerBtn"><i class="fas fa-user-plus"></i> Create Account</button>
             </form>
             <div class="login-footer">
                 <span>Already have an account? <a href="{{ url_for('auth.login') }}">Sign In</a></span>
             </div>
         </div>
+
+        <!-- Shown right after a successful registration instead of redirecting to
+             /login - polls the login endpoint every 5s with the credentials just
+             submitted (kept only in memory, never persisted) and signs the new
+             account in automatically as soon as its email is confirmed. -->
+        <div class="login-waiting" id="registerWaitingScreen" style="display:none;">
+            <div class="login-waiting-spinner"><i class="fas fa-spinner fa-spin"></i></div>
+            <h3>Waiting for email confirmation</h3>
+            <p>We've sent a confirmation link to your email. Once you click it, we'll sign you in automatically — this checks every few seconds.</p>
+            <button type="button" class="btn-outline" id="registerWaitingCancelBtn">Cancel</button>
+        </div>
     </div>
 </div>
+
+<script>
+(function () {
+    const form = document.getElementById('registerForm');
+    const registerBtn = document.getElementById('registerBtn');
+    const errorMsg = document.getElementById('registerErrorMsg');
+    const tabContent = document.getElementById('registerTabContent');
+    const waitingScreen = document.getElementById('registerWaitingScreen');
+
+    let pollTimer = null;
+    let pendingCredentials = null;
+
+    function showError(message) {
+        errorMsg.textContent = message;
+        errorMsg.classList.add('show');
+    }
+
+    function hideError() {
+        errorMsg.classList.remove('show');
+    }
+
+    function stopPolling() {
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = null;
+        pendingCredentials = null;
+    }
+
+    function enterWaitingScreen() {
+        tabContent.style.display = 'none';
+        waitingScreen.style.display = 'block';
+    }
+
+    function exitWaitingScreen() {
+        waitingScreen.style.display = 'none';
+        tabContent.style.display = '';
+    }
+
+    async function attemptLogin(email, password) {
+        const resp = await fetch('{{ url_for("auth.login") }}', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({ email, password }),
+        });
+        return resp.json();
+    }
+
+    function onLoginSuccess(data) {
+        stopPolling();
+        // Same keys QuoteCart uses in main.js - a fresh login should never inherit
+        // whatever was left in the cart by a previous visitor/session on this browser.
+        localStorage.removeItem('eb_quote_cart');
+        localStorage.removeItem('eb_quote_customer_info');
+        localStorage.removeItem('eb_quote_discount_type');
+        localStorage.removeItem('eb_quote_discount_value');
+        window.location.href = data.redirect_url;
+    }
+
+    function startWaiting(email, password) {
+        pendingCredentials = { email, password };
+        enterWaitingScreen();
+        pollTimer = setInterval(async () => {
+            if (!pendingCredentials) return;
+            try {
+                const pollData = await attemptLogin(pendingCredentials.email, pendingCredentials.password);
+                if (pollData.success) onLoginSuccess(pollData);
+            } catch {
+                // Transient network hiccup - just try again on the next tick.
+            }
+        }, 5000);
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        hideError();
+
+        const email = document.getElementById('regEmail').value.trim();
+        const password = document.getElementById('regPassword').value;
+
+        registerBtn.disabled = true;
+        registerBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating account...';
+
+        try {
+            const resp = await fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: new FormData(form),
+            });
+            const data = await resp.json();
+            if (data.success) {
+                // The account was just created unverified - the first login attempt
+                // here always lands on "unverified" and kicks off the wait; it's
+                // still routed through the same login endpoint as everywhere else
+                // rather than special-cased.
+                startWaiting(email, password);
+                return;
+            }
+            showError(data.detail || 'Could not create your account. Please try again.');
+        } catch (err) {
+            showError('Could not reach the server. Please check your connection and try again.');
+        } finally {
+            registerBtn.disabled = false;
+            registerBtn.innerHTML = '<i class="fas fa-user-plus"></i> Create Account';
+        }
+    });
+
+    document.getElementById('registerWaitingCancelBtn')?.addEventListener('click', () => {
+        stopPolling();
+        exitWaitingScreen();
+    });
+})();
+</script>
 {% endblock %}

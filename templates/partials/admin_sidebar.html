@@ -73,6 +73,9 @@
                 <a class="nav-item {{ 'active' if request.endpoint == 'admin.promotions' }}" href="{{ url_for('admin.promotions') }}">
                     <i class="fas fa-fire"></i> Promotions <span class="badge-dash">{{ promotions|length }}</span>
                 </a>
+                <a class="nav-item {{ 'active' if request.endpoint == 'admin.sets' }}" href="{{ url_for('admin.sets') }}">
+                    <i class="fas fa-box-open"></i> Sets <span class="badge-dash">{{ sets|length }}</span>
+                </a>
                 <a class="nav-item {{ 'active' if request.endpoint == 'admin.orders' }}" href="{{ url_for('admin.orders') }}">
                     <i class="fas fa-shopping-cart"></i> Orders
                 </a>

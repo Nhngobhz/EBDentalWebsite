@@ -193,6 +193,49 @@ function formatItemDiscount(discount, discountType) {
     return discountType === 'cash' ? '$' + Number(discount).toFixed(2) : Number(discount) + '%';
 }
 
+/* Reconstructs a line's undiscounted unit price from its charged unit_price + the
+   product-level discount snapshotted onto it (see OrderItem.discount/discount_type in
+   store-api) - mirrors formatting.py's derive_old_price() on the Flask side, which does
+   the same thing for the product catalog's "was $X" display. Used by the printed quote
+   and the admin Orders view modal to show "Sub-Total (undiscounted)"/"Discount (money
+   saved)" as a real breakdown instead of just the already-discounted charged price. */
+function deriveOldUnitPrice(unitPrice, discount, discountType) {
+    const price = Number(unitPrice);
+    const d = Number(discount || 0);
+    if (!d) return price;
+    if (discountType === 'cash') return price + d;
+    if (d >= 100) return price;
+    return price / (1 - d / 100);
+}
+
+/* Printed quote/invoice item table only (buildPrintTemplate + the admin Orders view
+   modal) - NOT the live Cart drawer, which still shows every item's real discount/price
+   as it builds the order. In the printed table, a $ (cash) item discount is rolled into
+   the combined "Discount($)" total row instead of being called out per-item, so that
+   row's own Discount column goes blank and its Amount shows the undiscounted price -
+   only a % discount still displays inline on its own row. */
+function printedItemDiscountText(item) {
+    return item.discount_type === 'percent' ? formatItemDiscount(item.discount, item.discount_type) : null;
+}
+
+function printedItemAmount(item) {
+    return item.discount_type === 'cash'
+        ? deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type) * item.qty
+        : Number(item.line_amount);
+}
+
+/* The printed "Discount($)" total row is ONLY the money saved by $ (cash) item
+   discounts - a % item discount is already visible inline on its own row (see
+   printedItemDiscountText/printedItemAmount above), so folding it into this aggregate
+   too would double-count the same discount both per-row and in the total. */
+function printedCashDiscountTotal(items) {
+    return items.reduce((sum, item) => {
+        if (item.discount_type !== 'cash') return sum;
+        const oldUnitPrice = deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type);
+        return sum + (oldUnitPrice - Number(item.unit_price)) * item.qty;
+    }, 0);
+}
+
 /* ============================================================
    QUOTE CART — new feature.
    The original "Add to Quote" button existed with zero logic
@@ -206,7 +249,7 @@ function formatItemDiscount(discount, discountType) {
    the masked "XXXX" sentinel. Finalizing the drawer now also
    submits the cart to POST /quote/submit, which creates a real
    store-api Order (server-priced, never trusting these local
-   numbers) before generating the PDF - see downloadPDF().
+   numbers) before generating the PDF - see confirmPurchase().
    ============================================================ */
 const QuoteCart = {
     STORAGE_KEY: 'eb_quote_cart',
@@ -217,7 +260,11 @@ const QuoteCart = {
     // ---- line items ----
     getItems() {
         try {
-            return JSON.parse(localStorage.getItem(this.STORAGE_KEY)) || [];
+            const items = JSON.parse(localStorage.getItem(this.STORAGE_KEY)) || [];
+            // 'kind' distinguishes a product line from a promotion line (product ids
+            // and promotion ids come from separate tables and can collide) - default it
+            // for anything saved before this field existed.
+            return items.map(i => ({ kind: i.kind || 'product', ...i }));
         } catch {
             return [];
         }
@@ -246,7 +293,7 @@ const QuoteCart = {
         // Always appends to whatever is already in the cart - a normal cart never
         // wipes itself out when you add a second product.
         const items = this.getItems();
-        const existing = items.find(i => i.id === product.id);
+        const existing = items.find(i => i.id === product.id && i.kind === 'product');
         if (existing) {
             existing.qty += 1;
         } else {
@@ -254,10 +301,8 @@ const QuoteCart = {
             // (set by admin) — salespeople only ever adjust qty on the quote.
             // was_price is the reconstructed pre-discount price; price is what's
             // actually charged (admin already applied the discount to it).
-            // productType is kept so the local discount preview (getDiscountAmount)
-            // can mirror the server's promotional-product exemption - see
-            // routers/orders.py::create_order's discountable_subtotal.
             items.push({
+                kind: 'product',
                 id: product.id,
                 name: product.product_name,
                 code: product.code || product.product_code || '',
@@ -266,7 +311,6 @@ const QuoteCart = {
                 oldPrice: product.was_price || product.price,
                 discount: product.discount || 0,
                 discountType: product.discount_type || 'percent',
-                productType: product.product_type || 'single',
                 image: product.image || '',
                 qty: 1,
             });
@@ -275,26 +319,95 @@ const QuoteCart = {
         this.render();
     },
 
-    removeItem(id) {
-        this.saveItems(this.getItems().filter(i => i.id !== id));
+    // A Promotion (homepage/promotions-page marketing deal) is bought the same way as
+    // a product - see promo.id, which lives in a separate table from Product.id and
+    // can collide with it, hence 'kind' to disambiguate cart lookups.
+    addPromotion(promo) {
+        if (typeof CAN_QUOTE !== 'undefined' && !CAN_QUOTE) return;
+        if (typeof promo.price !== 'number') return;
+
+        const items = this.getItems();
+        const existing = items.find(i => i.id === promo.id && i.kind === 'promotion');
+        if (existing) {
+            existing.qty += 1;
+        } else {
+            const oldPrice = typeof promo.old_price === 'number' ? promo.old_price : promo.price;
+            // Reproduces old_price as a cash "discount" (see routers/orders.py's
+            // create_order) so the existing deriveOldUnitPrice() math shows it the
+            // same way a product's own discount is shown - no separate code path.
+            const discount = oldPrice > promo.price ? oldPrice - promo.price : 0;
+            items.push({
+                kind: 'promotion',
+                id: promo.id,
+                name: promo.promotion_name,
+                code: '',
+                uom: '',
+                price: promo.price,
+                oldPrice: oldPrice,
+                discount: discount,
+                discountType: 'cash',
+                image: promo.image || '',
+                qty: 1,
+            });
+        }
+        this.saveItems(items);
+        this.render();
+    },
+
+    // A Set (Promotions-page bundle deal) is bought the same way a Promotion is - see
+    // set.id, which lives in a separate table from Product.id/Promotion.id and can
+    // collide with either, hence 'kind' to disambiguate cart lookups.
+    addSet(set) {
+        if (typeof CAN_QUOTE !== 'undefined' && !CAN_QUOTE) return;
+        if (typeof set.price !== 'number') return;
+
+        const items = this.getItems();
+        const existing = items.find(i => i.id === set.id && i.kind === 'set');
+        if (existing) {
+            existing.qty += 1;
+        } else {
+            const oldPrice = typeof set.old_price === 'number' ? set.old_price : set.price;
+            const discount = oldPrice > set.price ? oldPrice - set.price : 0;
+            items.push({
+                kind: 'set',
+                id: set.id,
+                name: set.set_name,
+                code: '',
+                uom: '',
+                price: set.price,
+                oldPrice: oldPrice,
+                discount: discount,
+                discountType: 'cash',
+                image: set.image || '',
+                qty: 1,
+            });
+        }
+        this.saveItems(items);
+        this.render();
+    },
+
+    removeItem(id, kind) {
+        kind = kind || 'product';
+        this.saveItems(this.getItems().filter(i => !(i.id === id && i.kind === kind)));
         this.render();
     },
 
     // Salespeople can only adjust quantity on the quote — code, UOM, unit
-    // price, and discount are all admin-set on the product and shown
+    // price, and discount are all admin-set on the product/promotion and shown
     // read-only here. Updates the row's amount + totals directly via the
     // DOM rather than a full render(), so nothing else in the drawer flickers.
-    changeQty(id, delta) {
+    changeQty(id, delta, kind) {
+        kind = kind || 'product';
         const items = this.getItems();
-        const item = items.find(i => i.id === id);
+        const item = items.find(i => i.id === id && i.kind === kind);
         if (!item) return;
         item.qty = Math.max(1, item.qty + delta);
         this.saveItems(items);
 
-        const qtyEl = document.querySelector(`.quote-item[data-id="${id}"] .quote-qty-value`);
+        const qtyEl = document.querySelector(`.quote-item[data-id="${id}"][data-kind="${kind}"] .quote-qty-value`);
         if (qtyEl) qtyEl.textContent = item.qty;
 
-        const amountEl = document.querySelector(`.quote-item[data-id="${id}"] .quote-item-amount`);
+        const amountEl = document.querySelector(`.quote-item[data-id="${id}"][data-kind="${kind}"] .quote-item-amount`);
         if (amountEl) amountEl.textContent = '$' + this.lineAmount(item).toFixed(2);
 
         this.updateSummary();
@@ -309,6 +422,19 @@ const QuoteCart = {
 
     getTotal() {
         return this.getItems().reduce((sum, i) => sum + this.lineAmount(i), 0);
+    },
+
+    // ---- Sub-Total (undiscounted) / Discount (product-level money saved) ----
+    // Sub-Total is the combined list price before each product's own discount; Discount
+    // is the money that discount actually saved. getTotal() above (the charged total)
+    // stays == Sub-Total - Discount, so Grand Total's math is unaffected by this split -
+    // it's purely a display breakdown, same reconstruction as deriveOldUnitPrice().
+    getUndiscountedTotal() {
+        return this.getItems().reduce((sum, i) => sum + deriveOldUnitPrice(i.price, i.discount, i.discountType) * i.qty, 0);
+    },
+
+    getItemDiscountTotal() {
+        return Math.max(0, this.getUndiscountedTotal() - this.getTotal());
     },
 
     getCount() {
@@ -346,11 +472,11 @@ const QuoteCart = {
         this.updateSummary();
     },
 
-    // Promotional products carry a fixed promo price - the order-level discount below
-    // never applies to them, mirroring create_order's discountable_subtotal server-side.
+    // A Promotion/Set line carries a fixed deal price - the order-level discount below
+    // never applies to it, mirroring create_order's discountable_subtotal server-side.
     getDiscountableTotal() {
         return this.getItems().reduce(
-            (sum, i) => sum + (i.productType === 'promotional' ? 0 : this.lineAmount(i)), 0
+            (sum, i) => sum + (i.kind === 'product' ? this.lineAmount(i) : 0), 0
         );
     },
 
@@ -374,7 +500,10 @@ const QuoteCart = {
         }
 
         const subTotalEl = document.getElementById('quoteSubTotal');
-        if (subTotalEl) subTotalEl.textContent = '$' + this.getTotal().toFixed(2);
+        if (subTotalEl) subTotalEl.textContent = '$' + this.getUndiscountedTotal().toFixed(2);
+
+        const itemDiscountEl = document.getElementById('quoteItemDiscount');
+        if (itemDiscountEl) itemDiscountEl.textContent = '$' + this.getItemDiscountTotal().toFixed(2);
 
         const discountAmountEl = document.getElementById('quoteDiscountAmount');
         if (discountAmountEl) discountAmountEl.textContent = '$' + this.getDiscountAmount().toFixed(2);
@@ -446,30 +575,30 @@ const QuoteCart = {
             itemsEl.innerHTML = `
                 <div class="quote-drawer-empty">
                     <i class="fas fa-shopping-cart"></i>
-                    <p>Your quote list is empty.<br>Add products to get started.</p>
+                    <p>Your cart is empty.<br>Add products to get started.</p>
                 </div>`;
             return;
         }
 
         itemsEl.innerHTML = items.map(item => `
-            <div class="quote-item" data-id="${item.id}">
+            <div class="quote-item" data-id="${item.id}" data-kind="${item.kind}">
                 <img src="${item.image || 'https://images.unsplash.com/photo-1587825140708-dfaf72ae4b04?w=100&h=100&fit=crop&auto=format'}" alt="${item.name}">
                 <div class="quote-item-info">
                     <div class="quote-item-name">${item.name}</div>
                     <div class="quote-item-fixed-meta">
-                        <span>${item.code || '—'}</span>
-                        <span>${item.uom || 'PCS'}</span>
+                        <span>${item.code || (item.kind === 'promotion' ? 'Promo' : item.kind === 'set' ? 'Set' : '—')}</span>
+                        <span>${item.uom || (item.kind === 'product' ? 'PCS' : '')}</span>
                         <span>$${item.price.toFixed(2)} ea</span>
                         <span>${formatItemDiscount(item.discount, item.discountType) || 'No discount'}</span>
                     </div>
                     <div class="quote-item-row-footer">
                         <div class="quote-item-controls">
-                            <button type="button" class="quote-qty-btn" onclick="QuoteCart.changeQty(${item.id}, -1)"><i class="fas fa-minus"></i></button>
+                            <button type="button" class="quote-qty-btn" onclick="QuoteCart.changeQty(${item.id}, -1, '${item.kind}')"><i class="fas fa-minus"></i></button>
                             <span class="quote-qty-value">${item.qty}</span>
-                            <button type="button" class="quote-qty-btn" onclick="QuoteCart.changeQty(${item.id}, 1)"><i class="fas fa-plus"></i></button>
+                            <button type="button" class="quote-qty-btn" onclick="QuoteCart.changeQty(${item.id}, 1, '${item.kind}')"><i class="fas fa-plus"></i></button>
                         </div>
                         <span class="quote-item-amount">$${this.lineAmount(item).toFixed(2)}</span>
-                        <button type="button" class="quote-item-remove" onclick="QuoteCart.removeItem(${item.id})"><i class="fas fa-trash"></i></button>
+                        <button type="button" class="quote-item-remove" onclick="QuoteCart.removeItem(${item.id}, '${item.kind}')"><i class="fas fa-trash"></i></button>
                     </div>
                 </div>
             </div>`).join('');
@@ -491,14 +620,20 @@ const QuoteCart = {
     },
 
     buildPrintTemplate(order) {
-        const discountLabel = order.discount_type === 'cash'
-            ? 'Discount (Cash):'
-            : `Discount (${Number(order.discount_value || 0)}%):`;
+        const specialDiscountLabel = order.discount_type === 'cash'
+            ? 'Special Discount (Cash):'
+            : `Special Discount (${Number(order.discount_value || 0)}%):`;
 
-        // "UP before & After Discount" — UP is the ORIGINAL price (unit_price before
-        // this line's discount was applied), Discount is the %, and Amount
-        // (line_amount) is the price actually charged × qty. All four come straight
-        // from the server's response, so the PDF always matches what was recorded.
+        // "UP before & After Discount" — UP is the ORIGINAL price (unit_price
+        // reconstructed from the charged item.unit_price + its snapshotted
+        // discount, same reconstruction as deriveOldUnitPrice/derive_old_price),
+        // Discount is the %, and Amount (line_amount) is the price actually
+        // charged × qty.
+        const undiscountedSubtotal = order.items.reduce(
+            (sum, item) => sum + deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type) * item.qty, 0
+        );
+        const itemDiscountTotal = printedCashDiscountTotal(order.items);
+
         const rows = order.items.map((item, i) => `
             <tr>
                 <td class="qpt-num">${i + 1}</td>
@@ -506,9 +641,9 @@ const QuoteCart = {
                 <td>${item.product_name}</td>
                 <td class="qpt-num">${item.qty}</td>
                 <td class="qpt-num">${item.uom || 'PCS'}</td>
-                <td class="qpt-right">$ ${Number(item.unit_price).toFixed(2)}</td>
-                <td class="qpt-num">${formatItemDiscount(item.discount, item.discount_type) || '—'}</td>
-                <td class="qpt-right">$ ${Number(item.line_amount).toFixed(2)}</td>
+                <td class="qpt-right">$ ${deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type).toFixed(2)}</td>
+                <td class="qpt-num">${printedItemDiscountText(item) || '—'}</td>
+                <td class="qpt-right">$ ${printedItemAmount(item).toFixed(2)}</td>
             </tr>`).join('');
 
         // Pad the table with blank rows so it always looks like a full,
@@ -573,12 +708,16 @@ const QuoteCart = {
                     ${rows}
                     ${blankRows}
                     <tr class="qpt-total-row qpt-subtotal-row">
-                        <td colspan="6" class="qpt-validity" rowspan="3">Quotation valid for <b>30 days</b> from the date issued.</td>
+                        <td colspan="6" class="qpt-validity" rowspan="4">Quotation valid for <b>30 days</b> from the date issued.</td>
                         <td>Sub-Total($):</td>
-                        <td class="qpt-right">$ ${Number(order.subtotal).toFixed(2)}</td>
+                        <td class="qpt-right">$ ${undiscountedSubtotal.toFixed(2)}</td>
                     </tr>
                     <tr class="qpt-total-row">
-                        <td>${discountLabel}</td>
+                        <td>Discount($):</td>
+                        <td class="qpt-right">$ ${itemDiscountTotal.toFixed(2)}</td>
+                    </tr>
+                    <tr class="qpt-total-row">
+                        <td>${specialDiscountLabel}</td>
                         <td class="qpt-right">$ ${Number(order.discount_amount).toFixed(2)}</td>
                     </tr>
                     <tr class="qpt-total-row qpt-grand-total-row">
@@ -598,6 +737,10 @@ const QuoteCart = {
         `;
     },
 
+    // Returns the built PDF as a Blob (in addition to triggering the local download)
+    // so confirmPurchase() can also hand it to store-api for the Telegram order alert
+    // - see uploadQuotationPDF(). The admin reprint button (admin/orders.html) calls
+    // this too and just ignores the return value.
     async exportPDF(filenameSuffix) {
         const template = document.getElementById('quotePrintTemplate');
 
@@ -627,19 +770,34 @@ const QuoteCart = {
         }
 
         pdf.save('EB-Dental-Quotation-' + filenameSuffix + '.pdf');
+        return pdf.output('blob');
     },
 
-    // Submits the cart to POST /quote/submit - this creates a real store-api Order
-    // (server re-prices every line, derives salesperson/quoted_by_name, and computes the
-    // discount itself - never trusting what the browser sends, see routers/orders.py) -
-    // then builds and downloads the PDF from that server response.
-    async downloadPDF() {
+    // Best-effort hand-off of the real client-rendered PDF to store-api, which uses it
+    // for the order's Telegram alert instead of its own fpdf2 approximation - see
+    // deliver_order_alert/resolve_pending_quotation_pdf in store-api's
+    // services/telegram.py. Deliberately fire-and-forget (never awaited by the caller,
+    // errors swallowed): store-api only waits ~20s for this before falling back on its
+    // own, so a slow/failed upload here just means that fallback gets used - it must
+    // never block or fail the purchase flow the customer is already looking at.
+    uploadQuotationPDF(orderId, pdfBlob) {
+        const formData = new FormData();
+        formData.append('file', pdfBlob, 'quotation.pdf');
+        fetch(`/quote/${orderId}/pdf`, { method: 'POST', body: formData }).catch(() => {});
+    },
+
+    // "Confirm Purchase" submits the cart to POST /quote/submit - this creates a real
+    // store-api Order (server re-prices every line, derives salesperson/quoted_by_name,
+    // and computes the discount itself - never trusting what the browser sends, see
+    // routers/orders.py) - then builds and downloads the printed quotation PDF from that
+    // server response.
+    async confirmPurchase() {
         const items = this.getItems();
         if (items.length === 0) return;
 
         const info = this.getInfo();
         if (!info.clinic || !info.tel || !info.address) {
-            alert('Please fill in Clinic, Contact Tel, and Address before downloading the quote.');
+            alert('Please fill in Clinic, Contact Tel, and Address before confirming your purchase.');
             document.getElementById('quoteInfoForm')?.classList.remove('collapsed');
             return;
         }
@@ -661,7 +819,7 @@ const QuoteCart = {
                     install_term: info.installTerm || null,
                     discount_type: this.getDiscountType(),
                     discount_value: this.getDiscountValue(),
-                    items: items.map(item => ({ id: item.id, qty: item.qty })),
+                    items: items.map(item => ({ id: item.id, qty: item.qty, kind: item.kind })),
                 }),
             });
             order = await response.json();
@@ -678,12 +836,13 @@ const QuoteCart = {
 
         try {
             this.buildPrintTemplate(order);
-            await this.exportPDF(order.quote_code);
+            const pdfBlob = await this.exportPDF(order.quote_code);
+            this.uploadQuotationPDF(order.id, pdfBlob);
             this.clearDraft();
             this.render();
             this.close();
         } finally {
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-file-pdf"></i> Download as PDF'; }
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-circle-check"></i> Confirm Purchase'; }
         }
     },
 };
@@ -694,7 +853,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('quoteCartIcon')?.addEventListener('click', () => QuoteCart.open());
     document.getElementById('quoteDrawerClose')?.addEventListener('click', () => QuoteCart.close());
     document.getElementById('quoteDrawerOverlay')?.addEventListener('click', () => QuoteCart.close());
-    document.getElementById('quoteDownloadPdfBtn')?.addEventListener('click', () => QuoteCart.downloadPDF());
+    document.getElementById('quoteDownloadPdfBtn')?.addEventListener('click', () => QuoteCart.confirmPurchase());
     document.getElementById('quoteDiscountEditBtn')?.addEventListener('click', () => {
         document.getElementById('quoteDiscountEditor')?.classList.toggle('open');
     });

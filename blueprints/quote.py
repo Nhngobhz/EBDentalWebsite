@@ -10,9 +10,9 @@ quote_bp = Blueprint("quote", __name__, url_prefix="/quote")
 @quote_bp.route("/submit", methods=["POST"])
 def submit():
     """Finalizes the client-side quote drawer (QuoteCart in main.js) into a real
-    store-api Order. Accepts only product_id + qty per line - store-api itself looks up
-    and snapshots each line's authoritative current price server-side (see
-    store-api/app/routers/orders.py), so a tampered request can never record a
+    store-api Order. Accepts only product_id/promotion_id + qty per line - store-api
+    itself looks up and snapshots each line's authoritative current price server-side
+    (see store-api/app/routers/orders.py), so a tampered request can never record a
     fabricated price here."""
     if not is_logged_in():
         return jsonify({"detail": "Please log in to submit a quote."}), 401
@@ -42,7 +42,14 @@ def submit():
         "install_term": body.get("install_term") or None,
         "discount_type": body.get("discount_type") or "percent",
         "discount_value": body.get("discount_value") or 0,
-        "items": [{"product_id": item["id"], "qty": item["qty"]} for item in items],
+        "items": [
+            {"promotion_id": item["id"], "qty": item["qty"]}
+            if item.get("kind") == "promotion"
+            else {"set_id": item["id"], "qty": item["qty"]}
+            if item.get("kind") == "set"
+            else {"product_id": item["id"], "qty": item["qty"]}
+            for item in items
+        ],
     }
 
     client = get_api_client()
@@ -52,3 +59,31 @@ def submit():
         return jsonify({"detail": e.detail}), (e.status_code or 400)
 
     return jsonify(adapt_order(order))
+
+
+@quote_bp.route("/<int:order_id>/pdf", methods=["POST"])
+def upload_pdf(order_id):
+    """Relays the browser's real client-rendered quotation PDF (QuoteCart.exportPDF() in
+    main.js, called right after confirmPurchase() places the order) to store-api, which
+    hands it to that order's Telegram alert if it's still waiting for one (see
+    deliver_order_alert in store-api's services/telegram.py) instead of falling back to
+    its own approximation. Purely a best-effort enhancement - the customer's order is
+    already placed by the time this is called, so any failure here is just logged away,
+    never surfaced to the customer."""
+    if not is_logged_in():
+        return jsonify({"detail": "Please log in."}), 401
+
+    file = request.files.get("file")
+    if file is None:
+        return jsonify({"detail": "No file uploaded."}), 400
+
+    client = get_api_client()
+    try:
+        client.post_form(
+            f"/orders/{order_id}/quotation-pdf",
+            files={"file": (file.filename, file.stream, file.mimetype)},
+        )
+    except StoreAPIError as e:
+        return jsonify({"detail": e.detail}), (e.status_code or 400)
+
+    return jsonify({"received": True})

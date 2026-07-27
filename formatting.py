@@ -127,6 +127,13 @@ def adapt_promotion(promotion):
     return promotion
 
 
+def adapt_set(set_):
+    set_ = dict(set_)
+    set_["price"] = to_number(set_.get("price"))
+    set_["old_price"] = to_number(set_.get("old_price"))
+    return set_
+
+
 def adapt_order(order):
     order = dict(order)
     order["discount_value"] = to_number(order.get("discount_value"))

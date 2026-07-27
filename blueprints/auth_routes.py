@@ -88,8 +88,11 @@ def register():
     password = request.form.get("password", "")
     phone = request.form.get("phone", "").strip()
     address = request.form.get("address", "").strip()
+    wants_json = _wants_json()
 
     if not name or not email or not password:
+        if wants_json:
+            return jsonify({"success": False, "detail": "Name, email, and password are required."}), 400
         flash("Name, email, and password are required.", "error")
         return render_template("auth/register.html"), 400
 
@@ -104,8 +107,17 @@ def register():
     try:
         client.register_customer(payload)
     except StoreAPIError as e:
+        if wants_json:
+            return jsonify({"success": False, "detail": e.detail}), (e.status_code or 400)
         flash(e.detail, "error")
         return render_template("auth/register.html"), (e.status_code or 400)
+
+    # JSON callers (register.html's fetch-based submit) move straight into the
+    # waiting-for-confirmation screen using the credentials just submitted - see
+    # templates/auth/register.html - instead of redirecting to /login and making the
+    # user retype what they just entered.
+    if wants_json:
+        return jsonify({"success": True})
 
     flash("Account created! Check your email for a verification link before logging in.", "success")
     return redirect(url_for("auth.login"))

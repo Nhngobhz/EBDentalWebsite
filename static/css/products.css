@@ -2606,6 +2606,12 @@
 .eb-promotion-page {
     padding: 20px 0 40px;
 }
+/* Fill the full width of the screen instead of capping at the sitewide
+   1200px .container - just keep the same side gutter. */
+.eb-promotion-page .container {
+    width: calc(100% - 32px);
+    max-width: none;
+}
 .eb-promotion-page .promo-hero {
     background: #f97316;
     border-radius: 24px;
@@ -2645,7 +2651,10 @@
 }
 .eb-promotion-page .promo-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    /* auto-fit (not auto-fill): collapses empty column tracks so a lone card
+       stretches to fill the row instead of staying pinned to the min width
+       with empty space beside it. */
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
     gap: 24px;
 }
 .eb-promotion-page .promo-card {
@@ -2655,7 +2664,6 @@
     overflow: hidden;
     transition: var(--transition);
     box-shadow: var(--shadow);
-    cursor: pointer;
 }
 .eb-promotion-page .promo-card:hover {
     transform: translateY(-6px);
@@ -2715,21 +2723,14 @@
     line-height: 1.3;
     margin-bottom: 4px;
 }
-.eb-promotion-page .promo-card .promo-body .view-detail {
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #f97316;
+.eb-promotion-page .promo-card .promo-body .promo-buy-btn {
+    width: 100%;
+    justify-content: center;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    transition: var(--transition);
-}
-.eb-promotion-page .promo-card .promo-body .view-detail i {
-    font-size: 0.6rem;
-    transition: var(--transition);
-}
-.eb-promotion-page .promo-card:hover .promo-body .view-detail i {
-    transform: translateX(4px);
+    gap: 8px;
+    margin-top: 10px;
+    text-decoration: none;
 }
 .eb-promotion-page .empty-promos {
     grid-column: 1/-1;
@@ -2750,13 +2751,94 @@
 .eb-promotion-page .empty-promos p {
     font-size: 0.9rem;
 }
-@media (max-width: 1024px) {
-    .eb-promotion-page .promo-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
+/* No fixed-column breakpoints needed below - auto-fill above already
+   reflows the grid to fit any screen width. */
+
+/* ============================================================
+           SETS SECTION - small square/rectangle thumbnail, unlike the
+           large 16:9 promo image above.
+           ============================================================ */
+.eb-promotion-page .sets-hero {
+    margin: 40px 0 20px;
+}
+.eb-promotion-page .sets-hero h2 {
+    font-size: 1.5rem;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    color: var(--text);
+}
+.eb-promotion-page .sets-hero h2 span {
+    color: #f97316;
+}
+.eb-promotion-page .sets-hero p {
+    font-size: 0.9rem;
+    color: var(--text-light);
+    margin-top: 2px;
+}
+.eb-promotion-page .set-grid {
+    display: grid;
+    /* auto-fit, same reasoning as .promo-grid above. */
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+}
+.eb-promotion-page .set-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    transition: var(--transition);
+    box-shadow: var(--shadow);
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+}
+.eb-promotion-page .set-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+    border-color: #f97316;
+}
+.eb-promotion-page .set-card .set-image {
+    width: 72px;
+    height: 72px;
+    flex: 0 0 auto;
+    border-radius: 10px;
+    object-fit: cover;
+    background: var(--bg);
+    border: 1px solid var(--border);
+}
+.eb-promotion-page .set-card .set-body {
+    min-width: 0;
+    flex: 1;
+}
+.eb-promotion-page .set-card .set-body h3 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.3;
+    margin-bottom: 2px;
+}
+.eb-promotion-page .set-card .set-body .set-desc {
+    font-size: 0.75rem;
+    color: var(--text-light);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 4px;
+}
+.eb-promotion-page .set-card .set-body .set-buy-btn {
+    width: 100%;
+    justify-content: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    text-decoration: none;
+    font-size: 0.8rem;
+    padding: 8px;
 }
 @media (max-width: 600px) {
-    .eb-promotion-page .promo-grid {
+    .eb-promotion-page .set-grid {
         grid-template-columns: 1fr;
     }
 }
