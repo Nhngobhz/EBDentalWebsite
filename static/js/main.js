@@ -862,12 +862,21 @@ const QuoteCart = {
 
         const info = this.getInfo();
         if (!info.clinic || !info.tel || !info.address) {
-            alert('Please fill in Clinic, Contact Tel, and Address before confirming your purchase.');
+            // Expand the (possibly collapsed) info form first, so the fields
+            // being complained about are already on screen behind the dialog.
             document.getElementById('quoteInfoForm')?.classList.remove('collapsed');
+            await ebAlert('Please fill in Clinic, Contact Tel, and Address before confirming your purchase.', {
+                title: 'Missing details',
+                tone: 'warning',
+                confirmText: 'Got it',
+            });
             return;
         }
 
         const btn = document.getElementById('quoteDownloadPdfBtn');
+        const resetBtn = () => {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-circle-check"></i> Confirm Purchase'; }
+        };
         if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting order...'; }
 
         let order;
@@ -889,15 +898,26 @@ const QuoteCart = {
             });
             order = await response.json();
             if (!response.ok) {
-                alert(order.detail || 'Could not submit your quote. Please try again.');
+                resetBtn();
+                await ebAlert(order.detail || 'Could not submit your quote. Please try again.', {
+                    title: "Couldn't submit your order",
+                    tone: 'danger',
+                });
                 return;
             }
         } catch (err) {
-            alert('Could not reach the server. Please check your connection and try again.');
+            resetBtn();
+            await ebAlert('Could not reach the server. Please check your connection and try again.', {
+                title: 'Connection problem',
+                tone: 'danger',
+            });
             return;
-        } finally {
-            if (btn) { btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating PDF...'; }
         }
+        // Deliberately not a `finally` on the block above: bailing out on an
+        // error there used to fall through it and leave the button stuck
+        // disabled on "Generating PDF..." forever, since the reset only lived
+        // on the success path's own finally below.
+        if (btn) { btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating PDF...'; }
 
         try {
             this.buildPrintTemplate(order);
@@ -907,7 +927,7 @@ const QuoteCart = {
             this.render();
             this.close();
         } finally {
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-circle-check"></i> Confirm Purchase'; }
+            resetBtn();
         }
     },
 };
@@ -986,6 +1006,210 @@ function showToast(message) {
     clearTimeout(_toastTimer);
     _toastTimer = setTimeout(() => toast.classList.remove('show'), 2500);
 }
+
+/* ============================================================
+   DIALOG — branded stand-in for the browser's native alert()/
+   confirm(), which rendered as an OS dialog captioned
+   "127.0.0.1:5000 says" and couldn't be styled at all.
+
+   Both return a Promise (native confirm() is synchronous, so any
+   caller being converted has to become async):
+     await ebAlert('Something happened');            // resolves undefined
+     if (await ebConfirm('Delete this?')) { ... }    // resolves true/false
+
+   Styles live in base.css; the markup is built here on first use
+   so no template has to include it.
+   ============================================================ */
+let _ebDialogEls = null;
+let _ebDialogResolve = null;
+
+function _ebBuildDialog() {
+    if (_ebDialogEls) return _ebDialogEls;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'eb-dialog-overlay';
+    overlay.innerHTML = `
+        <div class="eb-dialog" role="alertdialog" aria-modal="true"
+             aria-labelledby="ebDialogTitle" aria-describedby="ebDialogMessage">
+            <div class="eb-dialog-icon"><i></i></div>
+            <h3 class="eb-dialog-title" id="ebDialogTitle"></h3>
+            <p class="eb-dialog-message" id="ebDialogMessage"></p>
+            <div class="eb-dialog-actions">
+                <button type="button" class="eb-dialog-btn cancel"></button>
+                <button type="button" class="eb-dialog-btn confirm"></button>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    _ebDialogEls = {
+        overlay,
+        box: overlay.querySelector('.eb-dialog'),
+        icon: overlay.querySelector('.eb-dialog-icon i'),
+        title: overlay.querySelector('.eb-dialog-title'),
+        message: overlay.querySelector('.eb-dialog-message'),
+        cancelBtn: overlay.querySelector('.eb-dialog-btn.cancel'),
+        confirmBtn: overlay.querySelector('.eb-dialog-btn.confirm'),
+    };
+
+    _ebDialogEls.confirmBtn.addEventListener('click', () => _ebCloseDialog(true));
+    _ebDialogEls.cancelBtn.addEventListener('click', () => _ebCloseDialog(false));
+    // Clicking the backdrop (but not the box) dismisses, same as Escape below.
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) _ebCloseDialog(false);
+    });
+    document.addEventListener('keydown', (e) => {
+        if (!_ebDialogEls || !_ebDialogEls.overlay.classList.contains('active')) return;
+        if (e.key === 'Escape') {
+            _ebCloseDialog(false);
+            return;
+        }
+        // Enter confirms, except when the user has tabbed onto Cancel - there
+        // the button's own click handler is what should win.
+        if (e.key === 'Enter' && document.activeElement !== _ebDialogEls.cancelBtn) {
+            e.preventDefault();
+            _ebCloseDialog(true);
+        }
+    });
+
+    return _ebDialogEls;
+}
+
+function _ebCloseDialog(result) {
+    if (!_ebDialogEls) return;
+    _ebDialogEls.overlay.classList.remove('active');
+    document.body.style.overflow = _ebPrevOverflow || '';
+    if (_ebPrevFocus && _ebPrevFocus.focus) _ebPrevFocus.focus();
+    const resolve = _ebDialogResolve;
+    _ebDialogResolve = null;
+    if (resolve) resolve(result);
+}
+
+let _ebPrevFocus = null;
+let _ebPrevOverflow = '';
+
+const _EB_TONE_ICONS = {
+    info: 'fa-circle-info',
+    danger: 'fa-triangle-exclamation',
+    warning: 'fa-triangle-exclamation',
+    success: 'fa-circle-check',
+};
+
+function ebDialog({
+    message,
+    title = '',
+    tone = 'info',
+    confirmText = 'OK',
+    cancelText = 'Cancel',
+    showCancel = false,
+} = {}) {
+    const els = _ebBuildDialog();
+
+    // Resolve any dialog still open rather than orphaning its promise.
+    if (_ebDialogResolve) _ebCloseDialog(false);
+
+    els.box.dataset.tone = tone;
+    els.box.classList.toggle('is-alert', !showCancel);
+    els.icon.className = 'fas ' + (_EB_TONE_ICONS[tone] || _EB_TONE_ICONS.info);
+    els.title.textContent = title;
+    els.title.style.display = title ? '' : 'none';
+    // textContent, not innerHTML: messages can carry server-supplied text.
+    els.message.textContent = message || '';
+    els.confirmBtn.textContent = confirmText;
+    els.cancelBtn.textContent = cancelText;
+    els.cancelBtn.style.display = showCancel ? '' : 'none';
+
+    _ebPrevFocus = document.activeElement;
+    _ebPrevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    els.overlay.classList.add('active');
+    els.confirmBtn.focus();
+
+    return new Promise((resolve) => { _ebDialogResolve = resolve; });
+}
+
+function ebAlert(message, opts = {}) {
+    return ebDialog({ title: 'Heads up', ...opts, message, showCancel: false }).then(() => undefined);
+}
+
+function ebConfirm(message, opts = {}) {
+    return ebDialog({ title: 'Are you sure?', confirmText: 'Confirm', ...opts, message, showCancel: true });
+}
+
+/* Any <form data-confirm="..."> asks before it submits - the branded
+   replacement for the inline onsubmit="return confirm(...)" that the admin
+   delete buttons used to carry. form.submit() doesn't re-fire the submit
+   event, so there's no loop to guard against here. */
+document.addEventListener('submit', (e) => {
+    const form = e.target.closest('form[data-confirm]');
+    if (!form) return;
+    e.preventDefault();
+    ebConfirm(form.dataset.confirm, {
+        tone: form.dataset.confirmTone || 'danger',
+        confirmText: form.dataset.confirmLabel || 'Delete',
+    }).then((ok) => {
+        if (ok) form.submit();
+    });
+});
+
+/* ------------------------------------------------------------
+   INLINE FIELD VALIDATION
+   Forms marked `novalidate` opt out of the browser's native
+   "Please fill out this field." bubble; this renders the same
+   constraint failures as styled inline messages instead. Returns
+   true when the form is valid, and focuses the first bad field
+   when it isn't. Relies on the native Constraint Validation API,
+   so `required`/`type=email`/`minlength` etc. still drive it.
+------------------------------------------------------------- */
+function ebValidateForm(form) {
+    let firstInvalid = null;
+
+    form.querySelectorAll('input, select, textarea').forEach((field) => {
+        if (field.disabled || field.type === 'hidden') return;
+        const group = field.closest('.form-group') || field.parentElement;
+        const valid = field.checkValidity();
+
+        if (!valid && !firstInvalid) firstInvalid = field;
+        if (group) group.classList.toggle('has-error', !valid);
+
+        let errorEl = group && group.querySelector('.field-error');
+        if (!valid && group) {
+            if (!errorEl) {
+                errorEl = document.createElement('div');
+                errorEl.className = 'field-error';
+                errorEl.innerHTML = '<i class="fas fa-circle-exclamation"></i><span></span>';
+                group.appendChild(errorEl);
+            }
+            errorEl.querySelector('span').textContent = _ebFieldMessage(field);
+            errorEl.classList.add('show');
+        } else if (errorEl) {
+            errorEl.classList.remove('show');
+        }
+    });
+
+    if (firstInvalid) firstInvalid.focus();
+    return !firstInvalid;
+}
+
+/* Friendlier wording than validationMessage's browser defaults, which vary
+   per browser and read like error codes ("Please fill out this field."). */
+function _ebFieldMessage(field) {
+    const label = (field.closest('.form-group')?.querySelector('label')?.textContent || '').trim();
+    const name = label || field.getAttribute('placeholder') || 'This field';
+    if (field.validity.valueMissing) return `${name} is required.`;
+    if (field.validity.typeMismatch && field.type === 'email') return 'Enter a valid email address.';
+    if (field.validity.tooShort) return `${name} must be at least ${field.minLength} characters.`;
+    if (field.validity.patternMismatch) return `${name} isn't in the expected format.`;
+    return field.validationMessage;
+}
+
+/* Clears a field's error as soon as the user fixes it - re-validating the
+   whole form on every keystroke would light up fields they haven't reached. */
+document.addEventListener('input', (e) => {
+    const group = e.target.closest?.('.form-group.has-error');
+    if (!group || !e.target.checkValidity?.()) return;
+    group.classList.remove('has-error');
+    group.querySelector('.field-error')?.classList.remove('show');
+});
 
 /* ------------------------------------------------------------
    PROMO BANNER STRIP — dismiss button

@@ -50,7 +50,7 @@
                     </td>
                     <td style="white-space:nowrap;">
                         <button type="button" class="btn-dash primary sm" onclick="openPromoModal({{ p.id }})" title="Edit"><i class="fas fa-edit"></i></button>
-                        <form method="post" action="{{ url_for('admin.promotions_delete', promotion_id=p.id) }}" style="display:inline;" onsubmit="return confirm('Delete this promotion?');">
+                        <form method="post" action="{{ url_for('admin.promotions_delete', promotion_id=p.id) }}" style="display:inline;" data-confirm="Delete this promotion?">
                             <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
                         </form>
                     </td>

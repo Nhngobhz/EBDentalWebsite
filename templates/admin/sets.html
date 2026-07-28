@@ -40,7 +40,7 @@
                     </td>
                     <td style="white-space:nowrap;">
                         <button type="button" class="btn-dash primary sm" onclick="openSetModal({{ s.id }})" title="Edit"><i class="fas fa-edit"></i></button>
-                        <form method="post" action="{{ url_for('admin.sets_delete', set_id=s.id) }}" style="display:inline;" onsubmit="return confirm('Delete this set?');">
+                        <form method="post" action="{{ url_for('admin.sets_delete', set_id=s.id) }}" style="display:inline;" data-confirm="Delete this set?">
                             <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
                         </form>
                     </td>

@@ -45,7 +45,7 @@
                     <td>{{ '✅' if c.is_verified else '—' }}</td>
                     <td style="white-space:nowrap;">
                         <button type="button" class="btn-dash primary sm" onclick="openCustomerModal({{ c.id }})" title="Edit"><i class="fas fa-edit"></i></button>
-                        <form method="post" action="{{ url_for('admin.customers_delete', customer_id=c.id) }}" style="display:inline;" onsubmit="return confirm('Delete this customer permanently?');">
+                        <form method="post" action="{{ url_for('admin.customers_delete', customer_id=c.id) }}" style="display:inline;" data-confirm="Delete this customer permanently?">
                             <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
                         </form>
                     </td>

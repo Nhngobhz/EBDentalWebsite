@@ -162,6 +162,172 @@ img {
 
 
 /* ============================================================
+   DIALOG — branded replacement for the browser's native
+   alert()/confirm(), which rendered as an OS dialog captioned
+   "127.0.0.1:5000 says". Markup is built on demand by
+   ebAlert()/ebConfirm() in main.js, so no template includes it.
+   ============================================================ */
+.eb-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000000; /* above the quote drawer (9999999) - it can alert over it */
+    background: var(--modal-overlay);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+.eb-dialog-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+.eb-dialog {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
+    width: 100%;
+    max-width: 400px;
+    padding: 26px 24px 20px;
+    text-align: center;
+    transform: translateY(12px) scale(0.97);
+    transition: transform 0.25s cubic-bezier(.16, 1, .3, 1);
+}
+.eb-dialog-overlay.active .eb-dialog {
+    transform: translateY(0) scale(1);
+}
+@media (prefers-reduced-motion: reduce) {
+    .eb-dialog-overlay,
+    .eb-dialog {
+        transition: none;
+    }
+}
+.eb-dialog-icon {
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 14px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    background: rgba(6, 182, 212, 0.12);
+    color: var(--accent);
+}
+.eb-dialog[data-tone="danger"] .eb-dialog-icon {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--danger);
+}
+.eb-dialog[data-tone="warning"] .eb-dialog-icon {
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--warning);
+}
+.eb-dialog[data-tone="success"] .eb-dialog-icon {
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--success);
+}
+.eb-dialog-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    margin-bottom: 6px;
+    color: var(--text);
+}
+.eb-dialog-message {
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--text-soft);
+    margin-bottom: 20px;
+}
+.eb-dialog-actions {
+    display: flex;
+    gap: 10px;
+}
+.eb-dialog-btn {
+    flex: 1;
+    padding: 11px 18px;
+    border-radius: 99px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition);
+    border: 1px solid transparent;
+}
+.eb-dialog-btn.confirm {
+    background: var(--accent-light);
+    color: #fff;
+    box-shadow: 0 8px 24px rgba(8, 145, 178, 0.25);
+}
+.eb-dialog-btn.confirm:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(8, 145, 178, 0.35);
+}
+.eb-dialog[data-tone="danger"] .eb-dialog-btn.confirm {
+    background: var(--danger);
+    box-shadow: 0 8px 24px rgba(239, 68, 68, 0.25);
+}
+.eb-dialog[data-tone="danger"] .eb-dialog-btn.confirm:hover {
+    box-shadow: 0 12px 32px rgba(239, 68, 68, 0.35);
+}
+.eb-dialog-btn.cancel {
+    background: var(--bg);
+    color: var(--text-soft);
+    border-color: var(--border);
+}
+.eb-dialog-btn.cancel:hover {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--text-light);
+}
+.eb-dialog-btn:active {
+    transform: translateY(0) scale(0.97);
+}
+.eb-dialog-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+/* Single-button alert(): the lone OK shouldn't stretch the full width. */
+.eb-dialog.is-alert .eb-dialog-actions {
+    justify-content: center;
+}
+.eb-dialog.is-alert .eb-dialog-btn.confirm {
+    flex: 0 1 160px;
+}
+
+/* ============================================================
+   INLINE FIELD VALIDATION — replaces the browser's native
+   "Please fill out this field." bubble on forms marked novalidate
+   (see ebValidateForm() in main.js).
+   ============================================================ */
+.field-error {
+    display: none;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--danger);
+    margin-top: 5px;
+    align-items: center;
+    gap: 5px;
+}
+.field-error.show {
+    display: flex;
+}
+.form-group.has-error input,
+.form-group.has-error select,
+.form-group.has-error textarea {
+    border-color: var(--danger) !important;
+}
+.form-group.has-error input:focus,
+.form-group.has-error select:focus,
+.form-group.has-error textarea:focus {
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+}
+
+/* ============================================================
    PROMO BANNER STRIP (site-wide)
    NOTE: New component — the original never had a persistent
    cross-page promo banner, only the popup-style promotion page.

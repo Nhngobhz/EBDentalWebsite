@@ -42,7 +42,7 @@
                     <td style="font-size:0.7rem; white-space:nowrap;">{{ format_date(o.created_at) }}</td>
                     <td style="white-space:nowrap;">
                         <button type="button" class="btn-dash primary sm" onclick="openOrderModal({{ o.id }})" title="View"><i class="fas fa-eye"></i></button>
-                        <form method="post" action="{{ url_for('admin.orders_delete', order_id=o.id) }}" style="display:inline;" onsubmit="return confirm('Delete this order permanently?');">
+                        <form method="post" action="{{ url_for('admin.orders_delete', order_id=o.id) }}" style="display:inline;" data-confirm="Delete this order permanently?">
                             <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
                         </form>
                     </td>
