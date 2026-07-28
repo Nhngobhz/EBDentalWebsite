@@ -100,7 +100,7 @@
             <div id="promoDateError" style="font-size:0.7rem;color:var(--danger);margin:-6px 0 12px; display:none;">⚠️ End date must be after the start date.</div>
             <div class="form-group" style="margin-bottom:12px;">
                 <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Promotion Image</label>
-                <input type="file" name="file" id="promoImageFile" accept="image/png,image/jpeg,image/webp,image/gif" style="width:100%;font-size:0.8rem;">
+                <input type="file" name="file" id="promoImageFile" accept="image/png,image/jpeg,image/webp,image/gif" data-preview="promoImagePreview" style="width:100%;font-size:0.8rem;">
                 <img id="promoImagePreview" src="" alt="" style="display:none; margin-top:8px; width:70px; height:70px; border-radius:8px; object-fit:cover; border:1px solid var(--border);">
             </div>
             <button type="submit" class="btn-dash primary" style="width:100%;padding:10px;font-size:0.9rem;justify-content:center;margin-top:4px;" id="promoModalSubmitBtn">
@@ -140,14 +140,10 @@
         document.getElementById('promoEnd').value = isEdit ? promo.end_date_short : '';
         document.getElementById('promoDateError').style.display = 'none';
 
-        const preview = document.getElementById('promoImagePreview');
         document.getElementById('promoImageFile').value = '';
-        if (isEdit) {
-            preview.src = promo.image;
-            preview.style.display = '';
-        } else {
-            preview.style.display = 'none';
-        }
+        // Seeds the saved image; picking a file swaps in a preview of it
+        // (data-preview on the input above, handled in main.js).
+        ebSetImagePreview('promoImagePreview', isEdit ? promo.image : null);
 
         document.getElementById('promoModalOverlay').classList.add('active');
     }

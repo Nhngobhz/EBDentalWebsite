@@ -122,6 +122,20 @@ def create_app():
         flash("You don't have permission to do that.", "error")
         return redirect(url_for("admin.dashboard") if is_staff() else url_for("main.home")), 403
 
+    @app.errorhandler(404)
+    def handle_not_found(_e):
+        """Any URL that doesn't match a route - plus the explicit abort(404)s in
+        catalog.py (missing product) and auth.py's admin gate."""
+        return render_template("not_found.html"), 404
+
+    @app.errorhandler(405)
+    def handle_method_not_allowed(_e):
+        """A wrong-verb request (e.g. GET on a POST-only endpoint) is answered with the
+        same page as an unknown URL. Routing raises this before any blueprint's
+        before_request runs, so without it a stranger probing GET /admin/products/new
+        would get a 405 - proof the URL exists - while /admin/products correctly 404s."""
+        return render_template("not_found.html"), 404
+
     @app.errorhandler(StoreAPIUnavailable)
     def handle_store_api_unavailable(e):
         return render_template("service_unavailable.html", detail=e.detail), 503

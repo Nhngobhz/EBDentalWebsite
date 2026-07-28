@@ -9,9 +9,11 @@ admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 @staff_required
 def _require_staff():
     """Applies to every route registered on this blueprint - fixes the original
-    mock's complete lack of auth gating on any /admin/* route. Per-route
-    permission_required(...) layers stricter checks on top where store-api itself
-    demands more than just "is staff" (see each submodule)."""
+    mock's complete lack of auth gating on any /admin/* route. Non-staff get a 404
+    (see staff_required's docstring), not a login redirect, so /admin/* doesn't
+    announce itself to strangers. Per-route permission_required(...) layers stricter
+    checks on top where store-api itself demands more than just "is staff" (see each
+    submodule)."""
     return None
 
 

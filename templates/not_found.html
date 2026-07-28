@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Page Not Found{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Scoped to this page only - kept out of base.css so the other ~20 pages
+       don't pay for styles they never use. */
+    .notfound {
+        max-width: 640px;
+        margin: 0 auto;
+        padding: 90px 20px 110px;
+        text-align: center;
+    }
+    .notfound-code {
+        font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+        font-size: clamp(5.5rem, 22vw, 9rem);
+        font-weight: 800;
+        line-height: 1;
+        letter-spacing: -0.05em;
+        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 55%, var(--primary) 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
+    .notfound-icon {
+        font-size: 1.6rem;
+        color: var(--accent-light);
+        margin-bottom: 10px;
+    }
+    .notfound h1 {
+        font-size: clamp(1.35rem, 4vw, 1.75rem);
+        margin: 14px 0 10px;
+        color: var(--text);
+    }
+    .notfound p {
+        color: var(--text-light);
+        font-size: 0.95rem;
+        line-height: 1.7;
+        margin: 0 auto;
+        max-width: 440px;
+    }
+    .notfound-path {
+        display: inline-block;
+        margin-top: 18px;
+        padding: 7px 16px;
+        border-radius: 99px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        color: var(--text-soft);
+        font-size: 0.8rem;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+    }
+    .notfound-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        justify-content: center;
+        margin-top: 32px;
+    }
+    .notfound-links {
+        margin-top: 40px;
+        padding-top: 26px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 26px;
+        justify-content: center;
+    }
+    .notfound-links a {
+        color: var(--text-soft);
+        font-size: 0.85rem;
+        font-weight: 600;
+        transition: var(--transition);
+    }
+    .notfound-links a:hover {
+        color: var(--accent);
+    }
+    /* The secret link is the full stop at the end of the sentence above. It has to
+       read as ordinary punctuation at rest, so the only tell is the hover state -
+       findable by anyone idly sweeping the mouse, invisible to everyone else.
+       tabindex="-1" keeps it out of the keyboard tab order for the same reason. */
+    .notfound-secret {
+        color: inherit;
+        cursor: default;
+        transition: color 0.3s ease, text-shadow 0.3s ease;
+    }
+    .notfound-secret:hover {
+        color: var(--accent-light);
+        text-shadow: 0 0 10px var(--accent-light);
+        cursor: pointer;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+        .notfound-icon {
+            animation: notfound-float 3.2s ease-in-out infinite;
+        }
+        @keyframes notfound-float {
+            0%, 100% { transform: translateY(0); }
+            50%      { transform: translateY(-7px); }
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="notfound reveal">
+    <div class="notfound-icon"><i class="fas fa-compass"></i></div>
+    <div class="notfound-code">404</div>
+    <h1>We couldn't find that page</h1>
+    <p>
+        The link may be broken, the page may have moved, or the address might have a
+        typo in it. Nothing's wrong on your end<a class="notfound-secret"
+            href="{{ url_for('main.donut') }}" aria-label="Easter egg" tabindex="-1">.</a>
+    </p>
+    <div class="notfound-path">{{ request.path }}</div>
+
+
+</div>
+{% endblock %}

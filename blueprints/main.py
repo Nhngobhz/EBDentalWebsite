@@ -32,3 +32,11 @@ def about():
 @main_bp.route("/contact")
 def contact():
     return render_template("contact.html")
+
+
+@main_bp.route("/donut")
+def donut():
+    """Easter egg. Unlinked from every menu - the only way in is the hidden link on
+    the 404 page (`.notfound-secret` in not_found.html), so the reward for getting
+    lost is a spinning ASCII torus. Renders standalone, outside base.html."""
+    return render_template("donut.html")

@@ -1212,6 +1212,64 @@ document.addEventListener('input', (e) => {
 });
 
 /* ------------------------------------------------------------
+   IMAGE PICKER PREVIEW
+   <input type="file" data-preview="someImgId"> swaps the matching
+   <img> over to the file that was just picked, so admins see the
+   image before saving instead of after. Edit modals seed the
+   already-saved image through ebSetImagePreview(), which the
+   picker falls back to if the selection is cleared again.
+------------------------------------------------------------- */
+function ebSetImagePreview(imgId, src) {
+    const preview = document.getElementById(imgId);
+    if (!preview) return;
+
+    _ebReleasePreviewUrl(preview);
+    preview.dataset.savedSrc = src || '';
+    _ebShowPreview(preview, src);
+}
+
+/* Object URLs live until revoked, so the previous pick's URL is dropped
+   whenever the preview moves on to a different image. */
+function _ebReleasePreviewUrl(preview) {
+    if (!preview.dataset.objectUrl) return;
+    URL.revokeObjectURL(preview.dataset.objectUrl);
+    delete preview.dataset.objectUrl;
+}
+
+/* src='' would resolve to the current page URL and fire a pointless
+   request, so an empty preview drops the attribute instead. */
+function _ebShowPreview(preview, src) {
+    if (src) {
+        preview.src = src;
+        preview.style.display = '';
+    } else {
+        preview.removeAttribute('src');
+        preview.style.display = 'none';
+    }
+}
+
+document.addEventListener('change', (e) => {
+    const input = e.target;
+    if (!input.matches?.('input[type="file"][data-preview]')) return;
+
+    const preview = document.getElementById(input.dataset.preview);
+    if (!preview) return;
+    _ebReleasePreviewUrl(preview);
+
+    const file = input.files?.[0];
+    if (!file || !file.type.startsWith('image/')) {
+        // Selection cleared (or a non-image slipped through the accept
+        // filter): show the saved image again, or nothing when creating.
+        _ebShowPreview(preview, preview.dataset.savedSrc);
+        return;
+    }
+
+    const url = URL.createObjectURL(file);
+    preview.dataset.objectUrl = url;
+    _ebShowPreview(preview, url);
+});
+
+/* ------------------------------------------------------------
    PROMO BANNER STRIP — dismiss button
    Hides the banner for the rest of this page view (not persisted;
    it'll show again on the next page load/navigation).

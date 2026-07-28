@@ -71,6 +71,14 @@ follows.
   *every* route on the blueprint via `@admin_bp.before_request` - so an
   individual admin route only needs `@permission_required(...)` on top of
   that when store-api demands more than just "is staff".
+- The three decorators fail in three deliberately different ways:
+  `login_required` (storefront pages) flashes and redirects to `/login`;
+  `staff_required` (the `/admin/*` gate) **`abort(404)`s** so the admin
+  area is indistinguishable from a URL that doesn't exist - don't "fix"
+  this into a login redirect, it would confirm the URL to a stranger;
+  `permission_required` `abort(403)`s, which `app.py`'s handler turns
+  into a flash + redirect back to the admin dashboard (only signed-in
+  staff can ever reach it).
 
 ## 2. Talking to store-api
 
@@ -95,6 +103,11 @@ follows.
   `@app.errorhandler(StoreAPIUnavailable)` and renders
   `service_unavailable.html` with a 503, so individual routes don't need
   to handle it.
+- A store-api 404 on a detail route should become a real Flask 404
+  (`except StoreAPIError as e: if e.status_code == 404: abort(404)`, see
+  `catalog.product_detail`) so the visitor lands on `not_found.html`
+  rather than a 500. `app.py` registers that page for both 404 and 405,
+  so any unmatched URL or wrong-verb request renders it.
 - File uploads: build a `files={"file": (filename, stream, mimetype)}`
   dict (see `_file_from_request()` helpers repeated in
   `blueprints/admin/{products,brands,categories,manuals}.py`) and pass it

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>&nbsp;</title>
+    <style>
+        /* Deliberately standalone - no base.html, no header/nav/footer. The whole
+           joke is that you fall out of the website into a terminal. */
+        html, body {
+            height: 100%;
+            margin: 0;
+            background: #05080d;
+            overflow: hidden;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4vh;
+        }
+        pre {
+            margin: 0;
+            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+            /* The frame is 40 lines of 79 chars (40 glyphs joined by spaces, which is
+               how the Python pprint corrects for cell aspect ratio). Sizing off both
+               vw and vh keeps the whole donut on screen on a phone and a monitor. */
+            font-size: min(1.9vw, 2.1vh);
+            line-height: 1.05;
+            color: #22d3ee;
+            text-shadow: 0 0 14px rgba(34, 211, 238, 0.45);
+            white-space: pre;
+            user-select: none;
+        }
+        a.back {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 0.78rem;
+            letter-spacing: 0.08em;
+            color: #1e4a56;
+            text-decoration: none;
+            transition: color 0.25s ease;
+        }
+        a.back:hover, a.back:focus-visible {
+            color: #22d3ee;
+        }
+    </style>
+</head>
+<body>
+    <pre id="donut" aria-label="A spinning ASCII-art torus"></pre>
+    <a class="back" href="{{ url_for('main.landing') }}">&larr; back to reality</a>
+
+    <script>
+    (function () {
+        // Port of the numpy renderer, which is itself a port of the pseudocode at
+        // https://www.a1k0n.net/2011/07/20/donut-math.html - same constants, same
+        // output. Runs in the browser because the only alternative was adding numpy
+        // to a Flask storefront's requirements for one easter egg.
+        const SCREEN = 40;
+        const THETA_SPACING = 0.07;
+        const PHI_SPACING = 0.02;
+        const ILLUMINATION = ".,-~:;=!*#$@";
+
+        const R1 = 1, R2 = 2, K2 = 5;
+        const K1 = SCREEN * K2 * 3 / (8 * (R1 + R2));
+
+        // Matches np.arange(0, 2*pi, spacing) exactly: 90 thetas, 315 phis. Stepping a
+        // float accumulator instead would drop the last slice to rounding.
+        const N_THETA = Math.ceil(2 * Math.PI / THETA_SPACING);
+        const N_PHI = Math.ceil(2 * Math.PI / PHI_SPACING);
+
+        const cosTheta = new Float64Array(N_THETA), sinTheta = new Float64Array(N_THETA);
+        for (let i = 0; i < N_THETA; i++) {
+            cosTheta[i] = Math.cos(i * THETA_SPACING);
+            sinTheta[i] = Math.sin(i * THETA_SPACING);
+        }
+        const cosPhi = new Float64Array(N_PHI), sinPhi = new Float64Array(N_PHI);
+        for (let j = 0; j < N_PHI; j++) {
+            cosPhi[j] = Math.cos(j * PHI_SPACING);
+            sinPhi[j] = Math.sin(j * PHI_SPACING);
+        }
+
+        const output = new Array(SCREEN * SCREEN);
+        const zbuffer = new Float64Array(SCREEN * SCREEN);
+
+        function renderFrame(A, B) {
+            const cosA = Math.cos(A), sinA = Math.sin(A);
+            const cosB = Math.cos(B), sinB = Math.sin(B);
+
+            output.fill(' ');
+            zbuffer.fill(0);
+
+            for (let i = 0; i < N_THETA; i++) {
+                const cosT = cosTheta[i], sinT = sinTheta[i];
+                const circleX = R2 + R1 * cosT;
+                const circleY = R1 * sinT;
+
+                for (let j = 0; j < N_PHI; j++) {
+                    const cosP = cosPhi[j], sinP = sinPhi[j];
+
+                    const x = circleX * (cosB * cosP + sinA * sinB * sinP) - circleY * cosA * sinB;
+                    const y = circleX * (sinB * cosP - sinA * cosB * sinP) + circleY * cosA * cosB;
+                    const z = K2 + cosA * circleX * sinP + circleY * sinA;
+                    const ooz = 1 / z;
+
+                    // Row is xp, column is yp - same index order as the numpy
+                    // version's output[xp, yp], so the donut lands the same way up.
+                    const xp = (SCREEN / 2 + K1 * ooz * x) | 0;
+                    const yp = (SCREEN / 2 - K1 * ooz * y) | 0;
+                    if (xp < 0 || xp >= SCREEN || yp < 0 || yp >= SCREEN) continue;
+
+                    const luminance =
+                        cosP * cosT * sinB - cosA * cosT * sinP - sinA * sinT +
+                        cosB * (cosA * sinT - sinA * sinP * cosT);
+
+                    // Negative luminance means the surface faces away from the light.
+                    const shade = Math.round(luminance * 8);
+                    if (shade < 0) continue;
+
+                    const idx = xp * SCREEN + yp;
+                    if (ooz > zbuffer[idx]) {
+                        zbuffer[idx] = ooz;
+                        output[idx] = ILLUMINATION[Math.min(shade, ILLUMINATION.length - 1)];
+                    }
+                }
+            }
+
+            const rows = [];
+            for (let r = 0; r < SCREEN; r++) {
+                rows.push(output.slice(r * SCREEN, r * SCREEN + SCREEN).join(' '));
+            }
+            return rows.join('\n');
+        }
+
+        const screen = document.getElementById('donut');
+        let A = 1, B = 1;
+
+        // Same per-frame increments as the Python loop.
+        function step() {
+            A += THETA_SPACING;
+            B += PHI_SPACING;
+            screen.textContent = renderFrame(A, B);
+        }
+
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            screen.textContent = renderFrame(A, B);
+        } else {
+            // Throttled to ~30fps: the terminal original isn't smoother than this, and
+            // it keeps a 28k-point-per-frame loop off a phone's battery.
+            let last = 0;
+            (function loop(now) {
+                requestAnimationFrame(loop);
+                if (now - last < 33) return;
+                last = now;
+                step();
+            })(0);
+        }
+    })();
+    </script>
+</body>
+</html>
