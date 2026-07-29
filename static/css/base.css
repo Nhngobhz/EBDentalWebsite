@@ -517,7 +517,8 @@ img {
     flex-direction: column;
     gap: 4px;
 }
-.quote-info-fields input {
+.quote-info-fields input,
+.quote-info-fields select {
     font-family: inherit;
     font-size: 0.82rem;
     font-weight: 500;
@@ -529,7 +530,8 @@ img {
     outline: none;
     transition: var(--transition);
 }
-.quote-info-fields input:focus {
+.quote-info-fields input:focus,
+.quote-info-fields select:focus {
     border-color: var(--accent);
     background: var(--surface);
 }

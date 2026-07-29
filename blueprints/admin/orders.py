@@ -34,6 +34,25 @@ def orders_status(order_id):
     return redirect(url_for("admin.orders"))
 
 
+@admin_bp.route("/orders/<int:order_id>/mark-paid", methods=["POST"])
+@permission_required("price_listing")
+def orders_mark_paid(order_id):
+    """Manual fallback for confirming a KHQR payment when automatic Bakong checking
+    isn't configured (no BAKONG_API_TOKEN) - store-api stamps paid_at, rejects it on
+    non-KHQR rows, and fires the same paid-order Telegram alert the automatic check
+    would. The customer's still-open payment modal then sees "paid" on its next poll
+    and downloads the receipt."""
+    client = get_api_client()
+    try:
+        client.put_json(f"/orders/{order_id}", {"payment_status": "paid"})
+    except StoreAPIError as e:
+        flash(e.detail, "error")
+        return redirect(url_for("admin.orders"))
+
+    flash("Order marked as paid.", "success")
+    return redirect(url_for("admin.orders"))
+
+
 @admin_bp.route("/orders/<int:order_id>/delete", methods=["POST"])
 @permission_required("price_listing")
 def orders_delete(order_id):

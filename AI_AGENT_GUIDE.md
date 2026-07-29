@@ -175,6 +175,25 @@ anything quote-related.
   successful response does the frontend build the printable PDF - and it
   builds that PDF from the *server's response*, not the local cart, so
   what's printed always matches what's actually on record.
+- **Who gets a quote vs. a real order (added 2026-07-29)**: staff carts
+  always produce a QUOTE (the button reads "Generate Quote" for them,
+  driven by the `IS_STAFF` global from `base.html`); customers must pick a
+  **Payment Method** in the drawer (`qiPaymentMethod` select, customers
+  only) - **Cash** also produces a quote (quotation PDF downloads
+  immediately), **KHQR** creates a real order awaiting payment. For KHQR,
+  `confirmPurchase()` clears the cart, opens the KHQR modal
+  (`QuoteCart.showKhqrModal()` - renders `order.khqr_string` via a
+  lazy-loaded qrcode.js, same CDN pattern as jsPDF), and polls
+  `/quote/<id>/payment-status` (relayed to store-api) every 3s. **The
+  receipt PDF is only ever generated in `_finishPaidOrder()`, after the
+  poll reports "paid"** - `buildPrintTemplate()` titles the document
+  "Receipt" instead of "Quotation" when
+  `payment_method == 'khqr' && payment_status == 'paid'`, and
+  `exportPDF(suffix, docName)` takes the filename word as its second arg.
+  The admin Orders page separates the two with Type tabs/badges and has a
+  "Mark as Paid" fallback (`admin.orders_mark_paid` ->
+  `PUT /orders/{id} {"payment_status": "paid"}`) for setups without a
+  Bakong API token.
 - **Sub-Total/Discount/Special Discount/Grand Total, in both the cart
   drawer and the printed PDF**: Sub-Total is the undiscounted combined list
   price, Discount is the money each product's own (admin-set) discount

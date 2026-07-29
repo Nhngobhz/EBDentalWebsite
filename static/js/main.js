@@ -577,6 +577,7 @@ const QuoteCart = {
         setVal('qiPaymentTerm', 'paymentTerm');
         setVal('qiInstallTerm', 'installTerm');
         setVal('qiContactPerson', 'contactPerson');
+        setVal('qiPaymentMethod', 'paymentMethod'); // customers only - absent for staff
     },
 
     // ---- drawer open/close ----
@@ -658,6 +659,15 @@ const QuoteCart = {
     },
 
     buildPrintTemplate(order) {
+        // A paid KHQR order prints as a Receipt; everything else (staff quote,
+        // customer cash quote, unpaid order) stays a Quotation. Mirrored by
+        // store-api's fallback PDF (services/invoice_pdf.py).
+        const isReceipt = order.payment_method === 'khqr' && order.payment_status === 'paid';
+        const docTitle = isReceipt ? 'Receipt' : 'Quotation';
+        const validityNote = isReceipt
+            ? 'Paid via KHQR. Thank you for your purchase.'
+            : 'Quotation valid for <b>30 days</b> from the date issued.';
+
         const specialDiscountLabel = order.discount_type === 'cash'
             ? 'Special Discount (Cash):'
             : `Special Discount (${Number(order.discount_value || 0)}%):`;
@@ -705,7 +715,7 @@ const QuoteCart = {
                     </div>
                 </div>
                 <div>
-                    <div class="qpt-title">Quotation</div>
+                    <div class="qpt-title">${docTitle}</div>
                     <div class="qpt-meta-right">
                         No : <b>${order.order_number}</b><br>
                         Date: <b>${this._formatQuoteDate(order.created_at)}</b>
@@ -746,7 +756,7 @@ const QuoteCart = {
                     ${rows}
                     ${blankRows}
                     <tr class="qpt-total-row qpt-subtotal-row">
-                        <td colspan="6" class="qpt-validity" rowspan="4">Quotation valid for <b>30 days</b> from the date issued.</td>
+                        <td colspan="6" class="qpt-validity" rowspan="4">${validityNote}</td>
                         <td>Sub-Total($):</td>
                         <td class="qpt-right">$ ${undiscountedSubtotal.toFixed(2)}</td>
                     </tr>
@@ -804,8 +814,10 @@ const QuoteCart = {
     // Returns the built PDF as a Blob (in addition to triggering the local download)
     // so confirmPurchase() can also hand it to store-api for the Telegram order alert
     // - see uploadQuotationPDF(). The admin reprint button (admin/orders.html) calls
-    // this too and just ignores the return value.
-    async exportPDF(filenameSuffix) {
+    // this too and just ignores the return value. `docName` is the filename word only
+    // ("Quotation"/"Receipt") - the printed title inside the document comes from
+    // buildPrintTemplate(), which must already have been called.
+    async exportPDF(filenameSuffix, docName = 'Quotation') {
         await this._ensurePdfLibs();
         const template = document.getElementById('quotePrintTemplate');
 
@@ -834,7 +846,7 @@ const QuoteCart = {
             heightLeft -= pdfHeight;
         }
 
-        pdf.save('EB-Dental-Quotation-' + filenameSuffix + '.pdf');
+        pdf.save('EB-Dental-' + docName + '-' + filenameSuffix + '.pdf');
         return pdf.output('blob');
     },
 
@@ -851,11 +863,16 @@ const QuoteCart = {
         fetch(`/quote/${orderId}/pdf`, { method: 'POST', body: formData }).catch(() => {});
     },
 
-    // "Confirm Purchase" submits the cart to POST /quote/submit - this creates a real
-    // store-api Order (server re-prices every line, derives salesperson/quoted_by_name,
-    // and computes the discount itself - never trusting what the browser sends, see
-    // routers/orders.py) - then builds and downloads the printed quotation PDF from that
-    // server response.
+    // "Confirm Purchase" / "Generate Quote" submits the cart to POST /quote/submit -
+    // this creates a real store-api Order (server re-prices every line, derives
+    // salesperson/quoted_by_name, and computes the discount itself - never trusting
+    // what the browser sends, see routers/orders.py). What happens next depends on
+    // who's confirming:
+    //   staff            -> the row is a QUOTE; quotation PDF downloads immediately.
+    //   customer + cash  -> also a QUOTE (payment happens offline later); same PDF flow.
+    //   customer + khqr  -> a real order awaiting payment; the KHQR modal opens and the
+    //                       RECEIPT is only generated once the payment-status poll
+    //                       reports "paid" - see showKhqrModal()/_finishPaidOrder().
     async confirmPurchase() {
         const items = this.getItems();
         if (items.length === 0) return;
@@ -873,11 +890,29 @@ const QuoteCart = {
             return;
         }
 
+        // Customers must pick how they'll pay; staff never see the selector (their
+        // cart always produces a quote). store-api enforces the same rule server-side.
+        const isStaff = typeof IS_STAFF !== 'undefined' && IS_STAFF;
+        const paymentMethod = isStaff ? null : (info.paymentMethod || '');
+        if (!isStaff && paymentMethod !== 'cash' && paymentMethod !== 'khqr') {
+            document.getElementById('quoteInfoForm')?.classList.remove('collapsed');
+            await ebAlert('Please choose a payment method (Cash or KHQR) before confirming your purchase.', {
+                title: 'Payment method required',
+                tone: 'warning',
+                confirmText: 'Got it',
+            });
+            return;
+        }
+
         const btn = document.getElementById('quoteDownloadPdfBtn');
+        const btnLabel = (btn && btn.dataset.label) || '<i class="fas fa-circle-check"></i> Confirm Purchase';
         const resetBtn = () => {
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-circle-check"></i> Confirm Purchase'; }
+            if (btn) { btn.disabled = false; btn.innerHTML = btnLabel; }
         };
-        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting order...'; }
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + (isStaff ? 'Saving quote...' : 'Submitting order...');
+        }
 
         let order;
         try {
@@ -891,6 +926,7 @@ const QuoteCart = {
                     address: info.address,
                     payment_term: info.paymentTerm || null,
                     install_term: info.installTerm || null,
+                    payment_method: paymentMethod || null,
                     discount_type: this.getDiscountType(),
                     discount_value: this.getDiscountValue(),
                     items: items.map(item => ({ id: item.id, qty: item.qty, kind: item.kind })),
@@ -900,7 +936,7 @@ const QuoteCart = {
             if (!response.ok) {
                 resetBtn();
                 await ebAlert(order.detail || 'Could not submit your quote. Please try again.', {
-                    title: "Couldn't submit your order",
+                    title: isStaff ? "Couldn't save your quote" : "Couldn't submit your order",
                     tone: 'danger',
                 });
                 return;
@@ -917,11 +953,23 @@ const QuoteCart = {
         // error there used to fall through it and leave the button stuck
         // disabled on "Generating PDF..." forever, since the reset only lived
         // on the success path's own finally below.
+
+        // KHQR: the order exists server-side awaiting payment. No PDF yet - the
+        // receipt is generated only after the payment is confirmed.
+        if (order.payment_method === 'khqr') {
+            resetBtn();
+            this.clearDraft();
+            this.render();
+            this.close();
+            this.showKhqrModal(order);
+            return;
+        }
+
         if (btn) { btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating PDF...'; }
 
         try {
             this.buildPrintTemplate(order);
-            const pdfBlob = await this.exportPDF(order.quote_code);
+            const pdfBlob = await this.exportPDF(order.quote_code, 'Quotation');
             this.uploadQuotationPDF(order.id, pdfBlob);
             this.clearDraft();
             this.render();
@@ -929,6 +977,113 @@ const QuoteCart = {
         } finally {
             resetBtn();
         }
+    },
+
+    // ---- KHQR payment (customer QR checkout only) ----
+    // qrcode.js is lazy-loaded exactly like jsPDF/html2canvas above - only a KHQR
+    // checkout ever pays the download cost.
+    _qrLibPromise: null,
+    _ensureQrLib() {
+        if (window.QRCode) return Promise.resolve();
+        if (!this._qrLibPromise) {
+            this._qrLibPromise = new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+                script.onload = resolve;
+                script.onerror = () => reject(new Error('Failed to load qrcode.js'));
+                document.head.appendChild(script);
+            }).catch(err => {
+                this._qrLibPromise = null;
+                throw err;
+            });
+        }
+        return this._qrLibPromise;
+    },
+
+    _khqrPollTimer: null,
+    _stopKhqrPolling() {
+        if (this._khqrPollTimer) {
+            clearInterval(this._khqrPollTimer);
+            this._khqrPollTimer = null;
+        }
+    },
+
+    async showKhqrModal(order) {
+        const overlay = document.getElementById('khqrModalOverlay');
+        if (!overlay) return;
+
+        document.getElementById('khqrAmount').textContent = '$' + Number(order.grand_total).toFixed(2);
+        document.getElementById('khqrOrderNo').textContent = 'Order ' + order.order_number + ' · Code ' + order.quote_code;
+        const statusRow = document.getElementById('khqrStatusRow');
+        statusRow.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scan with your banking app — waiting for payment…';
+
+        const codeBox = document.getElementById('khqrCodeBox');
+        codeBox.innerHTML = '';
+        try {
+            await this._ensureQrLib();
+            new QRCode(codeBox, {
+                text: order.khqr_string,
+                width: 220,
+                height: 220,
+                correctLevel: QRCode.CorrectLevel.M,
+            });
+        } catch (err) {
+            codeBox.textContent = 'Could not draw the QR code — please check your connection and try again.';
+        }
+        overlay.style.display = 'flex';
+
+        // Poll the payment status every 3s. Transient failures are ignored (just try
+        // again next tick); the loop only ever ends on "paid" or the user closing the
+        // modal. Server-side, the first poll that finds the Bakong transaction flips
+        // the order to paid and fires the Telegram alert - see store-api's
+        // routers/orders.py::check_payment_status.
+        const url = PAYMENT_STATUS_URL_TEMPLATE.replace('/0/', '/' + order.id + '/');
+        this._stopKhqrPolling();
+        this._khqrPollTimer = setInterval(async () => {
+            let data;
+            try {
+                const resp = await fetch(url);
+                if (!resp.ok) return;
+                data = await resp.json();
+            } catch {
+                return;
+            }
+            if (data.payment_status === 'paid') {
+                this._stopKhqrPolling();
+                await this._finishPaidOrder(order);
+            }
+        }, 3000);
+    },
+
+    hideKhqrModal() {
+        this._stopKhqrPolling();
+        const overlay = document.getElementById('khqrModalOverlay');
+        if (overlay) overlay.style.display = 'none';
+    },
+
+    // Payment confirmed - the ONLY place a receipt is ever produced for a KHQR order.
+    // Also hands the receipt to store-api so the paid-order Telegram alert (already
+    // waiting server-side) carries the real client-rendered document.
+    async _finishPaidOrder(order) {
+        const statusRow = document.getElementById('khqrStatusRow');
+        if (statusRow) {
+            statusRow.innerHTML = '<i class="fas fa-circle-check" style="color:#16a34a;"></i> Payment received — generating your receipt…';
+        }
+
+        order.payment_status = 'paid';
+        try {
+            this.buildPrintTemplate(order);
+            const pdfBlob = await this.exportPDF(order.quote_code, 'Receipt');
+            this.uploadQuotationPDF(order.id, pdfBlob);
+        } catch (err) {
+            // The payment itself is complete - never let a PDF hiccup mask that.
+        }
+        this.hideKhqrModal();
+        await ebAlert('Payment received — thank you! Your receipt has been downloaded.', {
+            title: 'Payment complete',
+            tone: 'success',
+            confirmText: 'Done',
+        });
     },
 };
 
@@ -939,6 +1094,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('quoteDrawerClose')?.addEventListener('click', () => QuoteCart.close());
     document.getElementById('quoteDrawerOverlay')?.addEventListener('click', () => QuoteCart.close());
     document.getElementById('quoteDownloadPdfBtn')?.addEventListener('click', () => QuoteCart.confirmPurchase());
+    // Closing the KHQR modal early keeps the order awaiting payment server-side -
+    // deliberately confirm-gated, and the overlay itself doesn't close on click, so a
+    // stray tap can't kill the payment screen mid-scan.
+    document.getElementById('khqrModalClose')?.addEventListener('click', async () => {
+        const confirmed = await ebConfirm(
+            'Your order stays reserved as awaiting payment. If you have already paid, your receipt will be issued as soon as the payment is confirmed.',
+            { title: 'Close the payment window?', tone: 'warning', confirmText: 'Close' }
+        );
+        if (confirmed) QuoteCart.hideKhqrModal();
+    });
     document.getElementById('quoteDiscountEditBtn')?.addEventListener('click', () => {
         document.getElementById('quoteDiscountEditor')?.classList.toggle('open');
     });
