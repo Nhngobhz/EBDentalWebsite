@@ -3315,6 +3315,15 @@
     font-weight: 700;
     color: var(--text);
 }
+/* Trailing "…" when a bundle holds more products than the card previews (see
+   BUNDLE_PREVIEW_LIMIT in main/promotions.html). Indented to line up with the
+   item text above it rather than the check icons, so it reads as the list
+   continuing rather than as another item. */
+.bundle-contents .bundle-more {
+    padding-left: 14px;
+    letter-spacing: 1px;
+    cursor: default;
+}
 /* Free-gift list on a product (detail page + modal) - same list, with a
    heading that names it as a giveaway rather than bundle contents. */
 .free-with-title {

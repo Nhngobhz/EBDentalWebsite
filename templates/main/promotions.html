@@ -3,6 +3,10 @@
 {% block title %}Promotions{% endblock %}
 
 {% block content %}
+{# How many member products a promo/set card previews before trailing off into
+   "…". Cards sit in a grid, so an unbounded list makes one card tower over its
+   neighbours; the full contents are always on the cart line and the quote. #}
+{% set BUNDLE_PREVIEW_LIMIT = 3 %}
 <div id="productPage">
     <div class="eb-promotion-page">
         <div class="container">
@@ -36,12 +40,18 @@
                             {% if promo.old_price %}<span class="old">{{ price(promo.old_price) }}</span>{% endif %}
                         </div>
                         {# A promotion is a collection of products - spell out what's
-                           inside so the deal is legible before it's in the cart. #}
+                           inside so the deal is legible before it's in the cart.
+                           Capped at BUNDLE_PREVIEW_LIMIT so one big bundle can't
+                           stretch its card past its neighbours; the cart drawer and
+                           the printed quote still list every item. #}
                         {% if promo['items'] %}
                         <ul class="bundle-contents">
-                            {% for item in promo['items'] %}
+                            {% for item in promo['items'][:BUNDLE_PREVIEW_LIMIT] %}
                             <li><i class="fas fa-check"></i> {{ item.product_name }}{% if item.qty > 1 %} <span class="bundle-qty">×{{ item.qty }}</span>{% endif %}</li>
                             {% endfor %}
+                            {% if promo['items']|length > BUNDLE_PREVIEW_LIMIT %}
+                            <li class="bundle-more" title="{{ promo['items'][BUNDLE_PREVIEW_LIMIT:]|map(attribute='product_name')|join(', ') }}">…</li>
+                            {% endif %}
                         </ul>
                         {% endif %}
                         {% if can_quote() %}
@@ -87,13 +97,16 @@
                                      src="{{ img(set_.detail_image) }}"
                                      alt="" loading="lazy" />
                                 {% endif %}
-                                {# What's actually in the bundle - same treatment as
-                                   the promo cards above. #}
+                                {# What's actually in the bundle - same treatment,
+                                   and same preview cap, as the promo cards above. #}
                                 {% if set_['items'] %}
                                 <ul class="bundle-contents">
-                                    {% for item in set_['items'] %}
+                                    {% for item in set_['items'][:BUNDLE_PREVIEW_LIMIT] %}
                                     <li><i class="fas fa-check"></i> {{ item.product_name }}{% if item.qty > 1 %} <span class="bundle-qty">×{{ item.qty }}</span>{% endif %}</li>
                                     {% endfor %}
+                                    {% if set_['items']|length > BUNDLE_PREVIEW_LIMIT %}
+                                    <li class="bundle-more" title="{{ set_['items'][BUNDLE_PREVIEW_LIMIT:]|map(attribute='product_name')|join(', ') }}">…</li>
+                                    {% endif %}
                                 </ul>
                                 {% endif %}
                             </div>
