@@ -32,7 +32,7 @@
                 {% for c in categories %}
                 <tr data-search="{{ c.category_name|lower }}">
                     <td>
-                        <img src="{{ img(c.category_image) }}"
+                        <img src="{{ img(c.category_image) }}" loading="lazy"
                              style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1px solid var(--border);" />
                     </td>
                     <td><strong>{{ c.category_name }}</strong></td>
@@ -40,7 +40,7 @@
                     <td style="white-space:nowrap;">
                         {% if has_permission('product_management') %}
                         <button type="button" class="btn-dash primary sm" onclick="openCategoryModal({{ c.id }})" title="Edit"><i class="fas fa-edit"></i></button>
-                        <form method="post" action="{{ url_for('admin.categories_delete', category_id=c.id) }}" style="display:inline;" onsubmit="return confirm('Delete this category? Products still assigned to it will block the delete.');">
+                        <form method="post" action="{{ url_for('admin.categories_delete', category_id=c.id) }}" style="display:inline;" data-confirm="Delete this category? Products still assigned to it will block the delete.">
                             <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
                         </form>
                         {% endif %}
@@ -67,7 +67,7 @@
             </div>
             <div class="form-group" style="margin-bottom:12px;">
                 <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Category Image</label>
-                <input type="file" name="file" id="categoryImageFile" accept="image/png,image/jpeg,image/webp,image/gif" style="width:100%;font-size:0.8rem;">
+                <input type="file" name="file" id="categoryImageFile" accept="image/png,image/jpeg,image/webp,image/gif" data-preview="categoryImagePreview" style="width:100%;font-size:0.8rem;">
                 <img id="categoryImagePreview" src="" alt="" style="display:none; margin-top:8px; width:60px; height:60px; border-radius:50%; object-fit:cover; border:1px solid var(--border);">
             </div>
             <button type="submit" class="btn-dash primary" style="width:100%;padding:10px;font-size:0.9rem;justify-content:center;margin-top:16px;" id="categoryModalSubmitBtn">
@@ -102,13 +102,9 @@
 
         document.getElementById('categoryName').value = isEdit ? category.category_name : '';
         document.getElementById('categoryImageFile').value = '';
-        const preview = document.getElementById('categoryImagePreview');
-        if (isEdit) {
-            preview.src = category.image;
-            preview.style.display = '';
-        } else {
-            preview.style.display = 'none';
-        }
+        // Seeds the saved image; picking a file swaps in a preview of it
+        // (data-preview on the input above, handled in main.js).
+        ebSetImagePreview('categoryImagePreview', isEdit ? category.image : null);
 
         document.getElementById('categoryModalOverlay').classList.add('active');
     }

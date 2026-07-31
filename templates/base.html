@@ -1,11 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>document.documentElement.classList.add('has-js');</script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}EB Dental Supply{% endblock %} — Partner in Dentistry Since 1985</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 
@@ -48,13 +51,20 @@
         // same product_management requirement server-side.
         const CAN_DISCOUNT = {{ has_permission('product_management')|tojson }};
         const IS_LOGGED_IN = {{ is_logged_in()|tojson }};
+        // Staff carts always produce a QUOTE; customers get a real purchase flow with
+        // a required payment method (Cash -> quote, KHQR -> pay-by-QR order). Same
+        // distinction is enforced server-side in store-api's routers/orders.py.
+        const IS_STAFF = {{ is_staff()|tojson }};
         const CONTACT_URL = {{ url_for('main.contact')|tojson }};
         const LOGIN_URL = {{ url_for('auth.login')|tojson }};
         const QUOTE_SUBMIT_URL = {{ url_for('quote.submit')|tojson }};
+        // "/quote/0/payment-status" - main.js swaps the 0 for a real order id when
+        // polling a KHQR order's payment state.
+        const PAYMENT_STATUS_URL_TEMPLATE = {{ url_for('quote.payment_status', order_id=0)|tojson }};
     </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- jsPDF/html2canvas are NOT loaded here anymore - QuoteCart._ensurePdfLibs()
+         (main.js) injects them on demand the first time a PDF is actually exported,
+         so normal browsing never downloads ~350KB of PDF tooling. -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lang-dropdown.js') }}"></script>
     {% block extra_js %}{% endblock %}

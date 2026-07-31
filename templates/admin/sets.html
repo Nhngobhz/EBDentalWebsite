@@ -30,17 +30,24 @@
                 {% for s in sets %}
                 <tr data-search="{{ s.set_name|lower }}">
                     <td>
-                        <img src="{{ img(s.set_image) }}"
+                        <img src="{{ img(s.set_image) }}" loading="lazy"
                              style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid var(--border);" />
                     </td>
-                    <td><strong>{{ s.set_name }}</strong></td>
+                    <td>
+                        <strong>{{ s.set_name }}</strong>
+                        {% if s['items'] %}
+                        <div style="font-size:0.7rem;color:var(--text-light);margin-top:2px;">
+                            Includes: {% for i in s['items'] %}{{ i.product_name }}{% if i.qty > 1 %} ×{{ i.qty }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
+                        </div>
+                        {% endif %}
+                    </td>
                     <td>
                         {{ price(s.price) }}
                         {% if s.old_price %}<span style="text-decoration:line-through; color:var(--text-light); font-size:0.7rem;">{{ price(s.old_price) }}</span>{% endif %}
                     </td>
                     <td style="white-space:nowrap;">
                         <button type="button" class="btn-dash primary sm" onclick="openSetModal({{ s.id }})" title="Edit"><i class="fas fa-edit"></i></button>
-                        <form method="post" action="{{ url_for('admin.sets_delete', set_id=s.id) }}" style="display:inline;" onsubmit="return confirm('Delete this set?');">
+                        <form method="post" action="{{ url_for('admin.sets_delete', set_id=s.id) }}" style="display:inline;" data-confirm="Delete this set?">
                             <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
                         </form>
                     </td>
@@ -75,13 +82,31 @@
                 <div class="form-group" style="margin-bottom:12px;">
                     <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Old Price</label>
                     <input type="number" name="old_price" id="setOldPrice" step="0.01" min="0.01" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                    <div style="font-size:0.7rem;color:var(--text-light);margin-top:4px;">Only used when this set has no Included Products — otherwise the combined price of those products is shown as the old price.</div>
                 </div>
             </div>
             <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Included Products</label>
+                <div style="font-size:0.7rem;color:var(--text-light);margin-bottom:6px;">
+                    What the customer receives in this set. Each one is listed on the quote under the set at $0.00 — the set's own Price above is what's charged.
+                </div>
+                <div class="bundle-picker" id="setItemsPicker"></div>
+                <div class="bundle-picker-empty" id="setItemsPickerEmpty">No products added yet — this set will show as a single line on the quote.</div>
+                <button type="button" class="btn-dash sm bundle-add-btn" onclick="ebBundlePicker.addRow('setItemsPicker')">
+                    <i class="fas fa-plus"></i> Add product
+                </button>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
                 <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Set Image</label>
-                <div style="font-size:0.7rem;color:var(--text-light);margin-bottom:6px;">Shown as a small square/rectangle thumbnail on the Promotions page.</div>
-                <input type="file" name="file" id="setImageFile" accept="image/png,image/jpeg,image/webp,image/gif" style="width:100%;font-size:0.8rem;">
+                <div style="font-size:0.7rem;color:var(--text-light);margin-bottom:6px;">The main image on the Promotions page set card.</div>
+                <input type="file" name="file" id="setImageFile" accept="image/png,image/jpeg,image/webp,image/gif" data-preview="setImagePreview" style="width:100%;font-size:0.8rem;">
                 <img id="setImagePreview" src="" alt="" style="display:none; margin-top:8px; width:70px; height:70px; border-radius:8px; object-fit:cover; border:1px solid var(--border);">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Detail Image <span style="font-weight:400;color:var(--text-light);">(optional)</span></label>
+                <div style="font-size:0.7rem;color:var(--text-light);margin-bottom:6px;">Small extra image shown under the name &amp; description — e.g. what's inside the bundle. Leave empty for none.</div>
+                <input type="file" name="detail_file" id="setDetailImageFile" accept="image/png,image/jpeg,image/webp,image/gif" data-preview="setDetailImagePreview" style="width:100%;font-size:0.8rem;">
+                <img id="setDetailImagePreview" src="" alt="" style="display:none; margin-top:8px; width:70px; height:70px; border-radius:8px; object-fit:cover; border:1px solid var(--border);">
             </div>
             <button type="submit" class="btn-dash primary" style="width:100%;padding:10px;font-size:0.9rem;justify-content:center;margin-top:4px;" id="setModalSubmitBtn">
                 <i class="fas fa-save"></i> Create Set
@@ -95,10 +120,20 @@
 <script>
     {% set sets_json = [] %}
     {% for s in sets %}
-    {% set _ = sets_json.append(dict(s, image=img(s.set_image))) %}
+    {# detail_image stays raw/None here (not run through img()) so the edit
+       modal can tell "no detail image" apart from "has one" - img() would
+       hand back the 404 placeholder for both. #}
+    {% set _ = sets_json.append(dict(s, image=img(s.set_image), detail_image_url=img(s.detail_image) if s.detail_image else None)) %}
     {% endfor %}
     const SETS_DATA = {{ sets_json|tojson }};
     const SET_NEW_URL = {{ url_for('admin.sets_new')|tojson }};
+    {# Feeds the "Included Products" dropdowns - see ebBundlePicker in main.js.
+       Slimmed to what the dropdown labels need; prices/images aren't wanted here. #}
+    {% set product_options = [] %}
+    {% for p in products %}
+    {% set _ = product_options.append({'id': p.id, 'product_name': p.product_name, 'product_code': p.product_code}) %}
+    {% endfor %}
+    const BUNDLE_PRODUCTS = {{ product_options|tojson }};
 
     function openSetModal(setId) {
         const set_ = setId ? SETS_DATA.find(s => s.id === setId) : null;
@@ -117,14 +152,20 @@
         document.getElementById('setPrice').value = isEdit && typeof set_.price === 'number' ? set_.price : '';
         document.getElementById('setOldPrice').value = isEdit && set_.old_price ? set_.old_price : '';
 
-        const preview = document.getElementById('setImagePreview');
+        // Both seed the saved image; picking a file swaps in a preview of it
+        // (data-preview on the inputs above, handled in main.js).
         document.getElementById('setImageFile').value = '';
-        if (isEdit) {
-            preview.src = set_.image;
-            preview.style.display = '';
-        } else {
-            preview.style.display = 'none';
-        }
+        ebSetImagePreview('setImagePreview', isEdit ? set_.image : null);
+
+        // Detail image is optional, so it only previews when the set actually
+        // has one - unlike the main image above, which every set is expected
+        // to have (and falls back to a placeholder when it doesn't).
+        document.getElementById('setDetailImageFile').value = '';
+        ebSetImagePreview('setDetailImagePreview', isEdit ? set_.detail_image_url : null);
+
+        // Contents of the set (empty when creating). Submitting with no rows at
+        // all is what clears a set's contents - see bundle_items_from_form().
+        ebBundlePicker.render('setItemsPicker', isEdit ? set_.items : []);
 
         document.getElementById('setModalOverlay').classList.add('active');
     }

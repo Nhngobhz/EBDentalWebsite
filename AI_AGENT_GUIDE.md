@@ -71,6 +71,14 @@ follows.
   *every* route on the blueprint via `@admin_bp.before_request` - so an
   individual admin route only needs `@permission_required(...)` on top of
   that when store-api demands more than just "is staff".
+- The three decorators fail in three deliberately different ways:
+  `login_required` (storefront pages) flashes and redirects to `/login`;
+  `staff_required` (the `/admin/*` gate) **`abort(404)`s** so the admin
+  area is indistinguishable from a URL that doesn't exist - don't "fix"
+  this into a login redirect, it would confirm the URL to a stranger;
+  `permission_required` `abort(403)`s, which `app.py`'s handler turns
+  into a flash + redirect back to the admin dashboard (only signed-in
+  staff can ever reach it).
 
 ## 2. Talking to store-api
 
@@ -95,6 +103,11 @@ follows.
   `@app.errorhandler(StoreAPIUnavailable)` and renders
   `service_unavailable.html` with a 503, so individual routes don't need
   to handle it.
+- A store-api 404 on a detail route should become a real Flask 404
+  (`except StoreAPIError as e: if e.status_code == 404: abort(404)`, see
+  `catalog.product_detail`) so the visitor lands on `not_found.html`
+  rather than a 500. `app.py` registers that page for both 404 and 405,
+  so any unmatched URL or wrong-verb request renders it.
 - File uploads: build a `files={"file": (filename, stream, mimetype)}`
   dict (see `_file_from_request()` helpers repeated in
   `blueprints/admin/{products,brands,categories,manuals}.py`) and pass it
@@ -134,6 +147,22 @@ The matching template (`templates/admin/*.html`) always:
   attribute on each `<tr>`, matched against a lowercased search input
   (see `filter<Things>Table()` in each template's `extra_js`).
 
+**Bundle contents pickers (added 2026-07-31)**: three admin modals let an
+admin say which products something contains - Promotion "Included
+Products", Set "Included Products", and Product "Comes With (Free)". They
+all use the same three pieces, so wire a new one the same way rather than
+hand-rolling: `ebBundlePicker` (`main.js`) renders/collects the repeatable
+rows into parallel `item_product_id`/`item_qty` inputs, the page defines a
+`const BUNDLE_PRODUCTS = [...]` blob (id/name/code) for the dropdowns, and
+`bundle_items_from_form()` (`blueprints/admin/__init__.py`) reads them back
+into store-api's `[{product_id, qty}]` shape. Note the picker submitting
+**no rows at all** is meaningful - it posts `[]`, which store-api reads as
+"this bundle now contains nothing"; that's why the payload always includes
+the key. The Old Price field on a Promotion/Set is only a fallback: once a
+bundle lists contents, store-api reports their combined price as `old_price`
+and the stored column is ignored (so the modal prefills a number the admin
+never typed - that's the computed one, not a bug).
+
 `templates/partials/admin_sidebar.html` gates each nav group behind
 `has_permission(...)` matching whatever permission that section's routes
 actually require - if you add a new admin page, add its link there inside
@@ -152,6 +181,12 @@ anything quote-related.
   globals injected in `base.html` from `can_quote()`/`is_logged_in()`.
   Adding an item, changing quantity, and the special-discount type/value
   selector are all purely local until the user hits "Confirm Purchase".
+- **A cart line can carry `components`** - what it includes for free (a
+  promotion/set's member products, or a product's free gifts). They're
+  copied into `localStorage` purely so the drawer can list them before an
+  order exists (`QuoteCart.renderIncluded`, quantities multiplied by the
+  parent line's qty); the real ones are re-derived server-side at purchase
+  time and are never read back from the browser.
 - **"Confirm Purchase" is really "submit, then print".** It POSTs the cart
   to `blueprints/quote.py`'s `/quote/submit`, which forwards to
   store-api's `POST /orders/` (server re-prices everything, derives
@@ -162,6 +197,25 @@ anything quote-related.
   successful response does the frontend build the printable PDF - and it
   builds that PDF from the *server's response*, not the local cart, so
   what's printed always matches what's actually on record.
+- **Who gets a quote vs. a real order (added 2026-07-29)**: staff carts
+  always produce a QUOTE (the button reads "Generate Quote" for them,
+  driven by the `IS_STAFF` global from `base.html`); customers must pick a
+  **Payment Method** in the drawer (`qiPaymentMethod` select, customers
+  only) - **Cash** also produces a quote (quotation PDF downloads
+  immediately), **KHQR** creates a real order awaiting payment. For KHQR,
+  `confirmPurchase()` clears the cart, opens the KHQR modal
+  (`QuoteCart.showKhqrModal()` - renders `order.khqr_string` via a
+  lazy-loaded qrcode.js, same CDN pattern as jsPDF), and polls
+  `/quote/<id>/payment-status` (relayed to store-api) every 3s. **The
+  receipt PDF is only ever generated in `_finishPaidOrder()`, after the
+  poll reports "paid"** - `buildPrintTemplate()` titles the document
+  "Receipt" instead of "Quotation" when
+  `payment_method == 'khqr' && payment_status == 'paid'`, and
+  `exportPDF(suffix, docName)` takes the filename word as its second arg.
+  The admin Orders page separates the two with Type tabs/badges and has a
+  "Mark as Paid" fallback (`admin.orders_mark_paid` ->
+  `PUT /orders/{id} {"payment_status": "paid"}`) for setups without a
+  Bakong API token.
 - **Sub-Total/Discount/Special Discount/Grand Total, in both the cart
   drawer and the printed PDF**: Sub-Total is the undiscounted combined list
   price, Discount is the money each product's own (admin-set) discount
@@ -218,7 +272,7 @@ Exposed as Jinja globals in `app.py` (`img`, `file_url`, `price`,
 | `to_number` | Coerces a store-api numeric-as-string field to a real `float`, leaving the masked sentinel `"XXXX"` or `None` untouched. This is the *only* place that distinction should be made. |
 | `format_price` (Jinja `price()`) | Safe to call on anything `to_number()` may have produced - real number → `"$1,234.56"`, masked → `"Login to view price"`, `None` → `""`. |
 | `format_date` | ISO 8601 string (or `datetime`) → `"Jul 21, 2026"` by default. |
-| `adapt_product` / `adapt_promotion` / `adapt_order` | Per-entity adapters - run **once**, immediately after fetching from store-api, before the dict reaches a template or a `tojson` blob. If you fetch a new list of orders/products/promotions somewhere, run it through the matching adapter before doing anything else with it. |
+| `adapt_product` / `adapt_promotion` / `adapt_set` / `adapt_order` | Per-entity adapters - run **once**, immediately after fetching from store-api, before the dict reaches a template or a `tojson` blob. If you fetch a new list of orders/products/promotions/sets somewhere, run it through the matching adapter before doing anything else with it. |
 
 ## 6. Common agent mistakes to avoid
 
@@ -245,8 +299,29 @@ Exposed as Jinja globals in `app.py` (`img`, `file_url`, `price`,
    the storefront download and the admin reprint button. Don't duplicate
    the HTML-building logic into `orders.html`'s inline script.
 7. **Forgetting `_admin_base.html` doesn't include `quote_drawer.html`.**
-   The hidden `#quotePrintTemplate` div and the jsPDF/html2canvas
-   `<script>` tags that `buildPrintTemplate`/`exportPDF` depend on are
+   The hidden `#quotePrintTemplate` div that `buildPrintTemplate` fills is
    added directly in `_admin_base.html` for this reason - if you create a
-   new base template that also needs to print, it needs its own copies of
-   both.
+   new base template that also needs to print, it needs its own copy.
+   jsPDF/html2canvas are NOT `<script>` tags in any base template anymore
+   (removed 2026-07-27 for page-load speed) - `QuoteCart._ensurePdfLibs()`
+   in `main.js` injects them from cdnjs on the first `exportPDF()` call.
+8. **Writing `thing.items` in a Jinja template.** A `Promotion`/`Set` dict
+   from store-api carries its contents under the key `items` - and
+   `{{ promo.items }}` resolves to the **dict's own `.items` method**, not
+   the key, which then blows up with
+   `'builtin_function_or_method' object is not iterable`. Always subscript
+   it: `promo['items']`. (`free_items` on a product has no such clash.)
+9. **Assuming an order's `items` list is only the lines the cart sent.**
+   Since 2026-07-31 a promotion/set line expands into its member products
+   and a product line into its free gifts, as extra $0 "component" rows in
+   the same flat list, each carrying `parent_item_id`. Anything rendering
+   order lines (printed quote, admin order modal) must indent/skip-number
+   them by that field rather than treating every row as a charged line.
+10. **Assuming the sitewide `brands`/`products`/`promotions`/`sets`/
+   `active_promotions` template globals are plain lists.** Since 2026-07-27
+   they're lazy per-request proxies (`app.py::inject_catalog_globals`) -
+   each store-api fetch only fires if the rendered template actually uses
+   that variable. They behave like lists inside Jinja (`|length`, iteration,
+   truthiness), but don't pass them to `|tojson` or code that needs a real
+   `list` - fetch and adapt your own list in the route instead (which also
+   shadows the global, skipping the sitewide fetch entirely).

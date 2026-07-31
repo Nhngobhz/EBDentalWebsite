@@ -37,6 +37,20 @@
                     </label>
                 </div>
                 <div class="quote-info-col">
+                    {% if is_customer() %}
+                    <!-- Customers must pick how they'll pay: Cash produces a quote
+                         (payment is collected offline later), KHQR shows a scan-to-pay
+                         QR and only issues the receipt once the payment lands. Staff
+                         never see this - their cart always produces a quote. Required
+                         both here and server-side (store-api routers/orders.py). -->
+                    <label>Payment Method *
+                        <select id="qiPaymentMethod" required onchange="QuoteCart.saveInfoField('paymentMethod', this.value)">
+                            <option value="">Choose…</option>
+                            <option value="cash">Cash</option>
+                            <option value="khqr">KHQR (scan to pay)</option>
+                        </select>
+                    </label>
+                    {% endif %}
                     <label>Payment Term
                         <input type="text" id="qiPaymentTerm" placeholder="COD" oninput="QuoteCart.saveInfoField('paymentTerm', this.value)">
                     </label>
@@ -98,9 +112,40 @@
             </div>
         </div>
         <div class="quote-drawer-actions">
-            <button type="button" class="quote-download-pdf-btn" id="quoteDownloadPdfBtn">
+            <!-- Staff carts ARE the quotation tool, so the button says what it does
+                 for them; customers keep the purchase wording. main.js reads the
+                 initial label back out of data-label when re-enabling the button. -->
+            {% if is_staff() %}
+            <button type="button" class="quote-download-pdf-btn" id="quoteDownloadPdfBtn" data-label='<i class="fas fa-file-invoice"></i> Generate Quote'>
+                <i class="fas fa-file-invoice"></i> Generate Quote
+            </button>
+            {% else %}
+            <button type="button" class="quote-download-pdf-btn" id="quoteDownloadPdfBtn" data-label='<i class="fas fa-circle-check"></i> Confirm Purchase'>
                 <i class="fas fa-circle-check"></i> Confirm Purchase
             </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- KHQR payment modal - shown after a customer confirms a KHQR order. Renders the
+     order's Bakong QR (QuoteCart.showKhqrModal in main.js), then polls
+     /quote/<id>/payment-status until it flips to "paid", at which point the receipt
+     PDF is generated and downloaded. Closing early keeps the order awaiting payment. -->
+<div class="khqr-modal-overlay" id="khqrModalOverlay" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:10000; align-items:center; justify-content:center; padding:16px;">
+    <div class="khqr-modal-box" style="background:#fff; border-radius:16px; max-width:360px; width:100%; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.35); font-family:inherit;">
+        <div style="background:#e21836; color:#fff; padding:14px 18px; display:flex; align-items:center; justify-content:space-between;">
+            <div style="font-weight:700; letter-spacing:1px; font-size:1rem;">KHQR</div>
+            <button type="button" id="khqrModalClose" style="background:none; border:none; color:#fff; font-size:1.1rem; cursor:pointer; line-height:1;"><i class="fas fa-times"></i></button>
+        </div>
+        <div style="padding:18px 18px 6px; text-align:center;">
+            <div id="khqrMerchantName" style="font-weight:600; font-size:0.9rem; color:#0f172a;">EB DENTAL</div>
+            <div id="khqrAmount" style="font-size:1.5rem; font-weight:700; color:#0f172a; margin:2px 0 10px;">$0.00</div>
+            <div id="khqrCodeBox" style="display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px; min-height:248px;"></div>
+            <div id="khqrOrderNo" style="font-size:0.72rem; color:#64748b; margin-top:8px;"></div>
+        </div>
+        <div id="khqrStatusRow" style="padding:12px 18px 18px; text-align:center; font-size:0.85rem; color:#475569;">
+            <i class="fas fa-spinner fa-spin"></i> Scan with your banking app — waiting for payment…
         </div>
     </div>
 </div>

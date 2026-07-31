@@ -1,7 +1,7 @@
 from flask import flash, redirect, render_template, request, url_for
 
 from auth import permission_required
-from blueprints.admin import admin_bp
+from blueprints.admin import admin_bp, bundle_items_from_form
 from formatting import adapt_product
 from store_api import StoreAPIError, get_api_client
 
@@ -42,6 +42,9 @@ def _product_form_payload():
         "uom": request.form.get("uom", "").strip() or None,
         "brand_id": request.form.get("brand_id", type=int),
         "category_id": request.form.get("category_id", type=int),
+        # Other products this one comes with for free - each lands on the quote
+        # as a $0 line under this product (store-api's create_order expands them).
+        "free_items": bundle_items_from_form(),
     }
     price = request.form.get("price", "").strip()
     discount = request.form.get("discount", "").strip()

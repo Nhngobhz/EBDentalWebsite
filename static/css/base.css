@@ -162,6 +162,172 @@ img {
 
 
 /* ============================================================
+   DIALOG — branded replacement for the browser's native
+   alert()/confirm(), which rendered as an OS dialog captioned
+   "127.0.0.1:5000 says". Markup is built on demand by
+   ebAlert()/ebConfirm() in main.js, so no template includes it.
+   ============================================================ */
+.eb-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000000; /* above the quote drawer (9999999) - it can alert over it */
+    background: var(--modal-overlay);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+.eb-dialog-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+.eb-dialog {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
+    width: 100%;
+    max-width: 400px;
+    padding: 26px 24px 20px;
+    text-align: center;
+    transform: translateY(12px) scale(0.97);
+    transition: transform 0.25s cubic-bezier(.16, 1, .3, 1);
+}
+.eb-dialog-overlay.active .eb-dialog {
+    transform: translateY(0) scale(1);
+}
+@media (prefers-reduced-motion: reduce) {
+    .eb-dialog-overlay,
+    .eb-dialog {
+        transition: none;
+    }
+}
+.eb-dialog-icon {
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 14px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    background: rgba(6, 182, 212, 0.12);
+    color: var(--accent);
+}
+.eb-dialog[data-tone="danger"] .eb-dialog-icon {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--danger);
+}
+.eb-dialog[data-tone="warning"] .eb-dialog-icon {
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--warning);
+}
+.eb-dialog[data-tone="success"] .eb-dialog-icon {
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--success);
+}
+.eb-dialog-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    margin-bottom: 6px;
+    color: var(--text);
+}
+.eb-dialog-message {
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--text-soft);
+    margin-bottom: 20px;
+}
+.eb-dialog-actions {
+    display: flex;
+    gap: 10px;
+}
+.eb-dialog-btn {
+    flex: 1;
+    padding: 11px 18px;
+    border-radius: 99px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition);
+    border: 1px solid transparent;
+}
+.eb-dialog-btn.confirm {
+    background: var(--accent-light);
+    color: #fff;
+    box-shadow: 0 8px 24px rgba(8, 145, 178, 0.25);
+}
+.eb-dialog-btn.confirm:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(8, 145, 178, 0.35);
+}
+.eb-dialog[data-tone="danger"] .eb-dialog-btn.confirm {
+    background: var(--danger);
+    box-shadow: 0 8px 24px rgba(239, 68, 68, 0.25);
+}
+.eb-dialog[data-tone="danger"] .eb-dialog-btn.confirm:hover {
+    box-shadow: 0 12px 32px rgba(239, 68, 68, 0.35);
+}
+.eb-dialog-btn.cancel {
+    background: var(--bg);
+    color: var(--text-soft);
+    border-color: var(--border);
+}
+.eb-dialog-btn.cancel:hover {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--text-light);
+}
+.eb-dialog-btn:active {
+    transform: translateY(0) scale(0.97);
+}
+.eb-dialog-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+/* Single-button alert(): the lone OK shouldn't stretch the full width. */
+.eb-dialog.is-alert .eb-dialog-actions {
+    justify-content: center;
+}
+.eb-dialog.is-alert .eb-dialog-btn.confirm {
+    flex: 0 1 160px;
+}
+
+/* ============================================================
+   INLINE FIELD VALIDATION — replaces the browser's native
+   "Please fill out this field." bubble on forms marked novalidate
+   (see ebValidateForm() in main.js).
+   ============================================================ */
+.field-error {
+    display: none;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--danger);
+    margin-top: 5px;
+    align-items: center;
+    gap: 5px;
+}
+.field-error.show {
+    display: flex;
+}
+.form-group.has-error input,
+.form-group.has-error select,
+.form-group.has-error textarea {
+    border-color: var(--danger) !important;
+}
+.form-group.has-error input:focus,
+.form-group.has-error select:focus,
+.form-group.has-error textarea:focus {
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+}
+
+/* ============================================================
    PROMO BANNER STRIP (site-wide)
    NOTE: New component — the original never had a persistent
    cross-page promo banner, only the popup-style promotion page.
@@ -351,7 +517,8 @@ img {
     flex-direction: column;
     gap: 4px;
 }
-.quote-info-fields input {
+.quote-info-fields input,
+.quote-info-fields select {
     font-family: inherit;
     font-size: 0.82rem;
     font-weight: 500;
@@ -363,7 +530,8 @@ img {
     outline: none;
     transition: var(--transition);
 }
-.quote-info-fields input:focus {
+.quote-info-fields input:focus,
+.quote-info-fields select:focus {
     border-color: var(--accent);
     background: var(--surface);
 }
@@ -473,6 +641,37 @@ img {
     color: var(--danger);
     cursor: pointer;
     font-size: 0.8rem;
+}
+/* What a line includes for free — a promotion/set's member products, or the
+   freebies a product comes with. Read-only: quantity follows the parent line,
+   and there's nothing to remove independently, so no controls here. */
+.quote-item-included {
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 6px 0 0 10px;
+    border-top: 1px dashed var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.quote-item-included li {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 0.7rem;
+    color: var(--text-light);
+}
+.quote-item-included .included-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* The price slot of an included line - always a dash, since a component is
+   covered by its parent line's price and is never charged for. */
+.quote-item-included .included-price {
+    color: var(--text-light);
 }
 .quote-drawer-footer {
     padding: 18px 26px 24px;
@@ -753,6 +952,17 @@ table.qpt-table td.qpt-right { text-align: right; }
 .qpt-blank-row td {
     height: 20px;
 }
+/* Component rows — the $0 lines listing what a promotion/set contains, or the
+   freebies a product comes with (OrderItem.parent_item_id in store-api). Same
+   grid as any other row so the printed table stays a table; the indent + lighter
+   ink is what says "this belongs to the line above". */
+.qpt-component-row td {
+    color: #444;
+}
+.qpt-component-row .qpt-component-name {
+    padding-left: 20px;
+    font-style: italic;
+}
 .qpt-subtotal-row td {
     border-top: 2px solid #333;
 }
@@ -873,4 +1083,101 @@ table.qpt-table td.qpt-right { text-align: right; }
     height: auto;
     display: block;
     margin-left: -30px;
+}
+
+/* ============================================================
+   SCROLL REVEAL — progressive enhancement.
+   The opacity:0 starting state only applies once html.has-js is
+   set (see the inline script at the top of base.html), so content
+   stays fully visible if JS never runs. main.js's IntersectionObserver
+   adds .is-visible the first time an element scrolls into view.
+   ============================================================ */
+@media (prefers-reduced-motion: no-preference) {
+    :where(html.has-js) .reveal {
+        opacity: 0;
+        transform: translateY(26px);
+        transition: opacity 0.7s cubic-bezier(.16, 1, .3, 1), transform 0.7s cubic-bezier(.16, 1, .3, 1);
+        transition-delay: calc(var(--i, 0) * 70ms);
+    }
+    :where(html.has-js) .reveal.is-visible {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    :where(html.has-js) .reveal-stagger > * {
+        opacity: 0;
+        transform: translateY(22px);
+        transition: opacity 0.6s cubic-bezier(.16, 1, .3, 1), transform 0.6s cubic-bezier(.16, 1, .3, 1);
+        transition-delay: calc(var(--i, 0) * 80ms);
+    }
+    :where(html.has-js) .reveal-stagger.is-visible > * {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ============================================================
+   BUTTONS — .btn-primary / .btn-outline base look.
+   Previously only styled inside .product-modal/.promotion-modal
+   (higher-specificity selectors there still win); this fills in
+   the bare classes used on the product detail page and elsewhere.
+   ============================================================ */
+.btn-primary {
+    background: var(--accent-light);
+    border: none;
+    padding: 11px 26px;
+    border-radius: 99px;
+    color: white;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: var(--transition);
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 8px 24px rgba(8, 145, 178, 0.25);
+    position: relative;
+    overflow: hidden;
+}
+.btn-primary::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.35) 45%, transparent 65%);
+    transform: translateX(-120%);
+    transition: transform 0.6s ease;
+}
+.btn-primary:hover::before {
+    transform: translateX(120%);
+}
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(8, 145, 178, 0.35);
+}
+.btn-primary:active {
+    transform: translateY(0) scale(0.97);
+}
+.btn-outline {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 10px 24px;
+    border-radius: 99px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: var(--transition);
+    font-family: inherit;
+    color: var(--text-soft);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.btn-outline:hover {
+    border-color: var(--accent-light);
+    color: var(--accent);
+    background: var(--bg);
+    transform: translateY(-2px);
+}
+.btn-outline:active {
+    transform: translateY(0) scale(0.97);
 }

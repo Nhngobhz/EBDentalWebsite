@@ -19,7 +19,11 @@
         </div>
 
         <div class="tab-content active" id="loginTabContent">
-            <form id="loginForm" method="post" action="{{ url_for('auth.login') }}">
+            <!-- novalidate: the required/type=email constraints below are still
+                 what's checked, but ebValidateForm() (main.js) renders the
+                 failures as inline messages instead of the browser's native
+                 "Please fill out this field." bubble. -->
+            <form id="loginForm" method="post" action="{{ url_for('auth.login') }}" novalidate>
                 <div class="form-group">
                     <label for="loginEmailInput">Email</label>
                     <input type="email" id="loginEmailInput" name="email" placeholder="Enter your email" required />
@@ -83,6 +87,8 @@
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         hideError();
+
+        if (!ebValidateForm(form)) return;
 
         const email = document.getElementById('loginEmailInput').value.trim();
         const password = document.getElementById('loginPasswordInput').value;

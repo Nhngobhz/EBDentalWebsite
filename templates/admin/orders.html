@@ -5,12 +5,18 @@
 
 {% block admin_content %}
 <div class="page-title"><i class="fas fa-shopping-cart"></i> Orders</div>
-<p class="page-sub">Quotes finalized by customers/staff through the storefront's Cart. Every price shown here was computed server-side at the moment the order was placed.</p>
+<p class="page-sub">Orders and quotes finalized through the storefront's Cart. Staff carts and customer Cash checkouts are stored as <strong>quotes</strong>; only KHQR checkouts are real orders (paid or awaiting payment). Every price shown here was computed server-side at the moment the row was created.</p>
 
 <div class="dash-card">
     <div class="card-header">
         <h5 id="ordersCountLabel">All Orders ({{ orders|length }})</h5>
-        <div class="card-actions">
+        <div class="card-actions" style="display:flex; align-items:center; gap:10px;">
+            <!-- Quote/Order separation: client-side row filter on data-type. -->
+            <div id="orderTypeTabs" style="display:flex; gap:4px;">
+                <button type="button" class="btn-dash sm primary" data-type-filter="all" onclick="setOrderTypeFilter('all')">All</button>
+                <button type="button" class="btn-dash sm" data-type-filter="order" onclick="setOrderTypeFilter('order')">Orders</button>
+                <button type="button" class="btn-dash sm" data-type-filter="quote" onclick="setOrderTypeFilter('quote')">Quotes</button>
+            </div>
             <div class="search-box-dash">
                 <i class="fas fa-search"></i>
                 <input type="text" id="orderSearchInput" class="search-input-dash" placeholder="Search orders..." oninput="filterOrdersTable()">
@@ -23,12 +29,19 @@
         {% else %}
         <table>
             <thead>
-                <tr><th>Order #</th><th>Clinic / Contact</th><th>Salesperson</th><th>Items</th><th>Grand Total</th><th>Status</th><th>Date</th><th>Actions</th></tr>
+                <tr><th>Order #</th><th>Type</th><th>Clinic / Contact</th><th>Salesperson</th><th>Items</th><th>Grand Total</th><th>Payment</th><th>Status</th><th>Date</th><th>Actions</th></tr>
             </thead>
             <tbody id="ordersTableBody">
                 {% for o in orders %}
-                <tr data-search="{{ (o.order_number ~ ' ' ~ o.quote_code ~ ' ' ~ (o.clinic_name or '') ~ ' ' ~ (o.contact_person or ''))|lower }}">
+                <tr data-type="{{ o.order_type or 'order' }}" data-search="{{ (o.order_number ~ ' ' ~ o.quote_code ~ ' ' ~ (o.clinic_name or '') ~ ' ' ~ (o.contact_person or ''))|lower }}">
                     <td><strong>{{ o.order_number }}</strong><br><span style="font-size:0.65rem;color:var(--text-light);">{{ o.quote_code }}</span></td>
+                    <td>
+                        {% if (o.order_type or 'order') == 'quote' %}
+                        <span style="background:#f59e0b; color:white; padding:2px 10px; border-radius:99px; font-size:0.65rem; font-weight:600; white-space:nowrap;">📄 Quote</span>
+                        {% else %}
+                        <span style="background:#2563eb; color:white; padding:2px 10px; border-radius:99px; font-size:0.65rem; font-weight:600; white-space:nowrap;">🛒 Order</span>
+                        {% endif %}
+                    </td>
                     <td>
                         {{ o.clinic_name or '—' }}
                         {% if o.contact_person %}<br><span style="font-size:0.7rem;color:var(--text-light);">{{ o.contact_person }}</span>{% endif %}
@@ -36,13 +49,26 @@
                     <td>{{ o.salesperson or '—' }}</td>
                     <td>{{ o['items']|length }}</td>
                     <td>{{ price(o.grand_total) }}</td>
+                    <td style="white-space:nowrap; font-size:0.7rem;">
+                        {% if o.payment_method == 'khqr' %}
+                            {% if o.payment_status == 'paid' %}
+                            <span style="color:#16a34a; font-weight:600;"><i class="fas fa-circle-check"></i> KHQR paid</span>
+                            {% else %}
+                            <span style="color:#d97706; font-weight:600;"><i class="fas fa-clock"></i> KHQR unpaid</span>
+                            {% endif %}
+                        {% elif o.payment_method == 'cash' %}
+                            Cash
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
                     <td>
                         <span class="status-badge status-{{ o.status }}">{{ o.status }}</span>
                     </td>
                     <td style="font-size:0.7rem; white-space:nowrap;">{{ format_date(o.created_at) }}</td>
                     <td style="white-space:nowrap;">
                         <button type="button" class="btn-dash primary sm" onclick="openOrderModal({{ o.id }})" title="View"><i class="fas fa-eye"></i></button>
-                        <form method="post" action="{{ url_for('admin.orders_delete', order_id=o.id) }}" style="display:inline;" onsubmit="return confirm('Delete this order permanently?');">
+                        <form method="post" action="{{ url_for('admin.orders_delete', order_id=o.id) }}" style="display:inline;" data-confirm="Delete this order permanently?">
                             <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
                         </form>
                     </td>
@@ -71,6 +97,7 @@
             <div><span style="color:var(--text-light);"><i class="fas fa-user fa-fw"></i> Contact</span><br><strong id="orderContact"></strong></div>
             <div><span style="color:var(--text-light);"><i class="fas fa-phone fa-fw"></i> Phone</span><br><strong id="orderPhone"></strong></div>
             <div><span style="color:var(--text-light);"><i class="fas fa-map-marker-alt fa-fw"></i> Address</span><br><strong id="orderAddress"></strong></div>
+            <div><span style="color:var(--text-light);"><i class="fas fa-credit-card fa-fw"></i> Payment</span><br><strong id="orderPayment"></strong></div>
             <div><span style="color:var(--text-light);"><i class="fas fa-file-invoice-dollar fa-fw"></i> Payment Term</span><br><strong id="orderPaymentTerm"></strong></div>
             <div><span style="color:var(--text-light);"><i class="fas fa-truck fa-fw"></i> Installation Term</span><br><strong id="orderInstallTerm"></strong></div>
             <div><span style="color:var(--text-light);"><i class="fas fa-user-tie fa-fw"></i> Salesperson</span><br><strong id="orderSalesperson"></strong></div>
@@ -103,6 +130,12 @@
                 </select>
                 <button type="submit" class="btn-dash primary"><i class="fas fa-save"></i> Update Status</button>
             </form>
+            <!-- Manual KHQR confirmation fallback (no Bakong API token configured, or
+                 the customer paid but auto-detection missed it). Only rendered for
+                 unpaid KHQR orders - see openOrderModal(). -->
+            <form id="orderMarkPaidForm" method="post" style="display:none;" data-confirm="Confirm that this KHQR payment has been received? The customer's receipt is issued from this.">
+                <button type="submit" class="btn-dash primary" style="background:#16a34a;"><i class="fas fa-circle-check"></i> Mark as Paid</button>
+            </form>
             <button type="button" class="btn-dash" id="orderPrintBtn" onclick="printOrder(currentOrderId)"><i class="fas fa-print"></i> Print</button>
         </div>
     </div>
@@ -113,7 +146,26 @@
 <script>
     const ORDERS_DATA = {{ orders|tojson }};
     const ORDER_STATUS_URL_TEMPLATE = {{ url_for('admin.orders_status', order_id=0)|tojson }};
+    const ORDER_MARK_PAID_URL_TEMPLATE = {{ url_for('admin.orders_mark_paid', order_id=0)|tojson }};
     let currentOrderId = null;
+    let currentTypeFilter = 'all';
+
+    // Quote/Order tabs - combined with the text search in filterOrdersTable().
+    function setOrderTypeFilter(type) {
+        currentTypeFilter = type;
+        document.querySelectorAll('#orderTypeTabs [data-type-filter]').forEach(btn => {
+            btn.classList.toggle('primary', btn.dataset.typeFilter === type);
+        });
+        filterOrdersTable();
+    }
+
+    function describePayment(order) {
+        if (order.payment_method === 'khqr') {
+            return order.payment_status === 'paid' ? 'KHQR — paid' : 'KHQR — awaiting payment';
+        }
+        if (order.payment_method === 'cash') return 'Cash (quote)';
+        return '—';
+    }
 
     function formatMoney(value) {
         return typeof value === 'number' ? '$' + value.toFixed(2) : (value || '—');
@@ -124,8 +176,16 @@
         if (!order) return;
         currentOrderId = orderId;
 
-        document.getElementById('orderModalTitle').textContent = 'Order ' + order.order_number;
+        document.getElementById('orderModalTitle').textContent =
+            (order.order_type === 'quote' ? 'Quote ' : 'Order ') + order.order_number;
         document.getElementById('orderQuoteCode').textContent = order.quote_code;
+        document.getElementById('orderPayment').textContent = describePayment(order);
+
+        // Manual "Mark as Paid" only makes sense on an unpaid KHQR order.
+        const markPaidForm = document.getElementById('orderMarkPaidForm');
+        const needsMarkPaid = order.payment_method === 'khqr' && order.payment_status !== 'paid';
+        markPaidForm.style.display = needsMarkPaid ? '' : 'none';
+        markPaidForm.action = ORDER_MARK_PAID_URL_TEMPLATE.replace('/0/', '/' + orderId + '/');
         const statusBadge = document.getElementById('orderStatusBadge');
         statusBadge.textContent = order.status;
         statusBadge.className = 'status-badge status-' + order.status;
@@ -139,7 +199,18 @@
         document.getElementById('orderSalesperson').textContent = order.salesperson || '—';
         document.getElementById('orderQuotedBy').textContent = order.quoted_by_name || '—';
 
-        document.getElementById('orderItemsBody').innerHTML = order.items.map(item => `
+        // Component lines - what a promotion/set contained, or the freebies that
+        // came with a product (OrderItem.parent_item_id in store-api). They sit
+        // right under the line they belong to, at $0.00.
+        document.getElementById('orderItemsBody').innerHTML = order.items.map(item => item.parent_item_id ? `
+            <tr style="color:var(--text-light);">
+                <td style="padding-left:20px;font-style:italic;">• ${item.product_name}</td>
+                <td>${item.product_code || '—'}</td>
+                <td>${item.qty}</td>
+                <td>—</td>
+                <td>—</td>
+                <td>${formatMoney(0)}</td>
+            </tr>` : `
             <tr>
                 <td>${item.product_name}</td>
                 <td>${item.product_code || '—'}</td>
@@ -186,7 +257,10 @@
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
         try {
             QuoteCart.buildPrintTemplate(order);
-            await QuoteCart.exportPDF(order.quote_code);
+            // Paid KHQR orders reprint as a Receipt, everything else as a Quotation -
+            // buildPrintTemplate() picks the printed title from the same fields.
+            const docName = (order.payment_method === 'khqr' && order.payment_status === 'paid') ? 'Receipt' : 'Quotation';
+            await QuoteCart.exportPDF(order.quote_code, docName);
         } finally {
             btn.disabled = false;
             btn.innerHTML = originalHtml;
@@ -203,14 +277,19 @@
         let visibleCount = 0;
 
         rows.forEach(row => {
-            const matches = !query || (row.dataset.search || '').includes(query);
+            const matchesQuery = !query || (row.dataset.search || '').includes(query);
+            const matchesType = currentTypeFilter === 'all' || (row.dataset.type || 'order') === currentTypeFilter;
+            const matches = matchesQuery && matchesType;
             row.style.display = matches ? '' : 'none';
             if (matches) visibleCount++;
         });
 
+        const label = currentTypeFilter === 'quote' ? 'Quotes' : currentTypeFilter === 'order' ? 'Orders' : 'All Orders';
         document.getElementById('ordersNoMatch').style.display = visibleCount === 0 ? 'block' : 'none';
         document.getElementById('ordersCountLabel').textContent =
-            query ? `Orders (${visibleCount} of ${ORDERS_DATA.length})` : `All Orders (${ORDERS_DATA.length})`;
+            (query || currentTypeFilter !== 'all')
+                ? `${label} (${visibleCount} of ${ORDERS_DATA.length})`
+                : `All Orders (${ORDERS_DATA.length})`;
     }
 </script>
 {% endblock %}

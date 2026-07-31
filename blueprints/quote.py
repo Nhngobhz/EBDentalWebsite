@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 
-from auth import can_quote, is_logged_in
+from auth import can_quote, is_customer, is_logged_in
 from formatting import adapt_order
 from store_api import StoreAPIError, get_api_client
 
@@ -30,6 +30,13 @@ def submit():
     if not clinic_name or not phone or not address:
         return jsonify({"detail": "Clinic, Contact Tel, and Address are required."}), 400
 
+    # Customers must say how they'll pay: "cash" produces a quote, "khqr" a real order
+    # awaiting payment. Staff never send one - their cart always produces a quote
+    # (store-api ignores payment_method for staff and enforces it for customers too).
+    payment_method = body.get("payment_method") or None
+    if is_customer() and payment_method not in ("cash", "khqr"):
+        return jsonify({"detail": "Please choose a payment method (Cash or KHQR)."}), 400
+
     # salesperson/quoted_by_name are NOT sent - store-api derives them server-side from
     # whoever is actually calling (see routers/orders.py::create_order), never trusted
     # from the client.
@@ -40,6 +47,7 @@ def submit():
         "address": address,
         "payment_term": body.get("payment_term") or None,
         "install_term": body.get("install_term") or None,
+        "payment_method": payment_method if is_customer() else None,
         "discount_type": body.get("discount_type") or "percent",
         "discount_value": body.get("discount_value") or 0,
         "items": [
@@ -87,3 +95,22 @@ def upload_pdf(order_id):
         return jsonify({"detail": e.detail}), (e.status_code or 400)
 
     return jsonify({"received": True})
+
+
+@quote_bp.route("/<int:order_id>/payment-status", methods=["GET"])
+def payment_status(order_id):
+    """Polled by the KHQR modal (QuoteCart.showKhqrModal in main.js) every few
+    seconds. A thin relay to store-api's GET /orders/{id}/payment-status, which does
+    the actual Bakong check, flips the order to paid, and fires the paid-order
+    Telegram alert - store-api also re-checks that the caller is the principal who
+    placed the order, so this can't be used to probe someone else's order."""
+    if not is_logged_in():
+        return jsonify({"detail": "Please log in."}), 401
+
+    client = get_api_client()
+    try:
+        result = client.get(f"/orders/{order_id}/payment-status")
+    except StoreAPIError as e:
+        return jsonify({"detail": e.detail}), (e.status_code or 400)
+
+    return jsonify(result)

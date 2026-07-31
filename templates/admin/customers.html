@@ -45,7 +45,7 @@
                     <td>{{ '✅' if c.is_verified else '—' }}</td>
                     <td style="white-space:nowrap;">
                         <button type="button" class="btn-dash primary sm" onclick="openCustomerModal({{ c.id }})" title="Edit"><i class="fas fa-edit"></i></button>
-                        <form method="post" action="{{ url_for('admin.customers_delete', customer_id=c.id) }}" style="display:inline;" onsubmit="return confirm('Delete this customer permanently?');">
+                        <form method="post" action="{{ url_for('admin.customers_delete', customer_id=c.id) }}" style="display:inline;" data-confirm="Delete this customer permanently?">
                             <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
                         </form>
                     </td>
@@ -85,7 +85,10 @@
             </div>
             <div class="form-group" style="margin-bottom:12px;">
                 <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Photo</label>
-                <input type="file" name="file" id="custImageFile" accept="image/png,image/jpeg,image/webp,image/gif" style="width:100%;font-size:0.8rem;">
+                <input type="file" name="file" id="custImageFile" accept="image/png,image/jpeg,image/webp,image/gif" data-preview="custImagePreview" style="width:100%;font-size:0.8rem;">
+                {# Only ever previews a freshly picked photo - the customers list
+                   doesn't carry an image URL to seed an existing one from. #}
+                <img id="custImagePreview" src="" alt="" style="display:none; margin-top:8px; width:60px; height:60px; border-radius:50%; object-fit:cover; border:1px solid var(--border);">
             </div>
             <div class="form-group" style="margin-bottom:12px; display:flex; align-items:center; gap:8px;">
                 <input type="checkbox" name="access_permission" id="custAccessPermission" style="width:auto;">
@@ -121,6 +124,7 @@
         document.getElementById('custPhone').value = isEdit ? (customer.phone_num || '') : '';
         document.getElementById('custAddress').value = isEdit ? (customer.address || '') : '';
         document.getElementById('custImageFile').value = '';
+        ebSetImagePreview('custImagePreview', null);
         document.getElementById('custAccessPermission').checked = isEdit ? !!customer.access_permission : false;
 
         document.getElementById('customerModalOverlay').classList.add('active');

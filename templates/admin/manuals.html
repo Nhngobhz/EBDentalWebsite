@@ -30,7 +30,7 @@
                 {% for m in manuals %}
                 <tr data-search="{{ ((m.product.product_name if m.product else '') ~ ' ' ~ (m.description or ''))|lower }}">
                     <td>
-                        <img src="{{ img(m.manual_image) }}"
+                        <img src="{{ img(m.manual_image) }}" loading="lazy"
                              style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid var(--border);" />
                     </td>
                     <td><strong>{{ m.product.product_name if m.product else '—' }}</strong></td>
@@ -44,7 +44,7 @@
                     </td>
                     <td style="white-space:nowrap;">
                         <button type="button" class="btn-dash primary sm" onclick="openManualModal({{ m.id }})" title="Edit"><i class="fas fa-edit"></i></button>
-                        <form method="post" action="{{ url_for('admin.manuals_delete', manual_id=m.id) }}" style="display:inline;" onsubmit="return confirm('Delete this manual?');">
+                        <form method="post" action="{{ url_for('admin.manuals_delete', manual_id=m.id) }}" style="display:inline;" data-confirm="Delete this manual?">
                             <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
                         </form>
                     </td>
@@ -85,7 +85,7 @@
             </div>
             <div class="form-group" style="margin-bottom:12px;">
                 <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Thumbnail Image</label>
-                <input type="file" name="image" id="manualImageFile" accept="image/png,image/jpeg,image/webp,image/gif" style="width:100%;font-size:0.8rem;">
+                <input type="file" name="image" id="manualImageFile" accept="image/png,image/jpeg,image/webp,image/gif" data-preview="manualImagePreview" style="width:100%;font-size:0.8rem;">
                 <img id="manualImagePreview" src="" alt="" style="display:none; margin-top:8px; width:70px; height:70px; border-radius:8px; object-fit:cover; border:1px solid var(--border);">
             </div>
             <button type="submit" class="btn-dash primary" style="width:100%;padding:10px;font-size:0.9rem;justify-content:center;margin-top:4px;" id="manualModalSubmitBtn">
@@ -129,13 +129,9 @@
             pdfCurrent.style.display = 'none';
         }
 
-        const preview = document.getElementById('manualImagePreview');
-        if (isEdit && manual.manual_image) {
-            preview.src = manual.image;
-            preview.style.display = '';
-        } else {
-            preview.style.display = 'none';
-        }
+        // Seeds the saved thumbnail; picking a file swaps in a preview of it
+        // (data-preview on the input above, handled in main.js).
+        ebSetImagePreview('manualImagePreview', isEdit && manual.manual_image ? manual.image : null);
 
         document.getElementById('manualModalOverlay').classList.add('active');
     }

@@ -246,7 +246,7 @@
     display: flex;
     align-items: center;
     position: relative;
-    overflow: hidden;
+    padding: 0 34px;
 }
 .eb-brand-scroll {
     display: flex;
@@ -376,10 +376,10 @@
     transform: translateY(-50%) scale(1.05);
 }
 .eb-scroll-arrow.prev {
-    left: -4px;
+    left: 0;
 }
 .eb-scroll-arrow.next {
-    right: -4px;
+    right: 0;
 }
 .eb-scroll-arrow.disabled {
     opacity: 0.3;
@@ -387,6 +387,9 @@
 }
 
 @media (max-width: 720px) {
+    .eb-brand-scroll-container {
+        padding: 0 28px;
+    }
     .eb-brand-scroll .brand-card {
         padding: 4px 10px 4px 8px;
         font-size: 0.6rem;
@@ -405,10 +408,10 @@
         font-size: 0.6rem;
     }
     .eb-scroll-arrow.prev {
-        left: -2px;
+        left: 0;
     }
     .eb-scroll-arrow.next {
-        right: -2px;
+        right: 0;
     }
 }
 
@@ -457,12 +460,33 @@
    wrapping across multiple lines once there are more categories than fit one row. */
 .category-filter-wrap {
     margin-bottom: 16px;
+    padding-top: 8px;
     display: flex;
     gap: 10px;
-    align-items: center;
+    /* Deliberately not center: the scroll strip is taller than the pills inside
+       it (bottom padding + horizontal scrollbar), so centering the strip as a
+       whole lifted the pills ~7px above the label. Both are top-anchored
+       instead, and the label is padded down onto the pills' text line below. */
+    align-items: flex-start;
 }
 .category-filter-wrap .filter-label {
     flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    /* Where a pill's text starts, measured from the top of the scroll strip:
+       4px strip padding + 1px pill border + 4px pill padding. */
+    padding-top: 9px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-light);
+    white-space: nowrap;
+}
+.category-filter-wrap .filter-label i {
+    color: var(--accent);
+    font-size: 0.8rem;
 }
 .category-filter-scroll {
     display: flex;
@@ -925,15 +949,18 @@
     border-radius: var(--radius);
     border: 1px solid var(--border);
     overflow: hidden;
-    transition: var(--transition);
+    transition: transform 0.4s cubic-bezier(.16, 1, .3, 1), box-shadow 0.4s ease, border-color 0.4s ease;
     box-shadow: var(--shadow);
     cursor: pointer;
     position: relative;
 }
 .product-card:hover {
-    transform: translateY(-6px);
+    transform: translateY(-7px);
     box-shadow: var(--shadow-lg);
     border-color: #06b6d4;
+}
+.product-card:active {
+    transform: translateY(-3px) scale(0.99);
 }
 .product-card .product-image-wrap {
     position: relative;
@@ -977,7 +1004,19 @@
 .product-card .product-image-wrap .product-badge.hot {
     background: #f97316;
     color: white;
-    box-shadow: 0 0 20px rgba(249, 115, 22, 0.4);
+    box-shadow: 0 0 0 rgba(249, 115, 22, 0.4);
+    animation: hotPulse 2.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .product-card .product-image-wrap .product-badge.hot {
+        animation: none;
+        box-shadow: 0 0 20px rgba(249, 115, 22, 0.4);
+    }
+}
+@keyframes hotPulse {
+    0% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.5); }
+    70% { box-shadow: 0 0 0 8px rgba(249, 115, 22, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); }
 }
 .product-card .product-body {
     padding: 14px 16px 16px;
@@ -1046,6 +1085,17 @@
     font-size: 3rem;
     color: var(--border);
     margin-bottom: 12px;
+    display: inline-block;
+    animation: emptyFloat 3s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .product-grid .empty-products .icon {
+        animation: none;
+    }
+}
+@keyframes emptyFloat {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-8px) rotate(-4deg); }
 }
 .product-grid .empty-products h3 {
     font-size: 1.2rem;
@@ -1070,6 +1120,15 @@
     padding: 32px;
     margin: 24px 0;
 }
+@media (prefers-reduced-motion: no-preference) {
+    .product-detail {
+        animation: detailFadeIn 0.6s cubic-bezier(.16, 1, .3, 1) both;
+    }
+}
+@keyframes detailFadeIn {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+}
 .product-detail-image-wrap {
     position: relative;
     background: var(--bg);
@@ -1086,6 +1145,10 @@
     height: 100%;
     max-height: 400px;
     object-fit: contain;
+    transition: transform 0.5s cubic-bezier(.16, 1, .3, 1);
+}
+.product-detail-image-wrap:hover img {
+    transform: scale(1.05);
 }
 .product-detail-image-wrap .product-badge {
     position: absolute;
@@ -2723,6 +2786,21 @@
     line-height: 1.3;
     margin-bottom: 4px;
 }
+/* The catalog's .product-price rules are scoped to .product-card, which the
+   promo card isn't - without these the old price rendered as plain text
+   beside the new one instead of a struck-through "was" price. */
+.eb-promotion-page .promo-card .promo-body .product-price {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--text);
+}
+.eb-promotion-page .promo-card .promo-body .product-price .old {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--text-light);
+    text-decoration: line-through;
+    margin-left: 8px;
+}
 .eb-promotion-page .promo-card .promo-body .promo-buy-btn {
     width: 100%;
     justify-content: center;
@@ -2798,20 +2876,39 @@
     border-color: #f97316;
 }
 .eb-promotion-page .set-card .set-image {
-    width: 72px;
-    height: 72px;
+    width: 140px;
+    height: 140px;
     flex: 0 0 auto;
-    border-radius: 10px;
+    border-radius: 12px;
     object-fit: cover;
     background: var(--bg);
     border: 1px solid var(--border);
+    transition: transform 0.4s cubic-bezier(.16, 1, .3, 1);
+}
+.eb-promotion-page .set-card:hover .set-image {
+    transform: scale(1.04);
 }
 .eb-promotion-page .set-card .set-body {
     min-width: 0;
     flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+/* Name/description (+ optional detail image) on the left, price pushed to the
+   right edge of the card - the buy button below spans the full width. */
+.eb-promotion-page .set-card .set-headline {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex: 1;
+}
+.eb-promotion-page .set-card .set-headline-text {
+    min-width: 0;
+    flex: 1;
 }
 .eb-promotion-page .set-card .set-body h3 {
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     font-weight: 700;
     color: var(--text);
     line-height: 1.3;
@@ -2825,6 +2922,34 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
     margin-bottom: 4px;
+}
+/* Optional second image (Set.detail_image) - only rendered when the set has
+   one, so nothing shifts for sets without it. */
+.eb-promotion-page .set-card .set-detail-image {
+    margin-top: 6px;
+    max-width: 100%;
+    width: auto;
+    height: 52px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    background: var(--bg);
+}
+.eb-promotion-page .set-card .set-price {
+    flex: 0 0 auto;
+    text-align: right;
+    white-space: nowrap;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--text);
+}
+.eb-promotion-page .set-card .set-price .old {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 400;
+    color: var(--text-light);
+    text-decoration: line-through;
+    margin-left: 0;
 }
 .eb-promotion-page .set-card .set-body .set-buy-btn {
     width: 100%;
@@ -2840,6 +2965,23 @@
 @media (max-width: 600px) {
     .eb-promotion-page .set-grid {
         grid-template-columns: 1fr;
+    }
+    .eb-promotion-page .set-card .set-image {
+        width: 96px;
+        height: 96px;
+    }
+    /* Price drops under the name rather than squeezing the title into a
+       couple of characters once the card gets this narrow. */
+    .eb-promotion-page .set-card .set-headline {
+        flex-direction: column;
+        gap: 6px;
+    }
+    .eb-promotion-page .set-card .set-price {
+        text-align: left;
+    }
+    .eb-promotion-page .set-card .set-price .old {
+        display: inline;
+        margin-left: 8px;
     }
 }
 
@@ -3043,11 +3185,23 @@
     background-size: cover;
     background-position: center;
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
-    transition: var(--transition);
+    transition: transform 0.35s cubic-bezier(.16, 1, .3, 1), box-shadow 0.35s ease;
+}
+.offer-card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.25) 50%, transparent 70%);
+    transform: translateX(-100%);
+    transition: transform 0.7s ease;
+    pointer-events: none;
 }
 .offer-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+    transform: translateY(-4px) scale(1.015);
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.2);
+}
+.offer-card:hover::after {
+    transform: translateX(100%);
 }
 .offer-card.offer-orange { background-color: #f97316; }
 .offer-card.offer-blue   { background-color: #06b6d4; }
@@ -3127,4 +3281,51 @@
     .header-logo-img {
         height: 30px;
     }
+}
+/* ------------------------------------------------------------
+   BUNDLE CONTENTS — "what you get" list shown on a promotion or
+   set card (both are collections of products now) and on a
+   product's detail page/modal for the freebies it comes with.
+   Deliberately price-free: the bundle's own price is charged and
+   the members are included, so listing prices here would read as
+   an extra cost.
+------------------------------------------------------------- */
+.bundle-contents {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.bundle-contents li {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: var(--text-light);
+    line-height: 1.35;
+}
+.bundle-contents li i {
+    font-size: 0.6rem;
+    color: var(--accent);
+    flex: none;
+}
+.bundle-contents .bundle-qty {
+    font-weight: 700;
+    color: var(--text);
+}
+/* Free-gift list on a product (detail page + modal) - same list, with a
+   heading that names it as a giveaway rather than bundle contents. */
+.free-with-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.free-with-title i {
+    color: var(--accent);
 }

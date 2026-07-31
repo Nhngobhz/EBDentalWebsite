@@ -46,6 +46,18 @@ function initHeroSlider(sliderEl) {
         dots.forEach((dot, i) => {
             dot.classList.toggle('active', i === currentIndex);
         });
+        // Drives the slow Ken Burns zoom + content fade-up on the visible
+        // slide only (see .hero-slider .slide.active in home.css) — restarting
+        // the CSS animation each time by toggling the class off then on.
+        slides.forEach((slide, i) => {
+            if (i === currentIndex) {
+                slide.classList.remove('active');
+                void slide.offsetWidth; // force reflow so the animation restarts
+                slide.classList.add('active');
+            } else {
+                slide.classList.remove('active');
+            }
+        });
     }
 
     function nextSlide() {
@@ -99,6 +111,32 @@ function initHeroSlider(sliderEl) {
 ------------------------------------------------------------- */
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.hero-slider, .product-hero-slider').forEach(initHeroSlider);
+});
+
+/* ------------------------------------------------------------
+   SCROLL REVEAL — see .reveal/.reveal-stagger in base.css.
+   Progressive enhancement: if IntersectionObserver isn't available,
+   everything is just revealed immediately instead of staying hidden.
+------------------------------------------------------------- */
+document.addEventListener('DOMContentLoaded', () => {
+    const revealEls = document.querySelectorAll('.reveal, .reveal-stagger');
+    if (!revealEls.length) return;
+
+    if (!('IntersectionObserver' in window)) {
+        revealEls.forEach(el => el.classList.add('is-visible'));
+        return;
+    }
+
+    const io = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('is-visible');
+                io.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.12, rootMargin: '0px 0px -60px 0px' });
+
+    revealEls.forEach(el => io.observe(el));
 });
 
 /* ------------------------------------------------------------
@@ -236,6 +274,24 @@ function printedCashDiscountTotal(items) {
     }, 0);
 }
 
+/* A promotion/set is a collection of products, and a product may come with
+   freebies - both arrive from store-api in the same {product_name, product_code,
+   uom, qty} shape (BundleItemOut). Flattened here to the cart's own field names
+   so a cart line doesn't have to remember which of the two it came from.
+
+   `qty` is PER ONE of the parent line: 3 gloves in a set means 6 gloves when two
+   of that set are bought. The cart multiplies for display; store-api does the
+   same multiplication for real when the order is placed (see _component_items in
+   routers/orders.py) - these local copies are never trusted for the actual order. */
+function normalizeBundleComponents(items) {
+    return (items || []).map(item => ({
+        name: item.product_name,
+        code: item.product_code || '',
+        uom: item.uom || '',
+        qty: item.qty || 1,
+    }));
+}
+
 /* ============================================================
    QUOTE CART — new feature.
    The original "Add to Quote" button existed with zero logic
@@ -263,8 +319,9 @@ const QuoteCart = {
             const items = JSON.parse(localStorage.getItem(this.STORAGE_KEY)) || [];
             // 'kind' distinguishes a product line from a promotion line (product ids
             // and promotion ids come from separate tables and can collide) - default it
-            // for anything saved before this field existed.
-            return items.map(i => ({ kind: i.kind || 'product', ...i }));
+            // for anything saved before this field existed. 'components' (what the line
+            // includes for free) gets the same treatment.
+            return items.map(i => ({ ...i, kind: i.kind || 'product', components: i.components || [] }));
         } catch {
             return [];
         }
@@ -313,6 +370,9 @@ const QuoteCart = {
                 discountType: product.discount_type || 'percent',
                 image: product.image || '',
                 qty: 1,
+                // Freebies that ride along with this product, shown under the
+                // line in the drawer and on the printed quote at $0.00.
+                components: normalizeBundleComponents(product.free_items),
             });
         }
         this.saveItems(items);
@@ -348,6 +408,8 @@ const QuoteCart = {
                 discountType: 'cash',
                 image: promo.image || '',
                 qty: 1,
+                // The products the deal is made of - listed under it at $0.00.
+                components: normalizeBundleComponents(promo.items),
             });
         }
         this.saveItems(items);
@@ -380,6 +442,7 @@ const QuoteCart = {
                 discountType: 'cash',
                 image: set.image || '',
                 qty: 1,
+                components: normalizeBundleComponents(set.items),
             });
         }
         this.saveItems(items);
@@ -409,6 +472,15 @@ const QuoteCart = {
 
         const amountEl = document.querySelector(`.quote-item[data-id="${id}"][data-kind="${kind}"] .quote-item-amount`);
         if (amountEl) amountEl.textContent = '$' + this.lineAmount(item).toFixed(2);
+
+        // Included items scale with the line - two of a set means two of
+        // everything in it. data-unit-qty is the per-one quantity (see
+        // normalizeBundleComponents), so this stays right on repeated clicks.
+        document.querySelectorAll(
+            `.quote-item[data-id="${id}"][data-kind="${kind}"] .included-qty`
+        ).forEach(el => {
+            el.textContent = '×' + (Number(el.dataset.unitQty || 1) * item.qty);
+        });
 
         this.updateSummary();
     },
@@ -539,6 +611,7 @@ const QuoteCart = {
         setVal('qiPaymentTerm', 'paymentTerm');
         setVal('qiInstallTerm', 'installTerm');
         setVal('qiContactPerson', 'contactPerson');
+        setVal('qiPaymentMethod', 'paymentMethod'); // customers only - absent for staff
     },
 
     // ---- drawer open/close ----
@@ -600,8 +673,25 @@ const QuoteCart = {
                         <span class="quote-item-amount">$${this.lineAmount(item).toFixed(2)}</span>
                         <button type="button" class="quote-item-remove" onclick="QuoteCart.removeItem(${item.id}, '${item.kind}')"><i class="fas fa-trash"></i></button>
                     </div>
+                    ${this.renderIncluded(item)}
                 </div>
             </div>`).join('');
+    },
+
+    // What the line includes at no charge: a promotion/set's member products, or
+    // a product's free gifts. Read-only - they have no price and no quantity of
+    // their own, they just follow the parent line (see changeQty).
+    renderIncluded(item) {
+        if (!item.components || item.components.length === 0) return '';
+        return `
+            <ul class="quote-item-included">
+                ${item.components.map(component => `
+                    <li>
+                        <span class="included-name">+ ${ebEscapeHtml(component.name)}</span>
+                        <span class="included-qty" data-unit-qty="${component.qty}">×${component.qty * item.qty}</span>
+                        <span class="included-price">—</span>
+                    </li>`).join('')}
+            </ul>`;
     },
 
     // ---- print template + PDF export ----
@@ -620,6 +710,15 @@ const QuoteCart = {
     },
 
     buildPrintTemplate(order) {
+        // A paid KHQR order prints as a Receipt; everything else (staff quote,
+        // customer cash quote, unpaid order) stays a Quotation. Mirrored by
+        // store-api's fallback PDF (services/invoice_pdf.py).
+        const isReceipt = order.payment_method === 'khqr' && order.payment_status === 'paid';
+        const docTitle = isReceipt ? 'Receipt' : 'Quotation';
+        const validityNote = isReceipt
+            ? 'Paid via KHQR. Thank you for your purchase.'
+            : 'Quotation valid for <b>30 days</b> from the date issued.';
+
         const specialDiscountLabel = order.discount_type === 'cash'
             ? 'Special Discount (Cash):'
             : `Special Discount (${Number(order.discount_value || 0)}%):`;
@@ -634,9 +733,31 @@ const QuoteCart = {
         );
         const itemDiscountTotal = printedCashDiscountTotal(order.items);
 
-        const rows = order.items.map((item, i) => `
+        // Component lines (a promotion/set's contents, a product's free gifts -
+        // OrderItem.parent_item_id in store-api) come back in the same flat list,
+        // ordered right after the line they belong to. They print as $0.00
+        // "Free" sub-rows and don't take a No. of their own, so the numbering
+        // still counts only the lines actually being charged for. Mirrored by
+        // store-api's fallback PDF (services/invoice_pdf.py).
+        let lineNo = 0;
+        const rows = order.items.map(item => {
+            if (item.parent_item_id) {
+                return `
+            <tr class="qpt-component-row">
+                <td class="qpt-num"></td>
+                <td>${item.product_code || ''}</td>
+                <td class="qpt-component-name">• ${item.product_name}</td>
+                <td class="qpt-num">${item.qty}</td>
+                <td class="qpt-num">${item.uom || 'PCS'}</td>
+                <td class="qpt-right">$ 0.00</td>
+                <td class="qpt-num">—</td>
+                <td class="qpt-right">$ 0.00</td>
+            </tr>`;
+            }
+            lineNo += 1;
+            return `
             <tr>
-                <td class="qpt-num">${i + 1}</td>
+                <td class="qpt-num">${lineNo}</td>
                 <td>${item.product_code || '—'}</td>
                 <td>${item.product_name}</td>
                 <td class="qpt-num">${item.qty}</td>
@@ -644,7 +765,8 @@ const QuoteCart = {
                 <td class="qpt-right">$ ${deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type).toFixed(2)}</td>
                 <td class="qpt-num">${printedItemDiscountText(item) || '—'}</td>
                 <td class="qpt-right">$ ${printedItemAmount(item).toFixed(2)}</td>
-            </tr>`).join('');
+            </tr>`;
+        }).join('');
 
         // Pad the table with blank rows so it always looks like a full,
         // pre-printed form (like the paper original) even when there are
@@ -667,7 +789,7 @@ const QuoteCart = {
                     </div>
                 </div>
                 <div>
-                    <div class="qpt-title">Quotation</div>
+                    <div class="qpt-title">${docTitle}</div>
                     <div class="qpt-meta-right">
                         No : <b>${order.order_number}</b><br>
                         Date: <b>${this._formatQuoteDate(order.created_at)}</b>
@@ -708,7 +830,7 @@ const QuoteCart = {
                     ${rows}
                     ${blankRows}
                     <tr class="qpt-total-row qpt-subtotal-row">
-                        <td colspan="6" class="qpt-validity" rowspan="4">Quotation valid for <b>30 days</b> from the date issued.</td>
+                        <td colspan="6" class="qpt-validity" rowspan="4">${validityNote}</td>
                         <td>Sub-Total($):</td>
                         <td class="qpt-right">$ ${undiscountedSubtotal.toFixed(2)}</td>
                     </tr>
@@ -737,11 +859,40 @@ const QuoteCart = {
         `;
     },
 
+    // jsPDF + html2canvas are deliberately NOT in base.html anymore - they're only
+    // needed for PDF export, so they're injected here on first use. The promise is
+    // cached so repeated exports load them once; on failure it's cleared so a retry
+    // can attempt the download again.
+    _pdfLibsPromise: null,
+    _ensurePdfLibs() {
+        if (window.jspdf && window.html2canvas) return Promise.resolve();
+        if (!this._pdfLibsPromise) {
+            const urls = [
+                'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+            ];
+            this._pdfLibsPromise = Promise.all(urls.map(src => new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = () => reject(new Error('Failed to load ' + src));
+                document.head.appendChild(script);
+            }))).catch(err => {
+                this._pdfLibsPromise = null;
+                throw err;
+            });
+        }
+        return this._pdfLibsPromise;
+    },
+
     // Returns the built PDF as a Blob (in addition to triggering the local download)
     // so confirmPurchase() can also hand it to store-api for the Telegram order alert
     // - see uploadQuotationPDF(). The admin reprint button (admin/orders.html) calls
-    // this too and just ignores the return value.
-    async exportPDF(filenameSuffix) {
+    // this too and just ignores the return value. `docName` is the filename word only
+    // ("Quotation"/"Receipt") - the printed title inside the document comes from
+    // buildPrintTemplate(), which must already have been called.
+    async exportPDF(filenameSuffix, docName = 'Quotation') {
+        await this._ensurePdfLibs();
         const template = document.getElementById('quotePrintTemplate');
 
         // Give web fonts a beat to be ready before the snapshot.
@@ -769,7 +920,7 @@ const QuoteCart = {
             heightLeft -= pdfHeight;
         }
 
-        pdf.save('EB-Dental-Quotation-' + filenameSuffix + '.pdf');
+        pdf.save('EB-Dental-' + docName + '-' + filenameSuffix + '.pdf');
         return pdf.output('blob');
     },
 
@@ -786,24 +937,56 @@ const QuoteCart = {
         fetch(`/quote/${orderId}/pdf`, { method: 'POST', body: formData }).catch(() => {});
     },
 
-    // "Confirm Purchase" submits the cart to POST /quote/submit - this creates a real
-    // store-api Order (server re-prices every line, derives salesperson/quoted_by_name,
-    // and computes the discount itself - never trusting what the browser sends, see
-    // routers/orders.py) - then builds and downloads the printed quotation PDF from that
-    // server response.
+    // "Confirm Purchase" / "Generate Quote" submits the cart to POST /quote/submit -
+    // this creates a real store-api Order (server re-prices every line, derives
+    // salesperson/quoted_by_name, and computes the discount itself - never trusting
+    // what the browser sends, see routers/orders.py). What happens next depends on
+    // who's confirming:
+    //   staff            -> the row is a QUOTE; quotation PDF downloads immediately.
+    //   customer + cash  -> also a QUOTE (payment happens offline later); same PDF flow.
+    //   customer + khqr  -> a real order awaiting payment; the KHQR modal opens and the
+    //                       RECEIPT is only generated once the payment-status poll
+    //                       reports "paid" - see showKhqrModal()/_finishPaidOrder().
     async confirmPurchase() {
         const items = this.getItems();
         if (items.length === 0) return;
 
         const info = this.getInfo();
         if (!info.clinic || !info.tel || !info.address) {
-            alert('Please fill in Clinic, Contact Tel, and Address before confirming your purchase.');
+            // Expand the (possibly collapsed) info form first, so the fields
+            // being complained about are already on screen behind the dialog.
             document.getElementById('quoteInfoForm')?.classList.remove('collapsed');
+            await ebAlert('Please fill in Clinic, Contact Tel, and Address before confirming your purchase.', {
+                title: 'Missing details',
+                tone: 'warning',
+                confirmText: 'Got it',
+            });
+            return;
+        }
+
+        // Customers must pick how they'll pay; staff never see the selector (their
+        // cart always produces a quote). store-api enforces the same rule server-side.
+        const isStaff = typeof IS_STAFF !== 'undefined' && IS_STAFF;
+        const paymentMethod = isStaff ? null : (info.paymentMethod || '');
+        if (!isStaff && paymentMethod !== 'cash' && paymentMethod !== 'khqr') {
+            document.getElementById('quoteInfoForm')?.classList.remove('collapsed');
+            await ebAlert('Please choose a payment method (Cash or KHQR) before confirming your purchase.', {
+                title: 'Payment method required',
+                tone: 'warning',
+                confirmText: 'Got it',
+            });
             return;
         }
 
         const btn = document.getElementById('quoteDownloadPdfBtn');
-        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting order...'; }
+        const btnLabel = (btn && btn.dataset.label) || '<i class="fas fa-circle-check"></i> Confirm Purchase';
+        const resetBtn = () => {
+            if (btn) { btn.disabled = false; btn.innerHTML = btnLabel; }
+        };
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + (isStaff ? 'Saving quote...' : 'Submitting order...');
+        }
 
         let order;
         try {
@@ -817,6 +1000,7 @@ const QuoteCart = {
                     address: info.address,
                     payment_term: info.paymentTerm || null,
                     install_term: info.installTerm || null,
+                    payment_method: paymentMethod || null,
                     discount_type: this.getDiscountType(),
                     discount_value: this.getDiscountValue(),
                     items: items.map(item => ({ id: item.id, qty: item.qty, kind: item.kind })),
@@ -824,26 +1008,156 @@ const QuoteCart = {
             });
             order = await response.json();
             if (!response.ok) {
-                alert(order.detail || 'Could not submit your quote. Please try again.');
+                resetBtn();
+                await ebAlert(order.detail || 'Could not submit your quote. Please try again.', {
+                    title: isStaff ? "Couldn't save your quote" : "Couldn't submit your order",
+                    tone: 'danger',
+                });
                 return;
             }
         } catch (err) {
-            alert('Could not reach the server. Please check your connection and try again.');
+            resetBtn();
+            await ebAlert('Could not reach the server. Please check your connection and try again.', {
+                title: 'Connection problem',
+                tone: 'danger',
+            });
             return;
-        } finally {
-            if (btn) { btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating PDF...'; }
         }
+        // Deliberately not a `finally` on the block above: bailing out on an
+        // error there used to fall through it and leave the button stuck
+        // disabled on "Generating PDF..." forever, since the reset only lived
+        // on the success path's own finally below.
+
+        // KHQR: the order exists server-side awaiting payment. No PDF yet - the
+        // receipt is generated only after the payment is confirmed.
+        if (order.payment_method === 'khqr') {
+            resetBtn();
+            this.clearDraft();
+            this.render();
+            this.close();
+            this.showKhqrModal(order);
+            return;
+        }
+
+        if (btn) { btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating PDF...'; }
 
         try {
             this.buildPrintTemplate(order);
-            const pdfBlob = await this.exportPDF(order.quote_code);
+            const pdfBlob = await this.exportPDF(order.quote_code, 'Quotation');
             this.uploadQuotationPDF(order.id, pdfBlob);
             this.clearDraft();
             this.render();
             this.close();
         } finally {
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-circle-check"></i> Confirm Purchase'; }
+            resetBtn();
         }
+    },
+
+    // ---- KHQR payment (customer QR checkout only) ----
+    // qrcode.js is lazy-loaded exactly like jsPDF/html2canvas above - only a KHQR
+    // checkout ever pays the download cost.
+    _qrLibPromise: null,
+    _ensureQrLib() {
+        if (window.QRCode) return Promise.resolve();
+        if (!this._qrLibPromise) {
+            this._qrLibPromise = new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+                script.onload = resolve;
+                script.onerror = () => reject(new Error('Failed to load qrcode.js'));
+                document.head.appendChild(script);
+            }).catch(err => {
+                this._qrLibPromise = null;
+                throw err;
+            });
+        }
+        return this._qrLibPromise;
+    },
+
+    _khqrPollTimer: null,
+    _stopKhqrPolling() {
+        if (this._khqrPollTimer) {
+            clearInterval(this._khqrPollTimer);
+            this._khqrPollTimer = null;
+        }
+    },
+
+    async showKhqrModal(order) {
+        const overlay = document.getElementById('khqrModalOverlay');
+        if (!overlay) return;
+
+        document.getElementById('khqrAmount').textContent = '$' + Number(order.grand_total).toFixed(2);
+        document.getElementById('khqrOrderNo').textContent = 'Order ' + order.order_number + ' · Code ' + order.quote_code;
+        const statusRow = document.getElementById('khqrStatusRow');
+        statusRow.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scan with your banking app — waiting for payment…';
+
+        const codeBox = document.getElementById('khqrCodeBox');
+        codeBox.innerHTML = '';
+        try {
+            await this._ensureQrLib();
+            new QRCode(codeBox, {
+                text: order.khqr_string,
+                width: 220,
+                height: 220,
+                correctLevel: QRCode.CorrectLevel.M,
+            });
+        } catch (err) {
+            codeBox.textContent = 'Could not draw the QR code — please check your connection and try again.';
+        }
+        overlay.style.display = 'flex';
+
+        // Poll the payment status every 3s. Transient failures are ignored (just try
+        // again next tick); the loop only ever ends on "paid" or the user closing the
+        // modal. Server-side, the first poll that finds the Bakong transaction flips
+        // the order to paid and fires the Telegram alert - see store-api's
+        // routers/orders.py::check_payment_status.
+        const url = PAYMENT_STATUS_URL_TEMPLATE.replace('/0/', '/' + order.id + '/');
+        this._stopKhqrPolling();
+        this._khqrPollTimer = setInterval(async () => {
+            let data;
+            try {
+                const resp = await fetch(url);
+                if (!resp.ok) return;
+                data = await resp.json();
+            } catch {
+                return;
+            }
+            if (data.payment_status === 'paid') {
+                this._stopKhqrPolling();
+                await this._finishPaidOrder(order);
+            }
+        }, 3000);
+    },
+
+    hideKhqrModal() {
+        this._stopKhqrPolling();
+        const overlay = document.getElementById('khqrModalOverlay');
+        if (overlay) overlay.style.display = 'none';
+    },
+
+    // Payment confirmed - the ONLY place a receipt is ever produced for a KHQR order.
+    // Also hands the receipt to store-api so the paid-order Telegram alert (already
+    // waiting server-side) carries the real client-rendered document.
+    async _finishPaidOrder(order) {
+        const statusRow = document.getElementById('khqrStatusRow');
+        if (statusRow) {
+            statusRow.innerHTML = '<i class="fas fa-circle-check" style="color:#16a34a;"></i> Payment received — generating your receipt…';
+        }
+
+        order.payment_status = 'paid';
+        try {
+            this.buildPrintTemplate(order);
+            const pdfBlob = await this.exportPDF(order.quote_code, 'Receipt');
+            this.uploadQuotationPDF(order.id, pdfBlob);
+        } catch (err) {
+            // The payment itself is complete - never let a PDF hiccup mask that.
+        }
+        this.hideKhqrModal();
+        await ebAlert('Payment received — thank you! Your receipt has been downloaded.', {
+            title: 'Payment complete',
+            tone: 'success',
+            confirmText: 'Done',
+        });
     },
 };
 
@@ -854,6 +1168,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('quoteDrawerClose')?.addEventListener('click', () => QuoteCart.close());
     document.getElementById('quoteDrawerOverlay')?.addEventListener('click', () => QuoteCart.close());
     document.getElementById('quoteDownloadPdfBtn')?.addEventListener('click', () => QuoteCart.confirmPurchase());
+    // Closing the KHQR modal early keeps the order awaiting payment server-side -
+    // deliberately confirm-gated, and the overlay itself doesn't close on click, so a
+    // stray tap can't kill the payment screen mid-scan.
+    document.getElementById('khqrModalClose')?.addEventListener('click', async () => {
+        const confirmed = await ebConfirm(
+            'Your order stays reserved as awaiting payment. If you have already paid, your receipt will be issued as soon as the payment is confirmed.',
+            { title: 'Close the payment window?', tone: 'warning', confirmText: 'Close' }
+        );
+        if (confirmed) QuoteCart.hideKhqrModal();
+    });
     document.getElementById('quoteDiscountEditBtn')?.addEventListener('click', () => {
         document.getElementById('quoteDiscountEditor')?.classList.toggle('open');
     });
@@ -882,6 +1206,17 @@ function openProductModal(id) {
     let priceHtml = formatPrice(p.price);
     if (p.was_price) priceHtml += ` <span class="old">${formatPrice(p.was_price)}</span>`;
     priceEl.innerHTML = priceHtml;
+
+    // Freebies this product comes with (Product.free_items in store-api) - the
+    // whole block stays hidden for products that come with nothing.
+    const freeWrap = document.getElementById('modalFreeItems');
+    if (freeWrap) {
+        const freeItems = p.free_items || [];
+        freeWrap.style.display = freeItems.length ? '' : 'none';
+        document.getElementById('modalFreeItemsList').innerHTML = freeItems.map(item => `
+            <li><i class="fas fa-check"></i> ${ebEscapeHtml(item.product_name)}${item.qty > 1 ? ` <span class="bundle-qty">×${item.qty}</span>` : ''}</li>
+        `).join('');
+    }
 
     const addBtn = document.getElementById('modalAddToQuoteBtn');
     if (typeof CAN_QUOTE !== 'undefined' && CAN_QUOTE && typeof p.price === 'number') {
@@ -920,6 +1255,335 @@ function showToast(message) {
     toast.classList.add('show');
     clearTimeout(_toastTimer);
     _toastTimer = setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+/* ============================================================
+   DIALOG — branded stand-in for the browser's native alert()/
+   confirm(), which rendered as an OS dialog captioned
+   "127.0.0.1:5000 says" and couldn't be styled at all.
+
+   Both return a Promise (native confirm() is synchronous, so any
+   caller being converted has to become async):
+     await ebAlert('Something happened');            // resolves undefined
+     if (await ebConfirm('Delete this?')) { ... }    // resolves true/false
+
+   Styles live in base.css; the markup is built here on first use
+   so no template has to include it.
+   ============================================================ */
+let _ebDialogEls = null;
+let _ebDialogResolve = null;
+
+function _ebBuildDialog() {
+    if (_ebDialogEls) return _ebDialogEls;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'eb-dialog-overlay';
+    overlay.innerHTML = `
+        <div class="eb-dialog" role="alertdialog" aria-modal="true"
+             aria-labelledby="ebDialogTitle" aria-describedby="ebDialogMessage">
+            <div class="eb-dialog-icon"><i></i></div>
+            <h3 class="eb-dialog-title" id="ebDialogTitle"></h3>
+            <p class="eb-dialog-message" id="ebDialogMessage"></p>
+            <div class="eb-dialog-actions">
+                <button type="button" class="eb-dialog-btn cancel"></button>
+                <button type="button" class="eb-dialog-btn confirm"></button>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    _ebDialogEls = {
+        overlay,
+        box: overlay.querySelector('.eb-dialog'),
+        icon: overlay.querySelector('.eb-dialog-icon i'),
+        title: overlay.querySelector('.eb-dialog-title'),
+        message: overlay.querySelector('.eb-dialog-message'),
+        cancelBtn: overlay.querySelector('.eb-dialog-btn.cancel'),
+        confirmBtn: overlay.querySelector('.eb-dialog-btn.confirm'),
+    };
+
+    _ebDialogEls.confirmBtn.addEventListener('click', () => _ebCloseDialog(true));
+    _ebDialogEls.cancelBtn.addEventListener('click', () => _ebCloseDialog(false));
+    // Clicking the backdrop (but not the box) dismisses, same as Escape below.
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) _ebCloseDialog(false);
+    });
+    document.addEventListener('keydown', (e) => {
+        if (!_ebDialogEls || !_ebDialogEls.overlay.classList.contains('active')) return;
+        if (e.key === 'Escape') {
+            _ebCloseDialog(false);
+            return;
+        }
+        // Enter confirms, except when the user has tabbed onto Cancel - there
+        // the button's own click handler is what should win.
+        if (e.key === 'Enter' && document.activeElement !== _ebDialogEls.cancelBtn) {
+            e.preventDefault();
+            _ebCloseDialog(true);
+        }
+    });
+
+    return _ebDialogEls;
+}
+
+function _ebCloseDialog(result) {
+    if (!_ebDialogEls) return;
+    _ebDialogEls.overlay.classList.remove('active');
+    document.body.style.overflow = _ebPrevOverflow || '';
+    if (_ebPrevFocus && _ebPrevFocus.focus) _ebPrevFocus.focus();
+    const resolve = _ebDialogResolve;
+    _ebDialogResolve = null;
+    if (resolve) resolve(result);
+}
+
+let _ebPrevFocus = null;
+let _ebPrevOverflow = '';
+
+const _EB_TONE_ICONS = {
+    info: 'fa-circle-info',
+    danger: 'fa-triangle-exclamation',
+    warning: 'fa-triangle-exclamation',
+    success: 'fa-circle-check',
+};
+
+function ebDialog({
+    message,
+    title = '',
+    tone = 'info',
+    confirmText = 'OK',
+    cancelText = 'Cancel',
+    showCancel = false,
+} = {}) {
+    const els = _ebBuildDialog();
+
+    // Resolve any dialog still open rather than orphaning its promise.
+    if (_ebDialogResolve) _ebCloseDialog(false);
+
+    els.box.dataset.tone = tone;
+    els.box.classList.toggle('is-alert', !showCancel);
+    els.icon.className = 'fas ' + (_EB_TONE_ICONS[tone] || _EB_TONE_ICONS.info);
+    els.title.textContent = title;
+    els.title.style.display = title ? '' : 'none';
+    // textContent, not innerHTML: messages can carry server-supplied text.
+    els.message.textContent = message || '';
+    els.confirmBtn.textContent = confirmText;
+    els.cancelBtn.textContent = cancelText;
+    els.cancelBtn.style.display = showCancel ? '' : 'none';
+
+    _ebPrevFocus = document.activeElement;
+    _ebPrevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    els.overlay.classList.add('active');
+    els.confirmBtn.focus();
+
+    return new Promise((resolve) => { _ebDialogResolve = resolve; });
+}
+
+function ebAlert(message, opts = {}) {
+    return ebDialog({ title: 'Heads up', ...opts, message, showCancel: false }).then(() => undefined);
+}
+
+function ebConfirm(message, opts = {}) {
+    return ebDialog({ title: 'Are you sure?', confirmText: 'Confirm', ...opts, message, showCancel: true });
+}
+
+/* Any <form data-confirm="..."> asks before it submits - the branded
+   replacement for the inline onsubmit="return confirm(...)" that the admin
+   delete buttons used to carry. form.submit() doesn't re-fire the submit
+   event, so there's no loop to guard against here. */
+document.addEventListener('submit', (e) => {
+    const form = e.target.closest('form[data-confirm]');
+    if (!form) return;
+    e.preventDefault();
+    ebConfirm(form.dataset.confirm, {
+        tone: form.dataset.confirmTone || 'danger',
+        confirmText: form.dataset.confirmLabel || 'Delete',
+    }).then((ok) => {
+        if (ok) form.submit();
+    });
+});
+
+/* ------------------------------------------------------------
+   INLINE FIELD VALIDATION
+   Forms marked `novalidate` opt out of the browser's native
+   "Please fill out this field." bubble; this renders the same
+   constraint failures as styled inline messages instead. Returns
+   true when the form is valid, and focuses the first bad field
+   when it isn't. Relies on the native Constraint Validation API,
+   so `required`/`type=email`/`minlength` etc. still drive it.
+------------------------------------------------------------- */
+function ebValidateForm(form) {
+    let firstInvalid = null;
+
+    form.querySelectorAll('input, select, textarea').forEach((field) => {
+        if (field.disabled || field.type === 'hidden') return;
+        const group = field.closest('.form-group') || field.parentElement;
+        const valid = field.checkValidity();
+
+        if (!valid && !firstInvalid) firstInvalid = field;
+        if (group) group.classList.toggle('has-error', !valid);
+
+        let errorEl = group && group.querySelector('.field-error');
+        if (!valid && group) {
+            if (!errorEl) {
+                errorEl = document.createElement('div');
+                errorEl.className = 'field-error';
+                errorEl.innerHTML = '<i class="fas fa-circle-exclamation"></i><span></span>';
+                group.appendChild(errorEl);
+            }
+            errorEl.querySelector('span').textContent = _ebFieldMessage(field);
+            errorEl.classList.add('show');
+        } else if (errorEl) {
+            errorEl.classList.remove('show');
+        }
+    });
+
+    if (firstInvalid) firstInvalid.focus();
+    return !firstInvalid;
+}
+
+/* Friendlier wording than validationMessage's browser defaults, which vary
+   per browser and read like error codes ("Please fill out this field."). */
+function _ebFieldMessage(field) {
+    const label = (field.closest('.form-group')?.querySelector('label')?.textContent || '').trim();
+    const name = label || field.getAttribute('placeholder') || 'This field';
+    if (field.validity.valueMissing) return `${name} is required.`;
+    if (field.validity.typeMismatch && field.type === 'email') return 'Enter a valid email address.';
+    if (field.validity.tooShort) return `${name} must be at least ${field.minLength} characters.`;
+    if (field.validity.patternMismatch) return `${name} isn't in the expected format.`;
+    return field.validationMessage;
+}
+
+/* Clears a field's error as soon as the user fixes it - re-validating the
+   whole form on every keystroke would light up fields they haven't reached. */
+document.addEventListener('input', (e) => {
+    const group = e.target.closest?.('.form-group.has-error');
+    if (!group || !e.target.checkValidity?.()) return;
+    group.classList.remove('has-error');
+    group.querySelector('.field-error')?.classList.remove('show');
+});
+
+/* ------------------------------------------------------------
+   IMAGE PICKER PREVIEW
+   <input type="file" data-preview="someImgId"> swaps the matching
+   <img> over to the file that was just picked, so admins see the
+   image before saving instead of after. Edit modals seed the
+   already-saved image through ebSetImagePreview(), which the
+   picker falls back to if the selection is cleared again.
+------------------------------------------------------------- */
+function ebSetImagePreview(imgId, src) {
+    const preview = document.getElementById(imgId);
+    if (!preview) return;
+
+    _ebReleasePreviewUrl(preview);
+    preview.dataset.savedSrc = src || '';
+    _ebShowPreview(preview, src);
+}
+
+/* Object URLs live until revoked, so the previous pick's URL is dropped
+   whenever the preview moves on to a different image. */
+function _ebReleasePreviewUrl(preview) {
+    if (!preview.dataset.objectUrl) return;
+    URL.revokeObjectURL(preview.dataset.objectUrl);
+    delete preview.dataset.objectUrl;
+}
+
+/* src='' would resolve to the current page URL and fire a pointless
+   request, so an empty preview drops the attribute instead. */
+function _ebShowPreview(preview, src) {
+    if (src) {
+        preview.src = src;
+        preview.style.display = '';
+    } else {
+        preview.removeAttribute('src');
+        preview.style.display = 'none';
+    }
+}
+
+document.addEventListener('change', (e) => {
+    const input = e.target;
+    if (!input.matches?.('input[type="file"][data-preview]')) return;
+
+    const preview = document.getElementById(input.dataset.preview);
+    if (!preview) return;
+    _ebReleasePreviewUrl(preview);
+
+    const file = input.files?.[0];
+    if (!file || !file.type.startsWith('image/')) {
+        // Selection cleared (or a non-image slipped through the accept
+        // filter): show the saved image again, or nothing when creating.
+        _ebShowPreview(preview, preview.dataset.savedSrc);
+        return;
+    }
+
+    const url = URL.createObjectURL(file);
+    preview.dataset.objectUrl = url;
+    _ebShowPreview(preview, url);
+});
+
+/* ------------------------------------------------------------
+   BUNDLE PICKER (admin) — the repeatable "which products are in
+   this?" list shared by three modals: a Promotion's contents, a
+   Set's contents, and a Product's free "comes with" items. All
+   three post the same parallel inputs (item_product_id[] +
+   item_qty[]), read back by bundle_items_from_form() in
+   blueprints/admin/__init__.py.
+
+   The page must define BUNDLE_PRODUCTS (id / product_name /
+   product_code) before calling this — each admin page already
+   passes its catalog down for its own table.
+
+   Zero rows is a meaningful state, not an empty form: it posts no
+   item_product_id at all, which store-api reads as "this bundle
+   now contains nothing" rather than "leave it alone".
+------------------------------------------------------------- */
+const ebBundlePicker = {
+    _optionsHtml(selectedId) {
+        const products = (typeof BUNDLE_PRODUCTS !== 'undefined' && BUNDLE_PRODUCTS) || [];
+        return ['<option value="">Select a product…</option>'].concat(products.map(p => {
+            const label = p.product_code ? `${p.product_name} (${p.product_code})` : p.product_name;
+            const selected = String(p.id) === String(selectedId) ? ' selected' : '';
+            return `<option value="${p.id}"${selected}>${ebEscapeHtml(label)}</option>`;
+        })).join('');
+    },
+
+    // items: [{product_id, qty}] straight off a store-api bundle (or [] when creating).
+    render(containerId, items) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+        (items || []).forEach(item => this.addRow(containerId, item));
+        this._syncEmptyHint(container);
+    },
+
+    addRow(containerId, item) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        const row = document.createElement('div');
+        row.className = 'bundle-row';
+        row.innerHTML = `
+            <select name="item_product_id" class="bundle-row-product">${this._optionsHtml(item && item.product_id)}</select>
+            <input type="number" name="item_qty" class="bundle-row-qty" min="1" step="1" value="${(item && item.qty) || 1}" title="Quantity included">
+            <button type="button" class="bundle-row-remove" title="Remove"><i class="fas fa-times"></i></button>`;
+        row.querySelector('.bundle-row-remove').addEventListener('click', () => {
+            row.remove();
+            this._syncEmptyHint(container);
+        });
+        container.appendChild(row);
+        this._syncEmptyHint(container);
+    },
+
+    _syncEmptyHint(container) {
+        const hint = document.getElementById(container.id + 'Empty');
+        if (hint) hint.style.display = container.children.length ? 'none' : 'block';
+    },
+};
+
+/* Product names are admin-entered free text and go into <option> markup
+   built as a string above - escaped so a stray quote or angle bracket in a
+   name can't break (or inject into) the dropdown. */
+function ebEscapeHtml(text) {
+    return String(text ?? '').replace(/[&<>"']/g, ch => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+    ));
 }
 
 /* ------------------------------------------------------------

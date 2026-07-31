@@ -58,7 +58,7 @@
 
         <!-- Product Grid -->
         <div class="product-grid-container" id="productGridContainer">
-            <div class="product-grid-header">
+            <div class="product-grid-header reveal">
                 <div class="brand-icon-large"><i class="fas fa-{{ 'tooth' if selected_brand else 'th-large' }}"></i></div>
                 <div class="title-group">
                     <h2 id="brandTitle">{{ page_title }}</h2>
@@ -85,7 +85,7 @@
                 {% endif %}
 
                 {% for p in products %}
-                <div class="product-card product-card-vertical" style="cursor:pointer;" onclick="openProductModal({{ p.id }})">
+                <div class="product-card product-card-vertical reveal" style="--i: {{ loop.index0 % 4 }}; cursor:pointer;" onclick="openProductModal({{ p.id }})">
                     <div class="product-image-wrap">
                         <img class="product-image"
                              src="{{ img(p.product_image) }}"

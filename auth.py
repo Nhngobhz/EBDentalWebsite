@@ -86,13 +86,20 @@ def login_required(view):
 
 
 def staff_required(view):
+    """Gate for the whole /admin/* area (applied once in blueprints/admin/__init__.py).
+
+    Deliberately 404s instead of bouncing to the login page: a redirect to /login
+    confirms to any stranger that the URL they guessed is a real admin page. Anyone who
+    isn't signed-in staff - anonymous visitor or logged-in customer alike - gets exactly
+    the same "page not found" they'd get from any made-up URL, so the admin area is
+    invisible rather than merely locked. Staff who *are* signed in reach it normally;
+    per-route permission_required(...) still 403s them with a real message when they're
+    missing a specific permission."""
+
     @wraps(view)
     def wrapped(*args, **kwargs):
-        if not is_logged_in():
-            flash("Please log in to continue.", "error")
-            return redirect(url_for("auth.login"))
         if not is_staff():
-            abort(403)
+            abort(404)
         return view(*args, **kwargs)
 
     return wrapped

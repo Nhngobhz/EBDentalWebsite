@@ -763,3 +763,62 @@
     margin-bottom: 16px;
     color: var(--text);
 }
+/* ------------------------------------------------------------
+   BUNDLE PICKER — the repeatable "which products are in this?"
+   list inside the Promotion / Set / Product admin modals (see
+   ebBundlePicker in main.js). One row = one product + how many
+   of it are included.
+------------------------------------------------------------- */
+.bundle-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.bundle-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.bundle-row-product,
+.bundle-row-qty {
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 0.85rem;
+    font-family: inherit;
+    background: var(--surface);
+    color: var(--text);
+}
+.bundle-row-product {
+    flex: 1;
+    min-width: 0;
+}
+.bundle-row-qty {
+    width: 70px;
+    flex: none;
+    text-align: center;
+}
+.bundle-row-remove {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    flex: none;
+    color: var(--text-light);
+    cursor: pointer;
+    font-family: inherit;
+}
+.bundle-row-remove:hover {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+.bundle-picker-empty {
+    font-size: 0.72rem;
+    color: var(--text-light);
+    padding: 6px 0;
+}
+.bundle-add-btn {
+    align-self: flex-start;
+    margin-top: 2px;
+}

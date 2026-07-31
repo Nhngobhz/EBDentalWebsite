@@ -9,7 +9,7 @@
         {% include "partials/hero_slider.html" %}
 
         <!-- Special Offers & Discounts (bold promo-banner style cards) -->
-        <section class="offers-wrap" id="hotCarouselWrap" style="margin-top: 24px;">
+        <section class="offers-wrap reveal" id="hotCarouselWrap" style="margin-top: 24px;">
             <div class="section-header">
                 <h3>Special Offers &amp; Discounts</h3>
             </div>
@@ -35,13 +35,13 @@
 
         <!-- Brand Grid -->
         <section style="margin-top: 30px;">
-            <div class="section-header">
-                <h3></i> Shop by Brand</h3>
+            <div class="section-header reveal">
+                <h3>Shop by Brand</h3>
             </div>
             <div class="categories" id="categoryGrid" style="margin-top: 10px;">
                 {% for brand in brands %}
-                <a class="category-card" href="{{ url_for('catalog.products_catalog') }}?brand={{ brand.id }}">
-                    <img src="{{ img(brand.brand_image) }}" alt="{{ brand.brand_name }}" class="card-img" />
+                <a class="category-card reveal" style="--i: {{ loop.index0 % 4 }};" href="{{ url_for('catalog.products_catalog') }}?brand={{ brand.id }}">
+                    <img src="{{ img(brand.brand_image) }}" alt="{{ brand.brand_name }}" class="card-img" loading="lazy" />
                     <h3>{{ brand.brand_name }}</h3>
                 </a>
                 {% endfor %}
