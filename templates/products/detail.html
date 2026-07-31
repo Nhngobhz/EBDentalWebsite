@@ -29,6 +29,17 @@
                     {% if product.was_price %}<span class="old">{{ price(product.was_price) }}</span>{% endif %}
                 </div>
 
+                {# Free products that ride along with this one - added to the cart
+                   automatically and printed on the quote at $0.00. #}
+                {% if product.free_items %}
+                <div class="free-with-title"><i class="fas fa-gift"></i> Comes with, free:</div>
+                <ul class="bundle-contents">
+                    {% for item in product.free_items %}
+                    <li><i class="fas fa-check"></i> {{ item.product_name }}{% if item.qty > 1 %} <span class="bundle-qty">×{{ item.qty }}</span>{% endif %}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+
                 <div class="product-detail-actions">
                     {% if can_quote() %}
                     <button type="button" class="btn-primary" id="detailAddToQuoteBtn"><i class="fas fa-shopping-cart"></i> Add to Cart</button>
@@ -74,6 +85,9 @@
             discount_type: {{ (product.discount_type or 'percent')|tojson }},
             was_price: {{ product.was_price|tojson }},
             image: {{ img(product.product_image)|tojson }},
+            {# Shown under the line in the cart drawer; store-api re-expands the
+               real freebies server-side when the order is placed. #}
+            free_items: {{ product.free_items|tojson }},
         });
         showToast('Added to cart successfully');
     });

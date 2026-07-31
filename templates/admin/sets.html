@@ -33,7 +33,14 @@
                         <img src="{{ img(s.set_image) }}" loading="lazy"
                              style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid var(--border);" />
                     </td>
-                    <td><strong>{{ s.set_name }}</strong></td>
+                    <td>
+                        <strong>{{ s.set_name }}</strong>
+                        {% if s['items'] %}
+                        <div style="font-size:0.7rem;color:var(--text-light);margin-top:2px;">
+                            Includes: {% for i in s['items'] %}{{ i.product_name }}{% if i.qty > 1 %} ×{{ i.qty }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
+                        </div>
+                        {% endif %}
+                    </td>
                     <td>
                         {{ price(s.price) }}
                         {% if s.old_price %}<span style="text-decoration:line-through; color:var(--text-light); font-size:0.7rem;">{{ price(s.old_price) }}</span>{% endif %}
@@ -75,7 +82,19 @@
                 <div class="form-group" style="margin-bottom:12px;">
                     <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Old Price</label>
                     <input type="number" name="old_price" id="setOldPrice" step="0.01" min="0.01" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                    <div style="font-size:0.7rem;color:var(--text-light);margin-top:4px;">Only used when this set has no Included Products — otherwise the combined price of those products is shown as the old price.</div>
                 </div>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Included Products</label>
+                <div style="font-size:0.7rem;color:var(--text-light);margin-bottom:6px;">
+                    What the customer receives in this set. Each one is listed on the quote under the set at $0.00 — the set's own Price above is what's charged.
+                </div>
+                <div class="bundle-picker" id="setItemsPicker"></div>
+                <div class="bundle-picker-empty" id="setItemsPickerEmpty">No products added yet — this set will show as a single line on the quote.</div>
+                <button type="button" class="btn-dash sm bundle-add-btn" onclick="ebBundlePicker.addRow('setItemsPicker')">
+                    <i class="fas fa-plus"></i> Add product
+                </button>
             </div>
             <div class="form-group" style="margin-bottom:12px;">
                 <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Set Image</label>
@@ -108,6 +127,13 @@
     {% endfor %}
     const SETS_DATA = {{ sets_json|tojson }};
     const SET_NEW_URL = {{ url_for('admin.sets_new')|tojson }};
+    {# Feeds the "Included Products" dropdowns - see ebBundlePicker in main.js.
+       Slimmed to what the dropdown labels need; prices/images aren't wanted here. #}
+    {% set product_options = [] %}
+    {% for p in products %}
+    {% set _ = product_options.append({'id': p.id, 'product_name': p.product_name, 'product_code': p.product_code}) %}
+    {% endfor %}
+    const BUNDLE_PRODUCTS = {{ product_options|tojson }};
 
     function openSetModal(setId) {
         const set_ = setId ? SETS_DATA.find(s => s.id === setId) : null;
@@ -136,6 +162,10 @@
         // to have (and falls back to a placeholder when it doesn't).
         document.getElementById('setDetailImageFile').value = '';
         ebSetImagePreview('setDetailImagePreview', isEdit ? set_.detail_image_url : null);
+
+        // Contents of the set (empty when creating). Submitting with no rows at
+        // all is what clears a set's contents - see bundle_items_from_form().
+        ebBundlePicker.render('setItemsPicker', isEdit ? set_.items : []);
 
         document.getElementById('setModalOverlay').classList.add('active');
     }

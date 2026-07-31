@@ -3282,3 +3282,50 @@
         height: 30px;
     }
 }
+/* ------------------------------------------------------------
+   BUNDLE CONTENTS — "what you get" list shown on a promotion or
+   set card (both are collections of products now) and on a
+   product's detail page/modal for the freebies it comes with.
+   Deliberately price-free: the bundle's own price is charged and
+   the members are included, so listing prices here would read as
+   an extra cost.
+------------------------------------------------------------- */
+.bundle-contents {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.bundle-contents li {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: var(--text-light);
+    line-height: 1.35;
+}
+.bundle-contents li i {
+    font-size: 0.6rem;
+    color: var(--accent);
+    flex: none;
+}
+.bundle-contents .bundle-qty {
+    font-weight: 700;
+    color: var(--text);
+}
+/* Free-gift list on a product (detail page + modal) - same list, with a
+   heading that names it as a giveaway rather than bundle contents. */
+.free-with-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.free-with-title i {
+    color: var(--accent);
+}

@@ -199,7 +199,18 @@
         document.getElementById('orderSalesperson').textContent = order.salesperson || '—';
         document.getElementById('orderQuotedBy').textContent = order.quoted_by_name || '—';
 
-        document.getElementById('orderItemsBody').innerHTML = order.items.map(item => `
+        // Component lines - what a promotion/set contained, or the freebies that
+        // came with a product (OrderItem.parent_item_id in store-api). They sit
+        // right under the line they belong to, at $0.00.
+        document.getElementById('orderItemsBody').innerHTML = order.items.map(item => item.parent_item_id ? `
+            <tr style="color:var(--text-light);">
+                <td style="padding-left:20px;font-style:italic;">• ${item.product_name}</td>
+                <td>${item.product_code || '—'}</td>
+                <td>${item.qty}</td>
+                <td>—</td>
+                <td>—</td>
+                <td>${formatMoney(0)}</td>
+            </tr>` : `
             <tr>
                 <td>${item.product_name}</td>
                 <td>${item.product_code || '—'}</td>

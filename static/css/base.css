@@ -642,6 +642,37 @@ img {
     cursor: pointer;
     font-size: 0.8rem;
 }
+/* What a line includes for free — a promotion/set's member products, or the
+   freebies a product comes with. Read-only: quantity follows the parent line,
+   and there's nothing to remove independently, so no controls here. */
+.quote-item-included {
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 6px 0 0 10px;
+    border-top: 1px dashed var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.quote-item-included li {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 0.7rem;
+    color: var(--text-light);
+}
+.quote-item-included .included-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* The price slot of an included line - always a dash, since a component is
+   covered by its parent line's price and is never charged for. */
+.quote-item-included .included-price {
+    color: var(--text-light);
+}
 .quote-drawer-footer {
     padding: 18px 26px 24px;
     border-top: 1px solid var(--border);
@@ -920,6 +951,17 @@ table.qpt-table td.qpt-num { text-align: center; }
 table.qpt-table td.qpt-right { text-align: right; }
 .qpt-blank-row td {
     height: 20px;
+}
+/* Component rows — the $0 lines listing what a promotion/set contains, or the
+   freebies a product comes with (OrderItem.parent_item_id in store-api). Same
+   grid as any other row so the printed table stays a table; the indent + lighter
+   ink is what says "this belongs to the line above". */
+.qpt-component-row td {
+    color: #444;
+}
+.qpt-component-row .qpt-component-name {
+    padding-left: 20px;
+    font-style: italic;
 }
 .qpt-subtotal-row td {
     border-top: 2px solid #333;

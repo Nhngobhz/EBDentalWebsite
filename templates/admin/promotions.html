@@ -33,7 +33,14 @@
                         <img src="{{ img(p.promotion_image) }}" loading="lazy"
                              style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid var(--border);" />
                     </td>
-                    <td><strong>{{ p.promotion_name }}</strong></td>
+                    <td>
+                        <strong>{{ p.promotion_name }}</strong>
+                        {% if p['items'] %}
+                        <div style="font-size:0.7rem;color:var(--text-light);margin-top:2px;">
+                            Includes: {% for i in p['items'] %}{{ i.product_name }}{% if i.qty > 1 %} ×{{ i.qty }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
+                        </div>
+                        {% endif %}
+                    </td>
                     <td>
                         {{ price(p.price) }}
                         {% if p.old_price %}<span style="text-decoration:line-through; color:var(--text-light); font-size:0.7rem;">{{ price(p.old_price) }}</span>{% endif %}
@@ -85,6 +92,7 @@
                 <div class="form-group" style="margin-bottom:12px;">
                     <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Old Price</label>
                     <input type="number" name="old_price" id="promoOldPrice" step="0.01" min="0.01" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                    <div style="font-size:0.7rem;color:var(--text-light);margin-top:4px;">Only used when this promotion has no Included Products — otherwise the combined price of those products is shown as the old price.</div>
                 </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
@@ -98,6 +106,17 @@
                 </div>
             </div>
             <div id="promoDateError" style="font-size:0.7rem;color:var(--danger);margin:-6px 0 12px; display:none;">⚠️ End date must be after the start date.</div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Included Products</label>
+                <div style="font-size:0.7rem;color:var(--text-light);margin-bottom:6px;">
+                    What the customer receives in this promotion. Each one is listed on the quote under the promotion at $0.00 — the Price above is what's charged.
+                </div>
+                <div class="bundle-picker" id="promoItemsPicker"></div>
+                <div class="bundle-picker-empty" id="promoItemsPickerEmpty">No products added yet — this promotion will show as a single line on the quote.</div>
+                <button type="button" class="btn-dash sm bundle-add-btn" onclick="ebBundlePicker.addRow('promoItemsPicker')">
+                    <i class="fas fa-plus"></i> Add product
+                </button>
+            </div>
             <div class="form-group" style="margin-bottom:12px;">
                 <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Promotion Image</label>
                 <input type="file" name="file" id="promoImageFile" accept="image/png,image/jpeg,image/webp,image/gif" data-preview="promoImagePreview" style="width:100%;font-size:0.8rem;">
@@ -119,6 +138,13 @@
     {% endfor %}
     const PROMOS_DATA = {{ promos_json|tojson }};
     const PROMO_NEW_URL = {{ url_for('admin.promotions_new')|tojson }};
+    {# Feeds the "Included Products" dropdowns - see ebBundlePicker in main.js.
+       Slimmed to what the dropdown labels need; prices/images aren't wanted here. #}
+    {% set product_options = [] %}
+    {% for p in products %}
+    {% set _ = product_options.append({'id': p.id, 'product_name': p.product_name, 'product_code': p.product_code}) %}
+    {% endfor %}
+    const BUNDLE_PRODUCTS = {{ product_options|tojson }};
 
     function openPromoModal(promoId) {
         const promo = promoId ? PROMOS_DATA.find(p => p.id === promoId) : null;
@@ -144,6 +170,10 @@
         // Seeds the saved image; picking a file swaps in a preview of it
         // (data-preview on the input above, handled in main.js).
         ebSetImagePreview('promoImagePreview', isEdit ? promo.image : null);
+
+        // Contents of the promotion (empty when creating). Submitting with no
+        // rows at all is what clears them - see bundle_items_from_form().
+        ebBundlePicker.render('promoItemsPicker', isEdit ? promo.items : []);
 
         document.getElementById('promoModalOverlay').classList.add('active');
     }

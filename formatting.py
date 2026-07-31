@@ -117,6 +117,10 @@ def adapt_product(product):
     product["was_price"] = derive_old_price(
         product["price"], product["discount"], product.get("discount_type", "percent")
     )
+    # Products this one comes with for free. Carries no prices of its own (name /
+    # code / uom / qty only - see BundleItemOut in store-api), so unlike every
+    # other field here it needs no numeric coercion, just a guaranteed list.
+    product["free_items"] = list(product.get("free_items") or [])
     return product
 
 
@@ -124,6 +128,9 @@ def adapt_promotion(promotion):
     promotion = dict(promotion)
     promotion["price"] = to_number(promotion.get("price"))
     promotion["old_price"] = to_number(promotion.get("old_price"))
+    # The member products of the deal - same price-free shape as
+    # adapt_product's free_items.
+    promotion["items"] = list(promotion.get("items") or [])
     return promotion
 
 
@@ -131,6 +138,7 @@ def adapt_set(set_):
     set_ = dict(set_)
     set_["price"] = to_number(set_.get("price"))
     set_["old_price"] = to_number(set_.get("old_price"))
+    set_["items"] = list(set_.get("items") or [])
     return set_
 
 

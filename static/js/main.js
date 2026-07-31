@@ -274,6 +274,24 @@ function printedCashDiscountTotal(items) {
     }, 0);
 }
 
+/* A promotion/set is a collection of products, and a product may come with
+   freebies - both arrive from store-api in the same {product_name, product_code,
+   uom, qty} shape (BundleItemOut). Flattened here to the cart's own field names
+   so a cart line doesn't have to remember which of the two it came from.
+
+   `qty` is PER ONE of the parent line: 3 gloves in a set means 6 gloves when two
+   of that set are bought. The cart multiplies for display; store-api does the
+   same multiplication for real when the order is placed (see _component_items in
+   routers/orders.py) - these local copies are never trusted for the actual order. */
+function normalizeBundleComponents(items) {
+    return (items || []).map(item => ({
+        name: item.product_name,
+        code: item.product_code || '',
+        uom: item.uom || '',
+        qty: item.qty || 1,
+    }));
+}
+
 /* ============================================================
    QUOTE CART — new feature.
    The original "Add to Quote" button existed with zero logic
@@ -301,8 +319,9 @@ const QuoteCart = {
             const items = JSON.parse(localStorage.getItem(this.STORAGE_KEY)) || [];
             // 'kind' distinguishes a product line from a promotion line (product ids
             // and promotion ids come from separate tables and can collide) - default it
-            // for anything saved before this field existed.
-            return items.map(i => ({ kind: i.kind || 'product', ...i }));
+            // for anything saved before this field existed. 'components' (what the line
+            // includes for free) gets the same treatment.
+            return items.map(i => ({ ...i, kind: i.kind || 'product', components: i.components || [] }));
         } catch {
             return [];
         }
@@ -351,6 +370,9 @@ const QuoteCart = {
                 discountType: product.discount_type || 'percent',
                 image: product.image || '',
                 qty: 1,
+                // Freebies that ride along with this product, shown under the
+                // line in the drawer and on the printed quote at $0.00.
+                components: normalizeBundleComponents(product.free_items),
             });
         }
         this.saveItems(items);
@@ -386,6 +408,8 @@ const QuoteCart = {
                 discountType: 'cash',
                 image: promo.image || '',
                 qty: 1,
+                // The products the deal is made of - listed under it at $0.00.
+                components: normalizeBundleComponents(promo.items),
             });
         }
         this.saveItems(items);
@@ -418,6 +442,7 @@ const QuoteCart = {
                 discountType: 'cash',
                 image: set.image || '',
                 qty: 1,
+                components: normalizeBundleComponents(set.items),
             });
         }
         this.saveItems(items);
@@ -447,6 +472,15 @@ const QuoteCart = {
 
         const amountEl = document.querySelector(`.quote-item[data-id="${id}"][data-kind="${kind}"] .quote-item-amount`);
         if (amountEl) amountEl.textContent = '$' + this.lineAmount(item).toFixed(2);
+
+        // Included items scale with the line - two of a set means two of
+        // everything in it. data-unit-qty is the per-one quantity (see
+        // normalizeBundleComponents), so this stays right on repeated clicks.
+        document.querySelectorAll(
+            `.quote-item[data-id="${id}"][data-kind="${kind}"] .included-qty`
+        ).forEach(el => {
+            el.textContent = '×' + (Number(el.dataset.unitQty || 1) * item.qty);
+        });
 
         this.updateSummary();
     },
@@ -639,8 +673,25 @@ const QuoteCart = {
                         <span class="quote-item-amount">$${this.lineAmount(item).toFixed(2)}</span>
                         <button type="button" class="quote-item-remove" onclick="QuoteCart.removeItem(${item.id}, '${item.kind}')"><i class="fas fa-trash"></i></button>
                     </div>
+                    ${this.renderIncluded(item)}
                 </div>
             </div>`).join('');
+    },
+
+    // What the line includes at no charge: a promotion/set's member products, or
+    // a product's free gifts. Read-only - they have no price and no quantity of
+    // their own, they just follow the parent line (see changeQty).
+    renderIncluded(item) {
+        if (!item.components || item.components.length === 0) return '';
+        return `
+            <ul class="quote-item-included">
+                ${item.components.map(component => `
+                    <li>
+                        <span class="included-name">+ ${ebEscapeHtml(component.name)}</span>
+                        <span class="included-qty" data-unit-qty="${component.qty}">×${component.qty * item.qty}</span>
+                        <span class="included-price">—</span>
+                    </li>`).join('')}
+            </ul>`;
     },
 
     // ---- print template + PDF export ----
@@ -682,9 +733,31 @@ const QuoteCart = {
         );
         const itemDiscountTotal = printedCashDiscountTotal(order.items);
 
-        const rows = order.items.map((item, i) => `
+        // Component lines (a promotion/set's contents, a product's free gifts -
+        // OrderItem.parent_item_id in store-api) come back in the same flat list,
+        // ordered right after the line they belong to. They print as $0.00
+        // "Free" sub-rows and don't take a No. of their own, so the numbering
+        // still counts only the lines actually being charged for. Mirrored by
+        // store-api's fallback PDF (services/invoice_pdf.py).
+        let lineNo = 0;
+        const rows = order.items.map(item => {
+            if (item.parent_item_id) {
+                return `
+            <tr class="qpt-component-row">
+                <td class="qpt-num"></td>
+                <td>${item.product_code || ''}</td>
+                <td class="qpt-component-name">• ${item.product_name}</td>
+                <td class="qpt-num">${item.qty}</td>
+                <td class="qpt-num">${item.uom || 'PCS'}</td>
+                <td class="qpt-right">$ 0.00</td>
+                <td class="qpt-num">—</td>
+                <td class="qpt-right">$ 0.00</td>
+            </tr>`;
+            }
+            lineNo += 1;
+            return `
             <tr>
-                <td class="qpt-num">${i + 1}</td>
+                <td class="qpt-num">${lineNo}</td>
                 <td>${item.product_code || '—'}</td>
                 <td>${item.product_name}</td>
                 <td class="qpt-num">${item.qty}</td>
@@ -692,7 +765,8 @@ const QuoteCart = {
                 <td class="qpt-right">$ ${deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type).toFixed(2)}</td>
                 <td class="qpt-num">${printedItemDiscountText(item) || '—'}</td>
                 <td class="qpt-right">$ ${printedItemAmount(item).toFixed(2)}</td>
-            </tr>`).join('');
+            </tr>`;
+        }).join('');
 
         // Pad the table with blank rows so it always looks like a full,
         // pre-printed form (like the paper original) even when there are
@@ -1133,6 +1207,17 @@ function openProductModal(id) {
     if (p.was_price) priceHtml += ` <span class="old">${formatPrice(p.was_price)}</span>`;
     priceEl.innerHTML = priceHtml;
 
+    // Freebies this product comes with (Product.free_items in store-api) - the
+    // whole block stays hidden for products that come with nothing.
+    const freeWrap = document.getElementById('modalFreeItems');
+    if (freeWrap) {
+        const freeItems = p.free_items || [];
+        freeWrap.style.display = freeItems.length ? '' : 'none';
+        document.getElementById('modalFreeItemsList').innerHTML = freeItems.map(item => `
+            <li><i class="fas fa-check"></i> ${ebEscapeHtml(item.product_name)}${item.qty > 1 ? ` <span class="bundle-qty">×${item.qty}</span>` : ''}</li>
+        `).join('');
+    }
+
     const addBtn = document.getElementById('modalAddToQuoteBtn');
     if (typeof CAN_QUOTE !== 'undefined' && CAN_QUOTE && typeof p.price === 'number') {
         addBtn.innerHTML = '<i class="fas fa-shopping-cart"></i> Add to Cart';
@@ -1433,6 +1518,73 @@ document.addEventListener('change', (e) => {
     preview.dataset.objectUrl = url;
     _ebShowPreview(preview, url);
 });
+
+/* ------------------------------------------------------------
+   BUNDLE PICKER (admin) — the repeatable "which products are in
+   this?" list shared by three modals: a Promotion's contents, a
+   Set's contents, and a Product's free "comes with" items. All
+   three post the same parallel inputs (item_product_id[] +
+   item_qty[]), read back by bundle_items_from_form() in
+   blueprints/admin/__init__.py.
+
+   The page must define BUNDLE_PRODUCTS (id / product_name /
+   product_code) before calling this — each admin page already
+   passes its catalog down for its own table.
+
+   Zero rows is a meaningful state, not an empty form: it posts no
+   item_product_id at all, which store-api reads as "this bundle
+   now contains nothing" rather than "leave it alone".
+------------------------------------------------------------- */
+const ebBundlePicker = {
+    _optionsHtml(selectedId) {
+        const products = (typeof BUNDLE_PRODUCTS !== 'undefined' && BUNDLE_PRODUCTS) || [];
+        return ['<option value="">Select a product…</option>'].concat(products.map(p => {
+            const label = p.product_code ? `${p.product_name} (${p.product_code})` : p.product_name;
+            const selected = String(p.id) === String(selectedId) ? ' selected' : '';
+            return `<option value="${p.id}"${selected}>${ebEscapeHtml(label)}</option>`;
+        })).join('');
+    },
+
+    // items: [{product_id, qty}] straight off a store-api bundle (or [] when creating).
+    render(containerId, items) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+        (items || []).forEach(item => this.addRow(containerId, item));
+        this._syncEmptyHint(container);
+    },
+
+    addRow(containerId, item) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        const row = document.createElement('div');
+        row.className = 'bundle-row';
+        row.innerHTML = `
+            <select name="item_product_id" class="bundle-row-product">${this._optionsHtml(item && item.product_id)}</select>
+            <input type="number" name="item_qty" class="bundle-row-qty" min="1" step="1" value="${(item && item.qty) || 1}" title="Quantity included">
+            <button type="button" class="bundle-row-remove" title="Remove"><i class="fas fa-times"></i></button>`;
+        row.querySelector('.bundle-row-remove').addEventListener('click', () => {
+            row.remove();
+            this._syncEmptyHint(container);
+        });
+        container.appendChild(row);
+        this._syncEmptyHint(container);
+    },
+
+    _syncEmptyHint(container) {
+        const hint = document.getElementById(container.id + 'Empty');
+        if (hint) hint.style.display = container.children.length ? 'none' : 'block';
+    },
+};
+
+/* Product names are admin-entered free text and go into <option> markup
+   built as a string above - escaped so a stray quote or angle bracket in a
+   name can't break (or inject into) the dropdown. */
+function ebEscapeHtml(text) {
+    return String(text ?? '').replace(/[&<>"']/g, ch => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+    ));
+}
 
 /* ------------------------------------------------------------
    PROMO BANNER STRIP — dismiss button

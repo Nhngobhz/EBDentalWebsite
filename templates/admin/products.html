@@ -38,7 +38,14 @@
                         <img src="{{ img(p.product_image) }}" loading="lazy"
                              style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid var(--border);" />
                     </td>
-                    <td><strong>{{ p.product_name }}</strong></td>
+                    <td>
+                        <strong>{{ p.product_name }}</strong>
+                        {% if p.free_items %}
+                        <div style="font-size:0.7rem;color:var(--text-light);margin-top:2px;">
+                            <i class="fas fa-gift"></i> Free: {% for i in p.free_items %}{{ i.product_name }}{% if i.qty > 1 %} ×{{ i.qty }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
+                        </div>
+                        {% endif %}
+                    </td>
                     <td style="font-size:0.75rem; color:var(--text-light);">{{ p.product_code or '—' }}</td>
                     <td>{{ p.brand.brand_name if p.brand else '—' }}</td>
                     <td style="font-size:0.7rem;">{{ p.category.category_name if p.category else '—' }}</td>
@@ -141,6 +148,17 @@
                 </select>
             </div>
             <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Comes With (Free)</label>
+                <div style="font-size:0.7rem;color:var(--text-light);margin-bottom:6px;">
+                    Other products given away free with this one. They're added to the cart automatically and printed on the quote at $0.00.
+                </div>
+                <div class="bundle-picker" id="prodFreeItemsPicker"></div>
+                <div class="bundle-picker-empty" id="prodFreeItemsPickerEmpty">Nothing free comes with this product.</div>
+                <button type="button" class="btn-dash sm bundle-add-btn" onclick="ebBundlePicker.addRow('prodFreeItemsPicker')">
+                    <i class="fas fa-plus"></i> Add free product
+                </button>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
                 <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Product Image</label>
                 <input type="file" name="file" id="prodImageFile" accept="image/png,image/jpeg,image/webp,image/gif" data-preview="prodImagePreview" style="width:100%;font-size:0.8rem;">
                 <img id="prodImagePreview" src="" alt="" style="display:none; margin-top:8px; width:70px; height:70px; border-radius:8px; object-fit:cover; border:1px solid var(--border);">
@@ -191,6 +209,13 @@
     {% set _ = products_json.append(dict(p, image=img(p.product_image))) %}
     {% endfor %}
     const PRODUCTS_DATA = {{ products_json|tojson }};
+    {# The "Comes With (Free)" dropdowns pick from this same catalog - see
+       ebBundlePicker in main.js. #}
+    {% set product_options = [] %}
+    {% for p in products %}
+    {% set _ = product_options.append({'id': p.id, 'product_name': p.product_name, 'product_code': p.product_code}) %}
+    {% endfor %}
+    const BUNDLE_PRODUCTS = {{ product_options|tojson }};
     {% if has_permission('product_management') %}
     const PRODUCT_NEW_URL = {{ url_for('admin.products_new')|tojson }};
     {% endif %}
@@ -285,6 +310,10 @@
         // Seeds the saved image; picking a file swaps in a preview of it
         // (data-preview on the input above, handled in main.js).
         ebSetImagePreview('prodImagePreview', isEdit ? product.image : null);
+
+        // Free products that come with this one (empty when creating).
+        // Submitting with no rows clears the list - see bundle_items_from_form().
+        ebBundlePicker.render('prodFreeItemsPicker', isEdit ? product.free_items : []);
 
         document.getElementById('productModalOverlay').classList.add('active');
     }

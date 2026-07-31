@@ -3,8 +3,8 @@ from datetime import datetime, timezone
 from flask import flash, redirect, render_template, request, url_for
 
 from auth import permission_required
-from blueprints.admin import admin_bp
-from formatting import adapt_promotion
+from blueprints.admin import admin_bp, bundle_items_from_form
+from formatting import adapt_product, adapt_promotion
 from store_api import StoreAPIError, get_api_client
 
 
@@ -32,6 +32,9 @@ def _promo_form_payload():
         "old_price": request.form.get("old_price") or None,
         "start_date": _date_to_iso(request.form.get("start_date")),
         "end_date": _date_to_iso(request.form.get("end_date"), end_of_day=True),
+        # A promotion is a collection of products - these are what the customer
+        # actually receives, listed at $0 under the promotion on the quote.
+        "items": bundle_items_from_form(),
     }
 
 
@@ -57,7 +60,13 @@ def promotions():
         promo["start_date_short"] = _iso_to_date(promo["start_date"])
         promo["end_date_short"] = _iso_to_date(promo["end_date"])
         promos.append(promo)
-    return render_template("admin/promotions.html", promotions=promos)
+    # The full catalog feeds the modal's "Included Products" picker.
+    products = client.get("/products/", params={"limit": 500})
+    return render_template(
+        "admin/promotions.html",
+        promotions=promos,
+        products=[adapt_product(p) for p in products],
+    )
 
 
 @admin_bp.route("/promotions/new", methods=["POST"])

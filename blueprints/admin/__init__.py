@@ -1,8 +1,31 @@
-from flask import Blueprint
+from flask import Blueprint, request
 
 from auth import staff_required
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
+
+
+def bundle_items_from_form(field="item_product_id", qty_field="item_qty"):
+    """Reads the repeatable "included products" picker (ebBundlePicker in
+    main.js) off a submitted admin form into store-api's
+    [{product_id, qty}] shape - used by the Promotion/Set contents lists and the
+    Product "comes with free" list, which all post the same pair of parallel
+    inputs.
+
+    Always returns a list, never None: the picker renders one hidden empty row
+    when a bundle has no contents, and an admin clearing every row must send an
+    empty list (store-api reads "field present but empty" as "remove all") rather
+    than omitting the field (which means "leave contents alone")."""
+    product_ids = request.form.getlist(field)
+    quantities = request.form.getlist(qty_field)
+    items = []
+    for i, product_id in enumerate(product_ids):
+        product_id = (product_id or "").strip()
+        if not product_id:
+            continue  # the picker's blank template row
+        qty = (quantities[i] if i < len(quantities) else "").strip()
+        items.append({"product_id": int(product_id), "qty": int(qty or 1)})
+    return items
 
 
 @admin_bp.before_request

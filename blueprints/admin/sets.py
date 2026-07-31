@@ -1,8 +1,8 @@
 from flask import flash, redirect, render_template, request, url_for
 
 from auth import permission_required
-from blueprints.admin import admin_bp
-from formatting import adapt_set
+from blueprints.admin import admin_bp, bundle_items_from_form
+from formatting import adapt_product, adapt_set
 from store_api import StoreAPIError, get_api_client
 
 
@@ -12,6 +12,9 @@ def _set_form_payload():
         "description": request.form.get("description", "").strip() or None,
         "price": request.form.get("price") or None,
         "old_price": request.form.get("old_price") or None,
+        # A set is a collection of products - these are what the customer
+        # actually receives, listed at $0 under the set on the quote.
+        "items": bundle_items_from_form(),
     }
 
 
@@ -39,7 +42,13 @@ def _upload_set_images(client, set_id):
 def sets():
     client = get_api_client()
     raw_sets = client.get("/sets/", params={"limit": 200})
-    return render_template("admin/sets.html", sets=[adapt_set(s) for s in raw_sets])
+    # The full catalog feeds the modal's "Included Products" picker.
+    products = client.get("/products/", params={"limit": 500})
+    return render_template(
+        "admin/sets.html",
+        sets=[adapt_set(s) for s in raw_sets],
+        products=[adapt_product(p) for p in products],
+    )
 
 
 @admin_bp.route("/sets/new", methods=["POST"])

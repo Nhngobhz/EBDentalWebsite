@@ -35,6 +35,15 @@
                             {{ price(promo.price) }}
                             {% if promo.old_price %}<span class="old">{{ price(promo.old_price) }}</span>{% endif %}
                         </div>
+                        {# A promotion is a collection of products - spell out what's
+                           inside so the deal is legible before it's in the cart. #}
+                        {% if promo['items'] %}
+                        <ul class="bundle-contents">
+                            {% for item in promo['items'] %}
+                            <li><i class="fas fa-check"></i> {{ item.product_name }}{% if item.qty > 1 %} <span class="bundle-qty">×{{ item.qty }}</span>{% endif %}</li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
                         {% if can_quote() %}
                         <button type="button" class="btn-primary promo-buy-btn" id="promoAddBtn-{{ promo.id }}">
                             <i class="fas fa-shopping-cart"></i> Add to Cart
@@ -78,6 +87,15 @@
                                      src="{{ img(set_.detail_image) }}"
                                      alt="" loading="lazy" />
                                 {% endif %}
+                                {# What's actually in the bundle - same treatment as
+                                   the promo cards above. #}
+                                {% if set_['items'] %}
+                                <ul class="bundle-contents">
+                                    {% for item in set_['items'] %}
+                                    <li><i class="fas fa-check"></i> {{ item.product_name }}{% if item.qty > 1 %} <span class="bundle-qty">×{{ item.qty }}</span>{% endif %}</li>
+                                    {% endfor %}
+                                </ul>
+                                {% endif %}
                             </div>
                             <div class="product-price set-price">
                                 {{ price(set_.price) }}
@@ -114,6 +132,10 @@
             price: {{ promo.price|tojson }},
             old_price: {{ promo.old_price|tojson }},
             image: {{ img(promo.promotion_image)|tojson }},
+            {# Carried into the cart line so the drawer can list what's included
+               before the order exists; store-api re-expands it authoritatively
+               at purchase time (create_order), never trusting this copy. #}
+            items: {{ promo['items']|tojson }},
         });
         showToast('Added to cart successfully');
     });
@@ -127,6 +149,7 @@
             price: {{ set_.price|tojson }},
             old_price: {{ set_.old_price|tojson }},
             image: {{ img(set_.set_image)|tojson }},
+            items: {{ set_['items']|tojson }},
         });
         showToast('Added to cart successfully');
     });
