@@ -77,6 +77,29 @@ def login():
         return jsonify({"success": True, "redirect_url": redirect_url})
     return redirect(redirect_url)
 
+@auth_bp.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    if request.method == "GET":
+        return render_template("auth/forgot_password.html")
+
+    email = request.form.get("email", "").strip()
+    if not email:
+        flash("Please enter your email address.", "error")
+        return render_template("auth/forgot_password.html"), 400
+
+    client = get_api_client()
+    # The email could belong to either a staff (User) or Customer account - both
+    # endpoints return the same generic "if that email exists" message regardless
+    # of whether it actually matches anything, so calling both is safe and never
+    # leaks which account type (or whether any account) exists for this email.
+    for path in ("/auth/forgot-password", "/auth/customer/forgot-password"):
+        try:
+            client.post_json(path, {"email": email})
+        except StoreAPIError:
+            pass
+
+    flash("If that email exists in our system, a password reset link has been sent.", "success")
+    return redirect(url_for("auth.login"))
 
 @auth_bp.route("/register", methods=["GET", "POST"])
 def register():
@@ -128,3 +151,4 @@ def logout():
     session.clear()
     flash("You've been logged out.", "success")
     return redirect(url_for("main.home"))
+

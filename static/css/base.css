@@ -859,3 +859,18 @@ table.qpt-table td.qpt-right { text-align: right; }
     height: auto;
     border-radius: 2px;
 }
+.footer-logo {
+    max-width: 160px;
+    width: 100%;
+    height: auto;
+    margin-bottom: 12px;
+    display: block;
+}
+
+.sidebar-logo {
+    max-width: 150px;
+    width: 100%;
+    height: auto;
+    display: block;
+    margin-left: -30px;
+}

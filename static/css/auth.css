@@ -1,364 +1,245 @@
 /* ============================================================
-   AUTH — Login / register overlay
+   AUTH — Login / register (light card style)
    ============================================================ */
+.login-box .tab-buttons {
+    display: flex;
+    gap: 4px;
+    background: #f3f4f6;
+    border-radius: 10px;
+    padding: 4px;
+    margin-bottom: 20px;
+}
+.login-box .tab-buttons a {
+    flex: 1;
+    padding: 8px;
+    border-radius: 8px;
+    color: #6b7280;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-decoration: none;
+    text-align: center;
+}
+.login-box .tab-buttons a.active {
+    background: #fff;
+    color: #111827;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.login-box .tab-buttons a:hover:not(.active) {
+    color: #374151;
+}
 
-/* ============================================================
-           LOGIN OVERLAY
-           ============================================================ */
 .login-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 9999999;
-    display: none;
+    position: relative;
+    display: flex;
     align-items: center;
     justify-content: center;
-    background: #0b1120;
+    background: #f3f4f6;
     animation: fadeIn 0.4s ease;
-    backdrop-filter: blur(2px);
-}
-.login-overlay.active {
-    display: flex;
 }
 
 .login-box {
     position: relative;
     z-index: 1;
-    width: 420px;
+    width: 440px;
     max-width: 94%;
-    background: rgba(18, 26, 45, 0.92);
-    backdrop-filter: blur(16px);
-    border-radius: 24px;
-    padding: 40px 36px 36px;
-    text-align: left;
-    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    transition: 0.3s ease;
-    max-height: 95vh;
-    overflow-y: auto;
+    background: #ffffff;
+    border-radius: 20px;
+    padding: 40px 40px 32px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(0, 0, 0, 0.04);
 }
+
 .login-box .login-header {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 14px;
     margin-bottom: 24px;
 }
-.login-box .login-header .brand-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 14px;
-    background: var(--accent-light);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 1.4rem;
-    flex-shrink: 0;
-    box-shadow: 0 8px 24px rgba(8, 145, 178, 0.25);
+.auth-logo {
+    max-width: 140px;
+    width: 100%;
+    height: auto;
+    margin-bottom: 16px;
+    display: block;
 }
 .login-box .login-header .brand-text h2 {
-    font-size: 1.3rem;
+    font-size: 1.4rem;
     font-weight: 800;
-    color: white;
-    letter-spacing: -0.3px;
-    margin: 0;
-    line-height: 1.2;
+    color: #111827;
+    margin: 0 0 6px;
+}
+.login-box .login-header .brand-text h2 span {
+    color: var(--accent-light, #0891b2);
 }
 .login-box .login-header .brand-text p {
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.5);
-    font-weight: 500;
+    font-size: 0.8rem;
+    color: #6b7280;
     margin: 0;
-    letter-spacing: 0.3px;
+    line-height: 1.5;
 }
 
 .login-box .form-group {
-    margin-bottom: 14px;
+    margin-bottom: 16px;
+    text-align: left;
 }
 .login-box .form-group label {
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.6);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    color: #374151;
     display: block;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
+}
+.login-box .form-group .input-wrap {
+    position: relative;
 }
 .login-box .form-group input,
 .login-box .form-group select {
     width: 100%;
-    padding: 10px 14px;
+    padding: 11px 14px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    font-size: 0.85rem;
+    border: 1px solid #e5e7eb;
+    font-size: 0.9rem;
     font-family: inherit;
-    transition: var(--transition);
+    transition: var(--transition, 0.2s ease);
     outline: none;
-    background: rgba(255, 255, 255, 0.04);
-    color: white;
+    background: #fff;
+    color: #111827;
 }
 .login-box .form-group input:focus,
 .login-box .form-group select:focus {
-    border-color: var(--accent-light);
-    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
-    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--accent-light, #0891b2);
+    box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.1);
 }
 .login-box .form-group input::placeholder {
-    color: rgba(255, 255, 255, 0.3);
+    color: #9ca3af;
 }
-.login-box .form-group select option {
-    color: #111;
+.login-box .form-group .toggle-password {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #9ca3af;
+    cursor: pointer;
+    font-size: 0.9rem;
 }
 
 .login-box .form-options {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 18px;
+    margin-bottom: 20px;
 }
 .login-box .form-options label {
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.8rem;
+    color: #6b7280;
     display: flex;
     align-items: center;
     gap: 6px;
     cursor: pointer;
 }
 .login-box .form-options label input[type="checkbox"] {
-    accent-color: var(--accent);
-    width: 16px;
-    height: 16px;
+    accent-color: var(--accent-light, #0891b2);
+    width: 15px;
+    height: 15px;
     cursor: pointer;
 }
 .login-box .form-options a {
-    font-size: 0.75rem;
-    color: var(--accent-light);
-    text-decoration: none;
-    font-weight: 600;
-    transition: var(--transition);
-    cursor: pointer;
+    font-size: 0.8rem;
+    color: #111827;
+    text-decoration: underline;
+    font-weight: 500;
 }
 .login-box .form-options a:hover {
-    color: white;
+    color: var(--accent-light, #0891b2);
 }
 
 .login-box .btn-login {
     width: 100%;
-    padding: 12px;
-    border-radius: 12px;
-    background: var(--accent-light);
+    padding: 13px;
+    border-radius: 10px;
+    background: #2563eb;
     color: white;
     font-weight: 700;
     font-size: 0.9rem;
     border: none;
     cursor: pointer;
-    transition: var(--transition);
+    transition: var(--transition, 0.2s ease);
     font-family: inherit;
-    margin-top: 4px;
-    box-shadow: 0 4px 20px rgba(8, 145, 178, 0.2);
 }
 .login-box .btn-login:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 32px rgba(8, 145, 178, 0.35);
-    background: var(--accent-light);
+    background: #1d4ed8;
 }
 .login-box .btn-login:disabled {
     opacity: 0.6;
     cursor: not-allowed;
-    transform: none !important;
-}
-
-.login-box .divider {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    margin: 18px 0 16px;
-    color: rgba(255, 255, 255, 0.2);
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-.login-box .divider::before,
-.login-box .divider::after {
-    content: "";
-    flex: 1;
-    height: 1px;
-    background: rgba(255, 255, 255, 0.06);
-}
-
-.login-box .btn-google {
-    width: 100%;
-    padding: 10px;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: white;
-    font-weight: 600;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: var(--transition);
-    font-family: inherit;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-}
-.login-box .btn-google:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.15);
-}
-.login-box .btn-google i {
-    color: #ea4335;
-    font-size: 1.1rem;
 }
 
 .login-box .login-error {
-    color: var(--danger);
+    color: #dc2626;
     font-size: 0.8rem;
     font-weight: 600;
-    margin-top: 10px;
+    margin-top: 12px;
     display: none;
     text-align: center;
-    background: rgba(239, 68, 68, 0.08);
+    background: rgba(220, 38, 38, 0.08);
     padding: 8px 12px;
     border-radius: 8px;
-    border: 1px solid rgba(239, 68, 68, 0.1);
 }
 .login-box .login-error.show {
     display: block;
 }
 
 .login-box .login-footer {
-    margin-top: 16px;
+    margin-top: 20px;
     text-align: center;
-    font-size: 0.7rem;
-    color: rgba(255, 255, 255, 0.3);
+    font-size: 0.85rem;
+    color: #6b7280;
 }
 .login-box .login-footer a {
-    color: var(--accent-light);
+    color: #2563eb;
     font-weight: 600;
-    cursor: pointer;
-    transition: var(--transition);
 }
 .login-box .login-footer a:hover {
-    color: white;
+    text-decoration: underline;
 }
 
-.login-box .close-login {
-    position: absolute;
-    top: 14px;
-    right: 18px;
-    background: none;
-    border: none;
-    font-size: 1.2rem;
-    color: rgba(255, 255, 255, 0.3);
-    cursor: pointer;
-    transition: var(--transition);
-    font-family: inherit;
-}
-.login-box .close-login:hover {
-    color: white;
-    transform: rotate(90deg);
-}
-.login-box .tab-buttons {
-    display: flex;
-    gap: 4px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 12px;
-    padding: 4px;
-    margin-bottom: 20px;
-}
-.login-box .tab-buttons button,
-.login-box .tab-buttons a {
-    flex: 1;
-    padding: 8px;
-    border: none;
-    border-radius: 10px;
-    background: transparent;
-    color: rgba(255, 255, 255, 0.5);
-    font-weight: 600;
-    font-size: 0.8rem;
-    cursor: pointer;
-    transition: var(--transition);
-    font-family: inherit;
-    text-decoration: none;
-    text-align: center;
-}
-.login-box .tab-buttons button.active,
-.login-box .tab-buttons a.active {
-    background: rgba(255, 255, 255, 0.08);
-    color: white;
-}
-.login-box .tab-buttons button:hover:not(.active),
-.login-box .tab-buttons a:hover:not(.active) {
-    color: rgba(255, 255, 255, 0.8);
-}
-.login-box .tab-content {
-    display: none;
-}
-.login-box .tab-content.active {
-    display: block;
-}
-
-/* Shown instead of the sign-in form while polling for email confirmation - see
-   templates/auth/login.html. */
+/* Waiting-for-email-confirmation screen (unchanged behavior, restyled) */
 .login-box .login-waiting {
     text-align: center;
     padding: 12px 0 4px;
 }
 .login-box .login-waiting-spinner {
     font-size: 2rem;
-    color: var(--accent);
+    color: var(--accent-light, #0891b2);
     margin-bottom: 14px;
 }
 .login-box .login-waiting h3 {
     font-size: 1rem;
     font-weight: 700;
-    color: var(--text);
+    color: #111827;
     margin-bottom: 8px;
 }
 .login-box .login-waiting p {
     font-size: 0.85rem;
-    color: var(--text-light);
+    color: #6b7280;
     line-height: 1.6;
     margin-bottom: 18px;
 }
 .login-box .login-waiting .btn-outline {
-    background: var(--surface);
-    border: 1px solid var(--border);
+    background: #fff;
+    border: 1px solid #e5e7eb;
     padding: 8px 22px;
     border-radius: 99px;
     font-weight: 600;
     font-size: 0.85rem;
     cursor: pointer;
-    transition: var(--transition);
-    font-family: inherit;
-    color: var(--text-soft);
+    color: #374151;
 }
 .login-box .login-waiting .btn-outline:hover {
-    border-color: var(--text-soft);
-    background: var(--bg);
+    border-color: #9ca3af;
+    background: #f9fafb;
 }
 
-@media (max-width: 480px) {
-    .login-box {
-        padding: 24px 16px 20px;
-        border-radius: 18px;
-    }
-    .login-box .login-header .brand-icon {
-        width: 36px;
-        height: 36px;
-        font-size: 1rem;
-    }
-    .login-box .login-header .brand-text h2 {
-        font-size: 1rem;
-    }
-    .login-box .form-group input {
-        padding: 8px 12px;
-        font-size: 0.8rem;
-    }
-    .login-box .btn-login {
-        padding: 10px;
-        font-size: 0.85rem;
-    }
-}

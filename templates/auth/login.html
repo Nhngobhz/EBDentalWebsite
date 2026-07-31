@@ -6,10 +6,10 @@
 <div class="login-overlay active" style="position: relative; inset: auto; min-height: 70vh; padding: 40px 0;">
     <div class="login-box">
         <div class="login-header">
-            <div class="brand-icon"><i class="fas fa-tooth"></i></div>
+            <img src="{{ url_for('static', filename='images/machinery-logo.png') }}" alt="EB Dental Supply" class="auth-logo" />
             <div class="brand-text">
-                <h2>EB Dental Account</h2>
-                <p>Sign in to access your dashboard</p>
+                <h2>Welcome back to <span>EB Dental Supply</span></h2>
+                <p>Sign in with your email and password, or create an account if you don't have one yet.</p>
             </div>
         </div>
 
@@ -26,10 +26,16 @@
                 </div>
                 <div class="form-group">
                     <label for="loginPasswordInput">Password</label>
-                    <input type="password" id="loginPasswordInput" name="password" placeholder="Enter your password" required />
+                    <div class="input-wrap">
+                        <input type="password" id="loginPasswordInput" name="password" placeholder="Enter your password" required />
+                        <button type="button" class="toggle-password" id="togglePasswordBtn"><i class="fas fa-eye"></i></button>
+                    </div>
                 </div>
+                <div style="text-align: right; margin-bottom: 16px;">
+                <a href="{{ url_for('auth.forgot_password') }}" style="font-size: 0.8rem; color: #2563eb; font-weight: 500; text-decoration: none;">Forgot password?</a>
+            </div>
                 <div id="loginErrorMsg" class="login-error"></div>
-                <button type="submit" class="btn-login" id="loginBtn"><i class="fas fa-lock"></i> Sign In</button>
+                <button type="submit" class="btn-login" id="loginBtn"></i> Login now</button>
             </form>
             <div class="login-footer">
                 <span>Don't have an account? <a href="{{ url_for('auth.register') }}">Register here</a></span>
@@ -67,8 +73,6 @@
     }
 
     function onLoginSuccess(data) {
-        // Same keys QuoteCart uses in main.js - a fresh login should never inherit
-        // whatever was left in the cart by a previous visitor/session on this browser.
         localStorage.removeItem('eb_quote_cart');
         localStorage.removeItem('eb_quote_customer_info');
         localStorage.removeItem('eb_quote_discount_type');
@@ -93,9 +97,6 @@
                 return;
             }
             if (data.reason === 'unverified') {
-                // The waiting-for-confirmation screen now only lives on the register
-                // page (right after signup) - someone landing here with an
-                // unconfirmed account just gets told to go confirm it.
                 showError(data.detail || 'Please confirm your email address before logging in.');
             } else {
                 showError(data.detail || 'Incorrect email or password.');
@@ -104,8 +105,16 @@
             showError('Could not reach the server. Please check your connection and try again.');
         } finally {
             loginBtn.disabled = false;
-            loginBtn.innerHTML = '<i class="fas fa-lock"></i> Sign In';
+            loginBtn.innerHTML = '<i class="fas fa-lock"></i> Login now';
         }
+    });
+
+    document.getElementById('togglePasswordBtn')?.addEventListener('click', () => {
+        const pwInput = document.getElementById('loginPasswordInput');
+        const icon = document.querySelector('#togglePasswordBtn i');
+        const isHidden = pwInput.type === 'password';
+        pwInput.type = isHidden ? 'text' : 'password';
+        icon.className = isHidden ? 'fas fa-eye-slash' : 'fas fa-eye';
     });
 })();
 </script>

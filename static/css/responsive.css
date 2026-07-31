@@ -432,3 +432,64 @@
         font-size: 0.75rem;
     }
 }
+
+/* ============================================================
+   AUTH — Login / Register responsive
+   ============================================================ */
+@media (max-width: 600px) {
+    .login-overlay {
+        padding: 24px 0 !important;
+        min-height: auto !important;
+    }
+
+    .login-box {
+        width: 100%;
+        padding: 32px 24px 26px;
+        border-radius: 16px;
+    }
+
+    .login-box .login-header .brand-icon {
+        width: 46px;
+        height: 46px;
+        font-size: 1.2rem;
+        border-radius: 14px;
+    }
+
+    .login-box .login-header .brand-text h2 {
+        font-size: 1.2rem;
+    }
+
+    .login-box .login-header .brand-text p {
+        font-size: 0.75rem;
+    }
+
+    .login-box .form-group input {
+        padding: 10px 12px;
+        font-size: 0.85rem;
+    }
+
+    .login-box .btn-login {
+        padding: 12px;
+        font-size: 0.85rem;
+    }
+
+    .login-box .tab-buttons a {
+        font-size: 0.75rem;
+        padding: 7px;
+    }
+
+    .login-box .form-options {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+}
+
+@media (max-width: 400px) {
+    .login-box {
+        padding: 26px 18px 22px;
+    }
+
+    .login-box .login-header .brand-text h2 {
+        font-size: 1.05rem;
+    }
+}
