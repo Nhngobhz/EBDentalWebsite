@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Profile{% endblock %}
+
+{% block content %}
+<div class="login-overlay active" style="position: relative; inset: auto; min-height: 70vh; padding: 40px 0;">
+    <div class="edit-profile-card">
+        <div class="edit-profile-topbar">
+            <a href="{{ url_for('auth.profile') }}" class="edit-profile-back"><i class="fas fa-arrow-left"></i></a>
+            <h2>Edit Profile</h2>
+            <span style="width:32px;"></span>
+        </div>
+
+        <div class="edit-profile-avatar-wrap">
+            <img src="{{ img(me.user_image if is_staff() else me.customer_image) or url_for('static', filename='images/eb-logo.png') }}"
+                 alt="Profile" class="edit-profile-avatar" id="profileAvatarPreview" />
+            <label for="profileImageInput" class="edit-profile-avatar-badge">
+                <i class="fas fa-camera"></i>
+            </label>
+        </div>
+        <form id="profileImageForm" method="post" action="{{ url_for('auth.profile_image') }}" enctype="multipart/form-data" style="display:none;">
+            <input type="file" id="profileImageInput" name="image" accept="image/*" />
+        </form>
+
+        <div class="edit-profile-name">
+            <h3>{{ me.user_name if is_staff() else me.customer_name }}</h3>
+            <p>{{ "Staff account" if is_staff() else "Customer account" }}</p>
+        </div>
+
+        <hr />
+
+        <form method="post" action="{{ url_for('auth.profile_edit') }}">
+            <div class="edit-profile-field">
+                <label>Full name</label>
+                <input type="text" name="name" value="{{ me.user_name if is_staff() else me.customer_name }}" required />
+            </div>
+
+            <div class="edit-profile-row">
+                <div class="edit-profile-field">
+                    <label>Gender <span class="soon-tag">Coming soon</span></label>
+                    <input type="text" placeholder="Not available yet" disabled />
+                </div>
+                <div class="edit-profile-field">
+                    <label>Birthday <span class="soon-tag">Coming soon</span></label>
+                    <input type="text" placeholder="Not available yet" disabled />
+                </div>
+            </div>
+
+            <div class="edit-profile-field">
+                <label>Phone number</label>
+                <input type="tel" name="phone" value="{{ me.phone_num or '' }}" />
+            </div>
+
+            <div class="edit-profile-field">
+                <label>Email</label>
+                <input type="email" name="email" value="{{ me.email }}" required />
+            </div>
+
+            <div class="edit-profile-field">
+                <label>Address</label>
+                <input type="text" name="address" value="{{ me.address or '' }}" />
+            </div>
+
+            <div class="edit-profile-field">
+                <label>Username <span class="soon-tag">Coming soon</span></label>
+                <input type="text" placeholder="Not available yet" disabled />
+            </div>
+
+            <button type="submit" class="edit-profile-save-btn">Save</button>
+        </form>
+    </div>
+</div>
+
+<script>
+document.getElementById('profileImageInput')?.addEventListener('change', function () {
+    if (this.files && this.files[0]) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('profileAvatarPreview').src = e.target.result;
+        };
+        reader.readAsDataURL(this.files[0]);
+        document.getElementById('profileImageForm').submit();
+    }
+});
+</script>
+{% endblock %}

@@ -1,6 +1,196 @@
 /* ============================================================
    AUTH — Login / register (light card style)
    ============================================================ */
+
+/* ============================================================
+   EDIT PROFILE (matches reference: rounded card, avatar+camera
+   badge, black save button)
+   ============================================================ */
+.edit-profile-card {
+    width: 440px;
+    max-width: 94%;
+    margin: 0 auto;
+    background: #ffffff;
+    border-radius: 24px;
+    padding: 24px 28px 32px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.edit-profile-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+.edit-profile-topbar h2 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #111827;
+}
+.edit-profile-back {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #f3f4f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #111827;
+}
+
+.edit-profile-avatar-wrap {
+    position: relative;
+    width: 88px;
+    height: 88px;
+    margin: 0 auto 12px;
+}
+.edit-profile-avatar {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #e5e7eb;
+}
+.edit-profile-avatar-badge {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #111827;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    cursor: pointer;
+    border: 2px solid #fff;
+}
+
+.edit-profile-name {
+    text-align: center;
+    margin-bottom: 20px;
+}
+.edit-profile-name h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #111827;
+}
+.edit-profile-name p {
+    font-size: 0.8rem;
+    color: #9ca3af;
+}
+
+.edit-profile-field {
+    margin-bottom: 14px;
+    flex: 1;
+}
+.edit-profile-field label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #9ca3af;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+.edit-profile-field input {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #111827;
+    outline: none;
+    font-family: inherit;
+}
+.edit-profile-field input:focus {
+    border-color: #111827;
+}
+.edit-profile-field input:disabled {
+    background: #f9fafb;
+    color: #d1d5db;
+    cursor: not-allowed;
+}
+.edit-profile-row {
+    display: flex;
+    gap: 12px;
+}
+.soon-tag {
+    background: #f3f4f6;
+    color: #9ca3af;
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 99px;
+    text-transform: uppercase;
+}
+
+.edit-profile-save-btn {
+    width: 100%;
+    padding: 13px;
+    border-radius: 14px;
+    background: #111827;
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.9rem;
+    border: none;
+    cursor: pointer;
+    margin-top: 6px;
+    font-family: inherit;
+}
+.edit-profile-save-btn:hover {
+    background: #1f2937;
+}
+.edit-profile-save-btn.secondary {
+    background: #fff;
+    color: #111827;
+    border: 1px solid #e5e7eb;
+}
+.edit-profile-save-btn.secondary:hover {
+    background: #f9fafb;
+}
+
+.edit-profile-password-section h4 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 14px;
+}
+
+@media (max-width: 480px) {
+    .edit-profile-card {
+        padding: 20px 20px 26px;
+        border-radius: 18px;
+    }
+    .edit-profile-row {
+        flex-direction: column;
+        gap: 0;
+    }
+}
+
+.profile-view-field {
+    margin-bottom: 14px;
+    text-align: left;
+}
+.profile-view-field label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #9ca3af;
+    display: block;
+    margin-bottom: 2px;
+}
+.profile-view-value {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #111827;
+    padding: 8px 0;
+    border-bottom: 1px solid #f3f4f6;
+}
+
 .login-box .tab-buttons {
     display: flex;
     gap: 4px;
@@ -56,6 +246,7 @@
     align-items: center;
     margin-bottom: 24px;
 }
+
 .auth-logo {
     max-width: 140px;
     width: 100%;

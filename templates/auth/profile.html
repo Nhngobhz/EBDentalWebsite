@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}My Profile{% endblock %}
+
+{% block content %}
+<div class="login-overlay active" style="position: relative; inset: auto; min-height: 70vh; padding: 40px 0;">
+    <div class="edit-profile-card">
+        <div class="edit-profile-topbar">
+    <a href="{{ url_for('main.landing') }}" class="edit-profile-back"><i class="fas fa-arrow-left"></i></a>
+    <h2>My Profile</h2>
+    <a href="{{ url_for('auth.logout') }}" class="edit-profile-back" title="Log out"
+       onclick="localStorage.removeItem('eb_quote_cart'); localStorage.removeItem('eb_quote_customer_info'); localStorage.removeItem('eb_quote_discount_type'); localStorage.removeItem('eb_quote_discount_value');">
+        <i class="fas fa-right-from-bracket"></i>
+    </a>
+</div>
+
+        <div class="edit-profile-avatar-wrap">
+            <img src="{{ img(me.user_image if is_staff() else me.customer_image) or url_for('static', filename='images/eb-logo.png') }}"
+                 alt="Profile" class="edit-profile-avatar" />
+        </div>
+
+        <div class="edit-profile-name">
+            <h3>{{ me.user_name if is_staff() else me.customer_name }}</h3>
+            <p>{{ "Staff account" if is_staff() else "Customer account" }}</p>
+        </div>
+
+        <hr />
+
+        <div class="profile-view-field">
+            <label>Full name</label>
+            <div class="profile-view-value">{{ me.user_name if is_staff() else me.customer_name }}</div>
+        </div>
+        <div class="profile-view-field">
+            <label>Phone number</label>
+            <div class="profile-view-value">{{ me.phone_num or "—" }}</div>
+        </div>
+        <div class="profile-view-field">
+            <label>Email</label>
+            <div class="profile-view-value">{{ me.email }}</div>
+        </div>
+        <div class="profile-view-field">
+            <label>Address</label>
+            <div class="profile-view-value">{{ me.address or "—" }}</div>
+        </div>
+        {% if is_staff() %}
+        <div class="profile-view-field">
+            <label>Role</label>
+            <div class="profile-view-value">{{ me.role_title or "—" }}</div>
+        </div>
+        {% endif %}
+
+        <a href="{{ url_for('auth.profile_edit') }}" class="edit-profile-save-btn" style="display:block; text-align:center; text-decoration:none; margin-top:20px;">
+            <i class="fas fa-pen"></i> Edit Profile
+        </a>
+
+        <button type="button" class="edit-profile-save-btn secondary" id="togglePasswordSection" style="margin-top:10px;">
+            <i class="fas fa-key"></i> Change Password
+        </button>
+
+        <div id="passwordSection" style="display:none; margin-top:20px;">
+            <hr />
+            <form method="post" action="{{ url_for('auth.change_password') }}">
+                <div class="edit-profile-field">
+                    <label>Current Password</label>
+                    <input type="password" name="current_password" required />
+                </div>
+                <div class="edit-profile-field">
+                    <label>New Password</label>
+                    <input type="password" name="new_password" required />
+                </div>
+                <div class="edit-profile-field">
+                    <label>Confirm New Password</label>
+                    <input type="password" name="confirm_password" required />
+                </div>
+                <button type="submit" class="edit-profile-save-btn">Update Password</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('togglePasswordSection')?.addEventListener('click', function () {
+    const section = document.getElementById('passwordSection');
+    const isHidden = section.style.display === 'none';
+    section.style.display = isHidden ? 'block' : 'none';
+    this.innerHTML = isHidden
+        ? '<i class="fas fa-chevron-up"></i> Hide Password Form'
+        : '<i class="fas fa-key"></i> Change Password';
+});
+</script>
+{% endblock %}

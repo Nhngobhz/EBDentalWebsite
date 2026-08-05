@@ -1,5 +1,5 @@
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
-
+from auth import account_type, current_account, is_staff, login_required
 from store_api import StoreAPIError, get_api_client
 
 auth_bp = Blueprint("auth", __name__)
@@ -16,6 +16,7 @@ def _build_session_account(account_type, user=None, customer=None):
             "name": user["user_name"],
             "email": user["email"],
             "role_title": user["role_title"],
+            "image": user.get("user_image"),
             "permissions": {
                 "user_management": user["user_management"],
                 "price_listing": user["price_listing"],
@@ -27,6 +28,7 @@ def _build_session_account(account_type, user=None, customer=None):
         "id": customer["id"],
         "name": customer["customer_name"],
         "email": customer["email"],
+        "image": customer.get("customer_image"),
         "access_permission": customer["access_permission"],
     }
 
@@ -152,3 +154,109 @@ def logout():
     flash("You've been logged out.", "success")
     return redirect(url_for("main.home"))
 
+@auth_bp.route("/profile", methods=["GET"])
+@login_required
+def profile():
+    client = get_api_client()
+    me_path = "/users/me" if is_staff() else "/customers/me"
+    try:
+        me = client.get(me_path)
+    except StoreAPIError as e:
+        flash(e.detail, "error")
+        me = current_account()
+    return render_template("auth/profile.html", me=me)
+
+
+@auth_bp.route("/profile/edit", methods=["GET", "POST"])
+@login_required
+def profile_edit():
+    client = get_api_client()
+    me_path = "/users/me" if is_staff() else "/customers/me"
+
+    if request.method == "POST":
+        if account_type() == "user":
+            payload = {
+                "user_name": request.form.get("name", "").strip(),
+                "email": request.form.get("email", "").strip(),
+                "phone_num": request.form.get("phone", "").strip() or None,
+                "address": request.form.get("address", "").strip() or None,
+            }
+        else:
+            payload = {
+                "customer_name": request.form.get("name", "").strip(),
+                "email": request.form.get("email", "").strip(),
+                "phone_num": request.form.get("phone", "").strip() or None,
+                "address": request.form.get("address", "").strip() or None,
+            }
+        try:
+            updated = client.put_json(me_path, payload)
+        except StoreAPIError as e:
+            flash(e.detail, "error")
+            return redirect(url_for("auth.profile_edit"))
+
+        if account_type() == "user":
+            session["account"]["name"] = updated["user_name"]
+            session["account"]["email"] = updated["email"]
+        else:
+            session["account"]["name"] = updated["customer_name"]
+            session["account"]["email"] = updated["email"]
+        session.modified = True
+
+        flash("Profile updated successfully. If you changed your email, check your inbox to confirm it.", "success")
+        return redirect(url_for("auth.profile"))
+
+    try:
+        me = client.get(me_path)
+    except StoreAPIError as e:
+        flash(e.detail, "error")
+        me = current_account()
+
+    return render_template("auth/profile_edit.html", me=me)
+
+
+@auth_bp.route("/profile/password", methods=["POST"])
+@login_required
+def change_password():
+    current_password = request.form.get("current_password", "")
+    new_password = request.form.get("new_password", "")
+    confirm_password = request.form.get("confirm_password", "")
+
+    if not current_password or not new_password:
+        flash("Please fill in all password fields.", "error")
+        return redirect(url_for("auth.profile"))
+    if new_password != confirm_password:
+        flash("New password and confirmation do not match.", "error")
+        return redirect(url_for("auth.profile"))
+
+    path = "/users/me/change-password" if account_type() == "user" else "/customers/me/change-password"
+    client = get_api_client()
+    try:
+        client.post_json(path, {"current_password": current_password, "new_password": new_password})
+    except StoreAPIError as e:
+        flash(e.detail, "error")
+        return redirect(url_for("auth.profile"))
+
+    flash("Password updated successfully.", "success")
+    return redirect(url_for("auth.profile"))
+
+@auth_bp.route("/profile/image", methods=["POST"])
+@login_required
+def profile_image():
+    file = request.files.get("image")
+    if not file or file.filename == "":
+        flash("Please choose an image to upload.", "error")
+        return redirect(url_for("auth.profile"))
+
+    path = "/users/me/image" if is_staff() else "/customers/me/image"
+    client = get_api_client()
+    try:
+        updated = client.post_form(path, files={"file": (file.filename, file.stream, file.mimetype)})
+    except StoreAPIError as e:
+        flash(e.detail, "error")
+        return redirect(url_for("auth.profile"))
+
+    session["account"]["image"] = updated.get("user_image") if is_staff() else updated.get("customer_image")
+    session.modified = True
+
+    flash("Profile picture updated.", "success")
+    return redirect(url_for("auth.profile_edit"))

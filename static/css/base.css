@@ -1181,3 +1181,11 @@ table.qpt-table td.qpt-right { text-align: right; }
 .btn-outline:active {
     transform: translateY(0) scale(0.97);
 }
+
+.header-avatar-img {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    object-fit: cover;
+    display: block;
+}
