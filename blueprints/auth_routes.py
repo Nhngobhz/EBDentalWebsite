@@ -1,10 +1,35 @@
 from datetime import date
+from urllib.parse import urlparse
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 from auth import account_type, current_account, is_staff, login_required
 from store_api import StoreAPIError, get_api_client
 
 auth_bp = Blueprint("auth", __name__)
+
+
+def _safe_next_url(candidate):
+    """The `?next=` destination, but only if it points back into this site.
+
+    `next` is attacker-supplied: it survives in the URL of any link ("log in to
+    see prices") that can be sent to someone. Handing it to redirect() unchecked
+    is an open redirect - `/login?next=https://evil.example/login` sends a user
+    who just signed in to a convincing copy of this site. Worse here, the
+    JSON-mode logins hand it to `window.location.href` in login.html /
+    register.html / google_signin.html, so a `javascript:` value would execute in
+    the page that already holds the freshly-authenticated session.
+
+    Only a plain path on this origin is allowed: no scheme, no host, and no
+    protocol-relative "//evil.example" (which a bare startswith("/") check would
+    happily accept). Anything else falls back to the normal landing page."""
+    if not candidate:
+        return None
+    parsed = urlparse(candidate)
+    if parsed.scheme or parsed.netloc:
+        return None
+    if not candidate.startswith("/") or candidate.startswith("//"):
+        return None
+    return candidate
 
 
 def _wants_json():
@@ -47,7 +72,7 @@ def _establish_session(result):
     )
     flash(f"Welcome back, {session['account']['name']}!", "success")
 
-    next_url = request.args.get("next")
+    next_url = _safe_next_url(request.args.get("next"))
     if next_url:
         return next_url
     if result["account_type"] == "user":

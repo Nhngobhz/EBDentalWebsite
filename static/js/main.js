@@ -631,6 +631,9 @@ const QuoteCart = {
     },
 
     // ---- render item rows (called on open / add / remove — full rebuild) ----
+    // Every server-supplied string below goes through ebEscapeHtml(): these rows are
+    // built as an HTML string and assigned to innerHTML, so a product/promotion name
+    // containing markup would otherwise be parsed as markup.
     render() {
         this.renderInfoForm();
         this.updateSummary();
@@ -654,13 +657,13 @@ const QuoteCart = {
         }
 
         itemsEl.innerHTML = items.map(item => `
-            <div class="quote-item" data-id="${item.id}" data-kind="${item.kind}">
-                <img src="${item.image || 'https://images.unsplash.com/photo-1587825140708-dfaf72ae4b04?w=100&h=100&fit=crop&auto=format'}" alt="${item.name}">
+            <div class="quote-item" data-id="${item.id}" data-kind="${ebEscapeHtml(item.kind)}">
+                <img src="${ebEscapeHtml(item.image || 'https://images.unsplash.com/photo-1587825140708-dfaf72ae4b04?w=100&h=100&fit=crop&auto=format')}" alt="${ebEscapeHtml(item.name)}">
                 <div class="quote-item-info">
-                    <div class="quote-item-name">${item.name}</div>
+                    <div class="quote-item-name">${ebEscapeHtml(item.name)}</div>
                     <div class="quote-item-fixed-meta">
-                        <span>${item.code || (item.kind === 'promotion' ? 'Promo' : item.kind === 'set' ? 'Set' : '—')}</span>
-                        <span>${item.uom || (item.kind === 'product' ? 'PCS' : '')}</span>
+                        <span>${ebEscapeHtml(item.code || (item.kind === 'promotion' ? 'Promo' : item.kind === 'set' ? 'Set' : '—'))}</span>
+                        <span>${ebEscapeHtml(item.uom || (item.kind === 'product' ? 'PCS' : ''))}</span>
                         <span>$${item.price.toFixed(2)} ea</span>
                         <span>${formatItemDiscount(item.discount, item.discountType) || 'No discount'}</span>
                     </div>
@@ -709,6 +712,12 @@ const QuoteCart = {
         return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
     },
 
+    // NOTE: this builds an HTML string and assigns it to innerHTML, and most of
+    // the `order` fields it interpolates are free text the CUSTOMER typed into the
+    // checkout form (clinic_name, address, contact_person, phone, terms). They all
+    // go through ebEscapeHtml() - without it, a customer could place an order whose
+    // clinic name is markup, and it would execute in a staff member's session the
+    // moment they hit Print on the admin Orders page.
     buildPrintTemplate(order) {
         // A paid KHQR order prints as a Receipt; everything else (staff quote,
         // customer cash quote, unpaid order) stays a Quotation. Mirrored by
@@ -745,10 +754,10 @@ const QuoteCart = {
                 return `
             <tr class="qpt-component-row">
                 <td class="qpt-num"></td>
-                <td>${item.product_code || ''}</td>
-                <td class="qpt-component-name">• ${item.product_name}</td>
+                <td>${ebEscapeHtml(item.product_code || '')}</td>
+                <td class="qpt-component-name">• ${ebEscapeHtml(item.product_name)}</td>
                 <td class="qpt-num">${item.qty}</td>
-                <td class="qpt-num">${item.uom || 'PCS'}</td>
+                <td class="qpt-num">${ebEscapeHtml(item.uom || 'PCS')}</td>
                 <td class="qpt-right">$ 0.00</td>
                 <td class="qpt-num">—</td>
                 <td class="qpt-right">$ 0.00</td>
@@ -758,10 +767,10 @@ const QuoteCart = {
             return `
             <tr>
                 <td class="qpt-num">${lineNo}</td>
-                <td>${item.product_code || '—'}</td>
-                <td>${item.product_name}</td>
+                <td>${ebEscapeHtml(item.product_code || '—')}</td>
+                <td>${ebEscapeHtml(item.product_name)}</td>
                 <td class="qpt-num">${item.qty}</td>
-                <td class="qpt-num">${item.uom || 'PCS'}</td>
+                <td class="qpt-num">${ebEscapeHtml(item.uom || 'PCS')}</td>
                 <td class="qpt-right">$ ${deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type).toFixed(2)}</td>
                 <td class="qpt-num">${printedItemDiscountText(item) || '—'}</td>
                 <td class="qpt-right">$ ${printedItemAmount(item).toFixed(2)}</td>
@@ -791,7 +800,7 @@ const QuoteCart = {
                 <div>
                     <div class="qpt-title">${docTitle}</div>
                     <div class="qpt-meta-right">
-                        No : <b>${order.order_number}</b><br>
+                        No : <b>${ebEscapeHtml(order.order_number)}</b><br>
                         Date: <b>${this._formatQuoteDate(order.created_at)}</b>
                     </div>
                 </div>
@@ -799,17 +808,17 @@ const QuoteCart = {
 
             <div class="qpt-info-block">
                 <div class="qpt-info-col">
-                    <div class="qpt-info-row"><span class="qpt-info-label">C. Code</span><span class="qpt-info-value">${order.quote_code || '—'}</span></div>
-                    <div class="qpt-info-row"><span class="qpt-info-label">Clinic</span><span class="qpt-info-value qpt-khmer">${order.clinic_name || '—'}</span></div>
-                    <div class="qpt-info-row"><span class="qpt-info-label">Contact Tel</span><span class="qpt-info-value">${order.phone || '—'}</span></div>
-                    <div class="qpt-info-row"><span class="qpt-info-label">Address</span><span class="qpt-info-value qpt-khmer">${order.address || '—'}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">C. Code</span><span class="qpt-info-value">${ebEscapeHtml(order.quote_code || '—')}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Clinic</span><span class="qpt-info-value qpt-khmer">${ebEscapeHtml(order.clinic_name || '—')}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Contact Tel</span><span class="qpt-info-value">${ebEscapeHtml(order.phone || '—')}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Address</span><span class="qpt-info-value qpt-khmer">${ebEscapeHtml(order.address || '—')}</span></div>
                 </div>
                 <div class="qpt-info-col">
-                    <div class="qpt-info-row"><span class="qpt-info-label">Payment Term</span><span class="qpt-info-value">${order.payment_term || 'COD'}</span></div>
-                    <div class="qpt-info-row"><span class="qpt-info-label">Salesperson</span><span class="qpt-info-value">${order.salesperson || '—'}</span></div>
-                    <div class="qpt-info-row"><span class="qpt-info-label">User</span><span class="qpt-info-value">${order.quoted_by_name || '—'}</span></div>
-                    <div class="qpt-info-row"><span class="qpt-info-label">Installation Term</span><span class="qpt-info-value">${order.install_term || 'Free within Phnom Penh'}</span></div>
-                    <div class="qpt-info-row"><span class="qpt-info-label">Contact Person</span><span class="qpt-info-value">${order.contact_person || '—'}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Payment Term</span><span class="qpt-info-value">${ebEscapeHtml(order.payment_term || 'COD')}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Salesperson</span><span class="qpt-info-value">${ebEscapeHtml(order.salesperson || '—')}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">User</span><span class="qpt-info-value">${ebEscapeHtml(order.quoted_by_name || '—')}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Installation Term</span><span class="qpt-info-value">${ebEscapeHtml(order.install_term || 'Free within Phnom Penh')}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Contact Person</span><span class="qpt-info-value">${ebEscapeHtml(order.contact_person || '—')}</span></div>
                 </div>
             </div>
 
@@ -1577,9 +1586,11 @@ const ebBundlePicker = {
     },
 };
 
-/* Product names are admin-entered free text and go into <option> markup
-   built as a string above - escaped so a stray quote or angle bracket in a
-   name can't break (or inject into) the dropdown. */
+/* Escape a value before interpolating it into any HTML string that will be
+   assigned to innerHTML. Used for everything that came from the server: product
+   and promotion names (admin-entered), and the clinic/address/contact fields on
+   an order (customer-entered, so genuinely untrusted). A function declaration on
+   purpose - it's hoisted, so callers earlier in this file can use it. */
 function ebEscapeHtml(text) {
     return String(text ?? '').replace(/[&<>"']/g, ch => (
         { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]

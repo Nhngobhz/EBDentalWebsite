@@ -65,6 +65,18 @@ follows.
   on every write (via `require_permission(...)`, see the other guide's
   section 2) and is what actually enforces anything. Never add a
   security check here that isn't *also* enforced by store-api.
+- **The post-login `?next=` destination goes through `_safe_next_url()`**
+  (`blueprints/auth_routes.py`) and nothing else may use it raw. `next` is
+  attacker-supplied - it survives in any link that can be sent to someone - and
+  `_establish_session()` feeds it both to `redirect()` and, for the JSON
+  logins, to `window.location.href` in the page. Only a plain same-site path
+  is accepted: absolute URLs, protocol-relative `//host`, and `javascript:`
+  are all dropped back to the default landing page.
+- **Session cookie flags are set in `create_app()`**: HttpOnly + SameSite=Lax
+  always, and Secure whenever `APP_ENV=production`. Secure is env-gated
+  because a Secure cookie is never sent over the local `http://127.0.0.1` dev
+  server - turning it on unconditionally makes local login look broken. The
+  same flag switches off the Werkzeug debugger in `python app.py`.
 - `login_required` / `staff_required` / `permission_required(*names)`
   (all in `auth.py`) are route decorators built on the same helpers.
   `admin_bp` (`blueprints/admin/__init__.py`) applies `staff_required` to
@@ -173,6 +185,16 @@ The matching template (`templates/admin/*.html`) always:
 - A live client-side search box filtering the table via a `data-search`
   attribute on each `<tr>`, matched against a lowercased search input
   (see `filter<Things>Table()` in each template's `extra_js`).
+
+**Escape anything from the server that you build into an HTML string.**
+Jinja auto-escapes and `|tojson` is safe, but the JS in these pages assembles
+markup by hand and assigns it to `innerHTML` - and `.textContent` is not an
+option for a whole table row. Wrap every interpolated server value in
+`ebEscapeHtml()` (`main.js`). This matters most where the text is
+*customer*-entered rather than admin-entered: the order fields
+(`clinic_name`, `address`, `contact_person`, phone, terms) rendered by
+`QuoteCart.buildPrintTemplate()` and the admin Orders modal come straight
+from a checkout form a stranger filled in.
 
 **Bundle contents pickers (added 2026-07-31)**: three admin modals let an
 admin say which products something contains - Promotion "Included
