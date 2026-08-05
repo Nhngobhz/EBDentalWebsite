@@ -120,6 +120,13 @@ class StoreAPIClient:
             data={"username": email, "password": password},
         )
 
+    def google_login(self, credential):
+        """POST /auth/google - `credential` is the ID token Google Identity Services
+        handed the browser. store-api verifies it against Google's public keys and
+        answers with the same shape as login(), signing in an existing staff/customer
+        account with that email or creating a customer for it."""
+        return self.post_json("/auth/google", {"credential": credential})
+
     def register_customer(self, payload):
         return self.post_json("/auth/customer/register", payload)
 

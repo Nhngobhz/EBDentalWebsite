@@ -71,6 +71,33 @@ follows.
   *every* route on the blueprint via `@admin_bp.before_request` - so an
   individual admin route only needs `@permission_required(...)` on top of
   that when store-api demands more than just "is staff".
+- **"Continue with Google"** (added 2026-08-05) is a second way into the
+  same session, not a second session model. `partials/google_signin.html`
+  (included by both `auth/login.html` and `auth/register.html`, and
+  rendering **nothing** unless `GOOGLE_CLIENT_ID` is configured) lets
+  Google Identity Services render its own button; the ID token it produces
+  is POSTed to `auth.google_login` (`/auth/google`), which forwards it to
+  store-api's `POST /auth/google` and stores the result exactly like a
+  password login. Both routes end in `_establish_session(result)` - the one
+  place that writes `token`/`account_type`/`account` and picks the
+  post-login redirect - so **anything that should happen on login goes
+  there, not in `login()`**. This side never verifies anything about the
+  Google token; it's store-api that decides whether to believe it (see the
+  other guide's 1.6, including why a Google account has no password here).
+  `GOOGLE_CLIENT_ID` must be set in **both** apps' `.env` (this one renders
+  the button, store-api verifies the token), and every origin the site is
+  served from has to be an Authorized JavaScript origin on that Google
+  credential or the button silently fails to render.
+- `/profile` and `/profile/edit` (`blueprints/auth_routes.py`) serve **both**
+  principal types from one pair of templates, switching on `is_staff()` to pick
+  `/users/me` vs `/customers/me` and to read `user_name`/`user_image` vs
+  `customer_name`/`customer_image`. Everything else on the form
+  (`email`, `phone_num`, `address`, `date_of_birth`, `gender`) exists on both
+  store-api tables under the same name and needs no branch - `role_title` is
+  currently the only staff-only field, and it's guarded with `is_staff()`.
+  Before surfacing a new profile field, check whether `users`, `customers`, or
+  both actually have it; adding a one-sided field unguarded renders an empty
+  row for the other principal type.
 - The three decorators fail in three deliberately different ways:
   `login_required` (storefront pages) flashes and redirects to `/login`;
   `staff_required` (the `/admin/*` gate) **`abort(404)`s** so the admin

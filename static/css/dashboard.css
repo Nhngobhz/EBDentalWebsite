@@ -58,6 +58,17 @@
     gap: 12px;
     flex-shrink: 0;
 }
+/* The brand block is an <a> back to the storefront - it keeps the same class
+   (and therefore the same layout), this just undoes link styling and adds a
+   hint that it's clickable. */
+a.sidebar-brand {
+    text-decoration: none;
+    color: inherit;
+    transition: var(--transition);
+}
+a.sidebar-brand:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
 .dashboard-sidebar .sidebar-brand .brand-icon {
     width: 40px;
     height: 40px;
@@ -237,6 +248,13 @@
     color: white;
     flex-shrink: 0;
 }
+/* Same circle, but holding the staffer's actual profile picture instead of
+   their initial (see partials/admin_sidebar.html). */
+.dashboard-sidebar .sidebar-footer .logout-section .user-info img.avatar-sm {
+    display: block;
+    object-fit: cover;
+    background: var(--accent);
+}
 .dashboard-sidebar .sidebar-footer .logout-section .user-info .user-name {
     font-size: 0.8rem;
     font-weight: 600;
@@ -330,6 +348,11 @@
     color: white;
     font-size: 0.8rem;
     font-weight: 700;
+}
+.dashboard-topbar .right .admin-info img.avatar {
+    display: block;
+    object-fit: cover;
+    flex-shrink: 0;
 }
 .dashboard-topbar .right .logout-btn {
     background: none;

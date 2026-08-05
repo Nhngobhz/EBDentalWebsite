@@ -1,3 +1,5 @@
+from datetime import date
+
 from flask import flash, redirect, render_template, request, url_for
 
 from auth import current_account, permission_required
@@ -17,7 +19,12 @@ def users():
         "active": sum(1 for u in user_list if u["is_active"]),
     }
     stats.update({perm: sum(1 for u in user_list if u.get(perm)) for perm in PERMISSION_FIELDS})
-    return render_template("admin/user_management.html", all_users=user_list, stats=stats)
+    return render_template(
+        "admin/user_management.html",
+        all_users=user_list,
+        stats=stats,
+        today=date.today().isoformat(),
+    )
 
 
 @admin_bp.route("/users/new", methods=["POST"])
@@ -37,6 +44,8 @@ def users_new():
         "role_title": request.form.get("role_title", "").strip() or "Staff",
         "address": request.form.get("address", "").strip() or None,
         "phone_num": request.form.get("phone_num", "").strip() or None,
+        "date_of_birth": request.form.get("date_of_birth", "").strip() or None,
+        "gender": request.form.get("gender", "").strip() or None,
     }
     for perm in PERMISSION_FIELDS:
         payload[perm] = request.form.get(perm) == "on"
@@ -60,6 +69,11 @@ def users_edit(user_id):
         value = request.form.get(field, "").strip()
         if value:
             payload[field] = value
+    # Unlike the fields above, these two are sent even when blank (as explicit
+    # nulls) so an admin can clear a wrong birthday/gender back to empty -
+    # store-api only writes the keys the payload actually contains.
+    for field in ("date_of_birth", "gender"):
+        payload[field] = request.form.get(field, "").strip() or None
     for perm in PERMISSION_FIELDS:
         payload[perm] = request.form.get(perm) == "on"
 

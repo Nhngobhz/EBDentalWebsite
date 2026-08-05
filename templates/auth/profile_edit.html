@@ -37,12 +37,19 @@
 
             <div class="edit-profile-row">
                 <div class="edit-profile-field">
-                    <label>Gender <span class="soon-tag">Coming soon</span></label>
-                    <input type="text" placeholder="Not available yet" disabled />
+                    <label>Gender</label>
+                    <select name="gender">
+                        <option value="" {{ 'selected' if not me.gender }}>Prefer not to say</option>
+                        {% for value, label in [('male', 'Male'), ('female', 'Female'), ('other', 'Other')] %}
+                        <option value="{{ value }}" {{ 'selected' if me.gender == value }}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
                 <div class="edit-profile-field">
-                    <label>Birthday <span class="soon-tag">Coming soon</span></label>
-                    <input type="text" placeholder="Not available yet" disabled />
+                    <label>Birthday</label>
+                    {# store-api serializes date_of_birth as "YYYY-MM-DD", which is
+                       exactly what <input type="date"> expects - no reformatting. #}
+                    <input type="date" name="date_of_birth" value="{{ me.date_of_birth or '' }}" max="{{ today }}" />
                 </div>
             </div>
 

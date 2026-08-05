@@ -2,12 +2,15 @@
     <button type="button" class="sidebar-mobile-close" id="dashSidebarClose" aria-label="Close menu">
         <i class="fas fa-times"></i>
     </button>
-    <div class="sidebar-brand">
+    <!-- The logo doubles as the way back to the storefront (same tab). The
+         footer's arrow button still opens the site in a NEW tab, for when an
+         admin wants to keep the panel open. -->
+    <a class="sidebar-brand" href="{{ url_for('main.home') }}" title="Go to the store">
     <img src="{{ url_for('static', filename='images/eb-logo.png') }}" alt="EB Dental Supply" class="sidebar-logo" />
     <div class="brand-text">
         <small>Admin Panel</small>
     </div>
-    </div>
+    </a>
     <nav class="sidebar-nav">
 
         <div class="nav-group">
@@ -106,10 +109,18 @@
     <div class="sidebar-footer">
         <div class="logout-section">
             <div class="user-info">
-                <div class="avatar-sm">{{ current_account().name[0]|upper if current_account() else 'A' }}</div>
+                {# The signed-in staffer's own profile picture (uploaded on /profile,
+                   kept in the session by auth_routes._build_session_account), falling
+                   back to their initial when they haven't set one. #}
+                {% set account = current_account() %}
+                {% if account and account.image %}
+                <img src="{{ img(account.image) }}" alt="" class="avatar-sm" />
+                {% else %}
+                <div class="avatar-sm">{{ account.name[0]|upper if account else 'A' }}</div>
+                {% endif %}
                 <div>
-                    <div class="user-name">{{ current_account().name if current_account() else 'Administrator' }}</div>
-                    <div class="user-role">{{ current_account().role_title if current_account() else 'Admin' }}</div>
+                    <div class="user-name">{{ account.name if account else 'Administrator' }}</div>
+                    <div class="user-role">{{ account.role_title if account else 'Admin' }}</div>
                 </div>
             </div>
             <div style="display:flex; align-items:center; gap:2px;">

@@ -96,7 +96,8 @@
     gap: 6px;
     margin-bottom: 4px;
 }
-.edit-profile-field input {
+.edit-profile-field input,
+.edit-profile-field select {
     width: 100%;
     padding: 10px 14px;
     border-radius: 12px;
@@ -106,11 +107,17 @@
     color: #111827;
     outline: none;
     font-family: inherit;
+    background: #fff;
+    /* A <select> is 2px shorter than a text input at the same padding without
+       this, which shows up as a misaligned pair inside .edit-profile-row. */
+    height: 42px;
 }
-.edit-profile-field input:focus {
+.edit-profile-field input:focus,
+.edit-profile-field select:focus {
     border-color: #111827;
 }
-.edit-profile-field input:disabled {
+.edit-profile-field input:disabled,
+.edit-profile-field select:disabled {
     background: #f9fafb;
     color: #d1d5db;
     cursor: not-allowed;
@@ -381,6 +388,39 @@
 }
 .login-box .login-error.show {
     display: block;
+}
+
+/* "Continue with Google" block (partials/google_signin.html). Google renders its
+   own button inside .google-btn-host, so only the host box is styled here - the
+   button's own look is set via renderButton()'s options in that partial. */
+.login-box .auth-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 18px 0 14px;
+    color: #9ca3af;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+.login-box .auth-divider::before,
+.login-box .auth-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: #e5e7eb;
+}
+.login-box .google-btn-host {
+    display: flex;
+    justify-content: center;
+    min-height: 44px;
+}
+/* While the token is being exchanged for a session - mirrors the disabled state
+   the password button gets. */
+.login-box .google-auth.is-busy {
+    opacity: 0.6;
+    pointer-events: none;
 }
 
 .login-box .login-footer {

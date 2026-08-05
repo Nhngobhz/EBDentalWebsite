@@ -30,6 +30,16 @@
             <label>Full name</label>
             <div class="profile-view-value">{{ me.user_name if is_staff() else me.customer_name }}</div>
         </div>
+        {# Both `users` and `customers` carry gender/date_of_birth, so unlike
+           `role_title` below this block needs no is_staff() branch. #}
+        <div class="profile-view-field">
+            <label>Gender</label>
+            <div class="profile-view-value">{{ me.gender|capitalize if me.gender else "—" }}</div>
+        </div>
+        <div class="profile-view-field">
+            <label>Birthday</label>
+            <div class="profile-view-value">{{ format_date(me.date_of_birth) or "—" }}</div>
+        </div>
         <div class="profile-view-field">
             <label>Phone number</label>
             <div class="profile-view-value">{{ me.phone_num or "—" }}</div>

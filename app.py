@@ -27,6 +27,12 @@ from blueprints.quote import quote_bp
 def create_app():
     app = Flask(__name__)
     app.config["STORE_API_BASE_URL"] = os.environ.get("STORE_API_BASE_URL", "http://localhost:8000")
+    # Google Sign-In. Read in templates as {{ config.GOOGLE_CLIENT_ID }} (Flask exposes
+    # `config` to Jinja) - empty means the "Continue with Google" block renders nothing,
+    # so an unconfigured deployment simply doesn't advertise it. store-api needs the
+    # same value set on its side to verify the tokens the button produces; this side
+    # only renders the button.
+    app.config["GOOGLE_CLIENT_ID"] = os.environ.get("GOOGLE_CLIENT_ID", "")
     app.secret_key = os.environ.get("FLASK_SECRET_KEY")
     if not app.secret_key:
         raise RuntimeError("FLASK_SECRET_KEY is not set - copy .env.example to .env and fill it in.")
