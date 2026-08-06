@@ -50,6 +50,12 @@
                 <div id="registerErrorMsg" class="login-error"></div>
                 <button type="submit" class="btn-login" id="registerBtn"><i class="fas fa-user-plus"></i> Create Account</button>
             </form>
+
+            {# Signing up with Google skips the email-confirmation wait below entirely -
+               Google has already confirmed the address, so store-api creates the
+               account verified and this lands straight on the storefront. #}
+            {% include "partials/google_signin.html" %}
+
             <div class="login-footer">
                 <span>Already have an account? <a href="{{ url_for('auth.login') }}">Sign In</a></span>
             </div>

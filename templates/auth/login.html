@@ -41,6 +41,9 @@
                 <div id="loginErrorMsg" class="login-error"></div>
                 <button type="submit" class="btn-login" id="loginBtn"></i> Login now</button>
             </form>
+
+            {% include "partials/google_signin.html" %}
+
             <div class="login-footer">
                 <span>Don't have an account? <a href="{{ url_for('auth.register') }}">Register here</a></span>
             </div>

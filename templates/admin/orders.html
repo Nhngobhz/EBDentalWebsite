@@ -11,7 +11,8 @@
     <div class="card-header">
         <h5 id="ordersCountLabel">All Orders ({{ orders|length }})</h5>
         <div class="card-actions" style="display:flex; align-items:center; gap:10px;">
-            <!-- Quote/Order separation: client-side row filter on data-type. -->
+            <!-- Quote/Order separation: client-side row filter, combined with the search
+                 box and the status/date filters below in filterOrdersTable(). -->
             <div id="orderTypeTabs" style="display:flex; gap:4px;">
                 <button type="button" class="btn-dash sm primary" data-type-filter="all" onclick="setOrderTypeFilter('all')">All</button>
                 <button type="button" class="btn-dash sm" data-type-filter="order" onclick="setOrderTypeFilter('order')">Orders</button>
@@ -23,17 +24,61 @@
             </div>
         </div>
     </div>
+    {% if orders|length == 0 %}
     <div class="card-body" style="padding:0;">
-        {% if orders|length == 0 %}
         <div class="empty-state"><i class="fas fa-shopping-cart"></i> No orders yet - they appear here once a customer or staff member finalizes a quote on the storefront.</div>
-        {% else %}
+    </div>
+    {% else %}
+    <!-- Date/status filtering is client-side on ORDERS_DATA, like the type tabs and
+         search box above - every order is already embedded in the page, so there is
+         nothing to re-fetch. Dates compare as plain YYYY-MM-DD strings taken from
+         created_at, which is exactly what the Date column renders, so a row can never
+         show one date and be filtered out by another. -->
+    <div class="orders-filter-bar">
+        <div class="filter-field">
+            <label for="orderStatusFilter">Status</label>
+            <select id="orderStatusFilter" onchange="filterOrdersTable()">
+                <option value="all">All statuses</option>
+                <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+            </select>
+        </div>
+        <div class="filter-field">
+            <label for="orderDateRange">Date range</label>
+            <select id="orderDateRange" onchange="applyOrderDatePreset(this.value)">
+                <option value="all">All time</option>
+                <option value="today">Today</option>
+                <option value="7">Last 7 days</option>
+                <option value="30">Last 30 days</option>
+                <option value="month">This month</option>
+                <option value="custom">Custom</option>
+            </select>
+        </div>
+        <div class="filter-field">
+            <label for="orderDateFrom">From</label>
+            <input type="date" id="orderDateFrom" onchange="onOrderDateInput()">
+        </div>
+        <div class="filter-field">
+            <label for="orderDateTo">To</label>
+            <input type="date" id="orderDateTo" onchange="onOrderDateInput()">
+        </div>
+        <div class="filter-field filter-end">
+            <label>&nbsp;</label>
+            <button type="button" class="btn-dash outline" onclick="resetOrderFilters()"><i class="fas fa-rotate-left"></i> Reset</button>
+        </div>
+    </div>
+    <!-- padding:0 + its own overflow-x so only the table scrolls sideways on a narrow
+         screen, leaving the filter bar and totals strip in place. -->
+    <div class="card-body" style="padding:0;">
         <table>
             <thead>
                 <tr><th>Order #</th><th>Type</th><th>Clinic / Contact</th><th>Salesperson</th><th>Items</th><th>Grand Total</th><th>Payment</th><th>Status</th><th>Date</th><th>Actions</th></tr>
             </thead>
             <tbody id="ordersTableBody">
                 {% for o in orders %}
-                <tr data-type="{{ o.order_type or 'order' }}" data-search="{{ (o.order_number ~ ' ' ~ o.quote_code ~ ' ' ~ (o.clinic_name or '') ~ ' ' ~ (o.contact_person or ''))|lower }}">
+                <tr data-order-id="{{ o.id }}" data-search="{{ (o.order_number ~ ' ' ~ o.quote_code ~ ' ' ~ (o.clinic_name or '') ~ ' ' ~ (o.contact_person or ''))|lower }}">
                     <td><strong>{{ o.order_number }}</strong><br><span style="font-size:0.65rem;color:var(--text-light);">{{ o.quote_code }}</span></td>
                     <td>
                         {% if (o.order_type or 'order') == 'quote' %}
@@ -76,9 +121,39 @@
                 {% endfor %}
             </tbody>
         </table>
-        <div class="empty-state" id="ordersNoMatch" style="display:none;"><i class="fas fa-search"></i> No orders match your search.</div>
-        {% endif %}
+        <div class="empty-state" id="ordersNoMatch" style="display:none;"><i class="fas fa-search"></i> No orders match your filters.</div>
     </div>
+
+    <!-- Totals for whatever the filters currently show, recomputed by
+         renderOrdersSummary() on every filter change. -->
+    <div class="orders-summary">
+        <div class="summary-tile">
+            <div class="summary-label">Orders shown</div>
+            <div class="summary-value" id="summaryCount">0</div>
+            <div class="summary-hint">rows matching the filters</div>
+        </div>
+        <div class="summary-tile">
+            <div class="summary-label">Total value</div>
+            <div class="summary-value" id="summaryTotal">$0.00</div>
+            <div class="summary-hint">paid + pending</div>
+        </div>
+        <div class="summary-tile paid">
+            <div class="summary-label">Paid</div>
+            <div class="summary-value" id="summaryPaid">$0.00</div>
+            <div class="summary-hint">payment confirmed</div>
+        </div>
+        <div class="summary-tile pending">
+            <div class="summary-label">Pending</div>
+            <div class="summary-value" id="summaryPending">$0.00</div>
+            <div class="summary-hint">not yet recorded as paid</div>
+        </div>
+    </div>
+    <div class="orders-summary-note">
+        <span id="summaryCancelledNote"></span>
+        <strong>Paid</strong> counts only rows the system has actually recorded a payment for - a confirmed KHQR payment, or one staff marked as paid. Everything else that isn't cancelled counts as <strong>pending</strong>, including cash quotes, where payment is settled offline and never recorded here.
+        {% if orders|length >= 200 %}Only the 200 most recent orders are loaded, so these totals cover those rows.{% endif %}
+    </div>
+    {% endif %}
 </div>
 
 <!-- View Order Modal -->
@@ -145,6 +220,11 @@
 {% block extra_js %}
 <script>
     const ORDERS_DATA = {{ orders|tojson }};
+    // Row -> order lookup, so the filters and the totals strip below the table both read
+    // status/date/money off the real order object instead of duplicating them into more
+    // data-* attributes.
+    const ORDERS_BY_ID = {};
+    ORDERS_DATA.forEach(o => { ORDERS_BY_ID[o.id] = o; });
     const ORDER_STATUS_URL_TEMPLATE = {{ url_for('admin.orders_status', order_id=0)|tojson }};
     const ORDER_MARK_PAID_URL_TEMPLATE = {{ url_for('admin.orders_mark_paid', order_id=0)|tojson }};
     let currentOrderId = null;
@@ -167,8 +247,11 @@
         return '—';
     }
 
+    // Matches the server-side price() helper's "$1,234.56" exactly, so the totals strip
+    // and the modal read the same as the table's own price columns.
     function formatMoney(value) {
-        return typeof value === 'number' ? '$' + value.toFixed(2) : (value || '—');
+        if (typeof value !== 'number') return value || '—';
+        return '$' + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
     function openOrderModal(orderId) {
@@ -202,29 +285,33 @@
         // Component lines - what a promotion/set contained, or the freebies that
         // came with a product (OrderItem.parent_item_id in store-api). They sit
         // right under the line they belong to, at $0.00.
+        // ebEscapeHtml (main.js) on every string: these rows are built as HTML and
+        // assigned to innerHTML, and the fields above already reached this page as
+        // free text - the item snapshot names, and on the order itself the
+        // clinic/address the customer typed. Everything outside this table is set
+        // with .textContent, which escapes on its own.
         document.getElementById('orderItemsBody').innerHTML = order.items.map(item => item.parent_item_id ? `
             <tr style="color:var(--text-light);">
-                <td style="padding-left:20px;font-style:italic;">• ${item.product_name}</td>
-                <td>${item.product_code || '—'}</td>
+                <td style="padding-left:20px;font-style:italic;">• ${ebEscapeHtml(item.product_name)}</td>
+                <td>${ebEscapeHtml(item.product_code || '—')}</td>
                 <td>${item.qty}</td>
                 <td>—</td>
                 <td>—</td>
                 <td>${formatMoney(0)}</td>
             </tr>` : `
             <tr>
-                <td>${item.product_name}</td>
-                <td>${item.product_code || '—'}</td>
+                <td>${ebEscapeHtml(item.product_name)}</td>
+                <td>${ebEscapeHtml(item.product_code || '—')}</td>
                 <td>${item.qty}</td>
-                <td>${formatMoney(deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type))}</td>
+                <td>${formatMoney(deriveOldUnitPrice(item))}</td>
                 <td>${printedItemDiscountText(item) || '—'}</td>
                 <td>${formatMoney(printedItemAmount(item))}</td>
             </tr>`).join('');
 
-        // Sub-Total/Discount are reconstructed from each item's charged unit_price + its
-        // snapshotted product-level discount (see deriveOldUnitPrice() in main.js) -
-        // store-api only stores the final charged price, never a separate original one.
+        // Sub-Total/Discount come from each line's snapshotted list_price vs the
+        // unit_price actually charged (see deriveOldUnitPrice() in main.js).
         const undiscountedSubtotal = order.items.reduce(
-            (sum, item) => sum + deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type) * item.qty, 0
+            (sum, item) => sum + deriveOldUnitPrice(item) * item.qty, 0
         );
         const itemDiscountTotal = printedCashDiscountTotal(order.items);
         document.getElementById('orderSubtotal').textContent = formatMoney(undiscountedSubtotal);
@@ -271,25 +358,124 @@
         if (e.target === this) closeOrderModal();
     });
 
-    function filterOrdersTable() {
-        const query = document.getElementById('orderSearchInput').value.trim().toLowerCase();
-        const rows = document.querySelectorAll('#ordersTableBody tr');
-        let visibleCount = 0;
+    // ---- Filters (type tabs + search + status + date range) ----------------------
+    // All four combine; the totals strip always describes exactly the visible rows.
 
-        rows.forEach(row => {
-            const matchesQuery = !query || (row.dataset.search || '').includes(query);
-            const matchesType = currentTypeFilter === 'all' || (row.dataset.type || 'order') === currentTypeFilter;
-            const matches = matchesQuery && matchesType;
-            row.style.display = matches ? '' : 'none';
-            if (matches) visibleCount++;
+    function readOrderFilters() {
+        return {
+            query: document.getElementById('orderSearchInput').value.trim().toLowerCase(),
+            type: currentTypeFilter,
+            status: document.getElementById('orderStatusFilter').value,
+            from: document.getElementById('orderDateFrom').value,  // '' or 'YYYY-MM-DD'
+            to: document.getElementById('orderDateTo').value,
+        };
+    }
+
+    function orderMatchesFilters(order, row, f) {
+        if (f.query && !(row.dataset.search || '').includes(f.query)) return false;
+        if (f.type !== 'all' && (order.order_type || 'order') !== f.type) return false;
+        if (f.status !== 'all' && order.status !== f.status) return false;
+        // created_at is an ISO 8601 string, so its leading YYYY-MM-DD compares correctly
+        // against the date inputs (also YYYY-MM-DD) with a plain string comparison.
+        const date = (order.created_at || '').slice(0, 10);
+        if (f.from && (!date || date < f.from)) return false;
+        if (f.to && (!date || date > f.to)) return false;
+        return true;
+    }
+
+    // Date presets write into the same two date inputs the custom range uses, so there is
+    // only ever one source of truth for the range. Computed in UTC to match created_at
+    // and the Date column, which are both rendered in UTC.
+    function applyOrderDatePreset(preset) {
+        const fromInput = document.getElementById('orderDateFrom');
+        const toInput = document.getElementById('orderDateTo');
+        const today = new Date();
+        const iso = d => d.toISOString().slice(0, 10);
+
+        if (preset === 'custom') {
+            filterOrdersTable();
+            return;
+        }
+        if (preset === 'all') {
+            fromInput.value = '';
+            toInput.value = '';
+        } else if (preset === 'today') {
+            fromInput.value = toInput.value = iso(today);
+        } else if (preset === 'month') {
+            fromInput.value = iso(today).slice(0, 8) + '01';
+            toInput.value = iso(today);
+        } else {
+            // "Last N days" includes today, hence N - 1 days back.
+            const days = parseInt(preset, 10);
+            fromInput.value = iso(new Date(today.getTime() - (days - 1) * 86400000));
+            toInput.value = iso(today);
+        }
+        filterOrdersTable();
+    }
+
+    // Typing a date by hand means the range is no longer whichever preset is selected.
+    function onOrderDateInput() {
+        document.getElementById('orderDateRange').value = 'custom';
+        filterOrdersTable();
+    }
+
+    function resetOrderFilters() {
+        document.getElementById('orderSearchInput').value = '';
+        document.getElementById('orderStatusFilter').value = 'all';
+        document.getElementById('orderDateRange').value = 'all';
+        document.getElementById('orderDateFrom').value = '';
+        document.getElementById('orderDateTo').value = '';
+        setOrderTypeFilter('all');  // calls filterOrdersTable()
+    }
+
+    // Money split for the rows currently shown. "Paid" is deliberately narrow: only rows
+    // the system actually recorded a payment for (payment_status === 'paid' - a confirmed
+    // KHQR payment or a staff "Mark as Paid"). Cash quotes are settled offline and carry
+    // no payment record at all, so they count as pending rather than being guessed at.
+    // Cancelled rows are counted but contribute no money either way.
+    function renderOrdersSummary(orders) {
+        let paid = 0, pending = 0, cancelled = 0;
+        orders.forEach(order => {
+            if (order.status === 'cancelled') { cancelled++; return; }
+            const total = Number(order.grand_total) || 0;
+            if (order.payment_status === 'paid') paid += total;
+            else pending += total;
         });
 
-        const label = currentTypeFilter === 'quote' ? 'Quotes' : currentTypeFilter === 'order' ? 'Orders' : 'All Orders';
-        document.getElementById('ordersNoMatch').style.display = visibleCount === 0 ? 'block' : 'none';
-        document.getElementById('ordersCountLabel').textContent =
-            (query || currentTypeFilter !== 'all')
-                ? `${label} (${visibleCount} of ${ORDERS_DATA.length})`
-                : `All Orders (${ORDERS_DATA.length})`;
+        document.getElementById('summaryCount').textContent = orders.length;
+        document.getElementById('summaryTotal').textContent = formatMoney(paid + pending);
+        document.getElementById('summaryPaid').textContent = formatMoney(paid);
+        document.getElementById('summaryPending').textContent = formatMoney(pending);
+        document.getElementById('summaryCancelledNote').textContent = cancelled
+            ? `${cancelled} cancelled ${cancelled === 1 ? 'row is' : 'rows are'} excluded from the money totals.`
+            : '';
     }
+
+    function filterOrdersTable() {
+        const tbody = document.getElementById('ordersTableBody');
+        if (!tbody) return;  // nothing placed yet - the empty state is showing instead
+
+        const f = readOrderFilters();
+        const visible = [];
+
+        tbody.querySelectorAll('tr').forEach(row => {
+            const order = ORDERS_BY_ID[row.dataset.orderId];
+            const matches = !!order && orderMatchesFilters(order, row, f);
+            row.style.display = matches ? '' : 'none';
+            if (matches) visible.push(order);
+        });
+
+        const label = f.type === 'quote' ? 'Quotes' : f.type === 'order' ? 'Orders' : 'All Orders';
+        const filtered = f.query || f.type !== 'all' || f.status !== 'all' || f.from || f.to;
+        document.getElementById('ordersNoMatch').style.display = visible.length === 0 ? 'block' : 'none';
+        document.getElementById('ordersCountLabel').textContent = filtered
+            ? `${label} (${visible.length} of ${ORDERS_DATA.length})`
+            : `All Orders (${ORDERS_DATA.length})`;
+
+        renderOrdersSummary(visible);
+    }
+
+    // Fill the totals in on load, before any filter has been touched.
+    filterOrdersTable();
 </script>
 {% endblock %}

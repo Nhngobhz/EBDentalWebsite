@@ -95,8 +95,15 @@
                 </div>
                 <div class="right">
                     <div class="admin-info">
-                        <div class="avatar">{{ current_account().name[0]|upper if current_account() else 'A' }}</div>
-                        <span>{{ current_account().name if current_account() else 'Administrator' }}</span>
+                        {# Profile picture when there is one (same source as the
+                           storefront header's avatar), initial otherwise. #}
+                        {% set account = current_account() %}
+                        {% if account and account.image %}
+                        <img src="{{ img(account.image) }}" alt="" class="avatar" />
+                        {% else %}
+                        <div class="avatar">{{ account.name[0]|upper if account else 'A' }}</div>
+                        {% endif %}
+                        <span>{{ account.name if account else 'Administrator' }}</span>
                     </div>
                 </div>
             </div>

@@ -231,19 +231,22 @@ function formatItemDiscount(discount, discountType) {
     return discountType === 'cash' ? '$' + Number(discount).toFixed(2) : Number(discount) + '%';
 }
 
-/* Reconstructs a line's undiscounted unit price from its charged unit_price + the
-   product-level discount snapshotted onto it (see OrderItem.discount/discount_type in
-   store-api) - mirrors formatting.py's derive_old_price() on the Flask side, which does
-   the same thing for the product catalog's "was $X" display. Used by the printed quote
-   and the admin Orders view modal to show "Sub-Total (undiscounted)"/"Discount (money
-   saved)" as a real breakdown instead of just the already-discounted charged price. */
-function deriveOldUnitPrice(unitPrice, discount, discountType) {
-    const price = Number(unitPrice);
-    const d = Number(discount || 0);
-    if (!d) return price;
-    if (discountType === 'cash') return price + d;
-    if (d >= 100) return price;
-    return price / (1 - d / 100);
+/* A line's undiscounted unit price, i.e. the "UP before Discount" column on the
+   printed quote and the Sub-Total/Discount breakdown in the admin Orders modal.
+
+   This now READS the figure (OrderItem.list_price, snapshotted server-side when the
+   order was placed) instead of reconstructing it as unit_price / (1 - discount/100).
+   The old reconstruction existed only because store-api stored no original price;
+   three separate copies of it had to agree, and it silently changed whenever a price
+   was edited. See store-api's f2a9c4e18b73 migration.
+
+   `item` is an OrderItem as returned by store-api. The fallback to unit_price covers
+   a line whose list_price didn't come through (an older cached payload), where "no
+   discount" is the right thing to show rather than NaN. */
+function deriveOldUnitPrice(item) {
+    const listPrice = Number(item.list_price);
+    const unitPrice = Number(item.unit_price);
+    return Number.isFinite(listPrice) && listPrice > unitPrice ? listPrice : unitPrice;
 }
 
 /* Printed quote/invoice item table only (buildPrintTemplate + the admin Orders view
@@ -258,7 +261,7 @@ function printedItemDiscountText(item) {
 
 function printedItemAmount(item) {
     return item.discount_type === 'cash'
-        ? deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type) * item.qty
+        ? deriveOldUnitPrice(item) * item.qty
         : Number(item.line_amount);
 }
 
@@ -269,7 +272,7 @@ function printedItemAmount(item) {
 function printedCashDiscountTotal(items) {
     return items.reduce((sum, item) => {
         if (item.discount_type !== 'cash') return sum;
-        const oldUnitPrice = deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type);
+        const oldUnitPrice = deriveOldUnitPrice(item);
         return sum + (oldUnitPrice - Number(item.unit_price)) * item.qty;
     }, 0);
 }
@@ -356,8 +359,9 @@ const QuoteCart = {
         } else {
             // Code, UOM, and discount come straight from the product record
             // (set by admin) — salespeople only ever adjust qty on the quote.
-            // was_price is the reconstructed pre-discount price; price is what's
-            // actually charged (admin already applied the discount to it).
+            // was_price is the product's stored list_price when it exceeds what's
+            // charged (see formatting.py's was_price); price is what's actually
+            // charged, with the admin's discount already applied.
             items.push({
                 kind: 'product',
                 id: product.id,
@@ -500,9 +504,15 @@ const QuoteCart = {
     // Sub-Total is the combined list price before each product's own discount; Discount
     // is the money that discount actually saved. getTotal() above (the charged total)
     // stays == Sub-Total - Discount, so Grand Total's math is unaffected by this split -
-    // it's purely a display breakdown, same reconstruction as deriveOldUnitPrice().
+    // it's purely a display breakdown.
+    //
+    // Reads each line's own `oldPrice` (captured from the product's list_price, or a
+    // bundle's old_price, when it was added to the cart) rather than dividing the
+    // discount back out of `price`.
     getUndiscountedTotal() {
-        return this.getItems().reduce((sum, i) => sum + deriveOldUnitPrice(i.price, i.discount, i.discountType) * i.qty, 0);
+        return this.getItems().reduce(
+            (sum, i) => sum + (i.oldPrice > i.price ? i.oldPrice : i.price) * i.qty, 0
+        );
     },
 
     getItemDiscountTotal() {
@@ -631,6 +641,9 @@ const QuoteCart = {
     },
 
     // ---- render item rows (called on open / add / remove — full rebuild) ----
+    // Every server-supplied string below goes through ebEscapeHtml(): these rows are
+    // built as an HTML string and assigned to innerHTML, so a product/promotion name
+    // containing markup would otherwise be parsed as markup.
     render() {
         this.renderInfoForm();
         this.updateSummary();
@@ -654,13 +667,13 @@ const QuoteCart = {
         }
 
         itemsEl.innerHTML = items.map(item => `
-            <div class="quote-item" data-id="${item.id}" data-kind="${item.kind}">
-                <img src="${item.image || 'https://images.unsplash.com/photo-1587825140708-dfaf72ae4b04?w=100&h=100&fit=crop&auto=format'}" alt="${item.name}">
+            <div class="quote-item" data-id="${item.id}" data-kind="${ebEscapeHtml(item.kind)}">
+                <img src="${ebEscapeHtml(item.image || 'https://images.unsplash.com/photo-1587825140708-dfaf72ae4b04?w=100&h=100&fit=crop&auto=format')}" alt="${ebEscapeHtml(item.name)}">
                 <div class="quote-item-info">
-                    <div class="quote-item-name">${item.name}</div>
+                    <div class="quote-item-name">${ebEscapeHtml(item.name)}</div>
                     <div class="quote-item-fixed-meta">
-                        <span>${item.code || (item.kind === 'promotion' ? 'Promo' : item.kind === 'set' ? 'Set' : '—')}</span>
-                        <span>${item.uom || (item.kind === 'product' ? 'PCS' : '')}</span>
+                        <span>${ebEscapeHtml(item.code || (item.kind === 'promotion' ? 'Promo' : item.kind === 'set' ? 'Set' : '—'))}</span>
+                        <span>${ebEscapeHtml(item.uom || (item.kind === 'product' ? 'PCS' : ''))}</span>
                         <span>$${item.price.toFixed(2)} ea</span>
                         <span>${formatItemDiscount(item.discount, item.discountType) || 'No discount'}</span>
                     </div>
@@ -709,6 +722,12 @@ const QuoteCart = {
         return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
     },
 
+    // NOTE: this builds an HTML string and assigns it to innerHTML, and most of
+    // the `order` fields it interpolates are free text the CUSTOMER typed into the
+    // checkout form (clinic_name, address, contact_person, phone, terms). They all
+    // go through ebEscapeHtml() - without it, a customer could place an order whose
+    // clinic name is markup, and it would execute in a staff member's session the
+    // moment they hit Print on the admin Orders page.
     buildPrintTemplate(order) {
         // A paid KHQR order prints as a Receipt; everything else (staff quote,
         // customer cash quote, unpaid order) stays a Quotation. Mirrored by
@@ -729,7 +748,7 @@ const QuoteCart = {
         // Discount is the %, and Amount (line_amount) is the price actually
         // charged × qty.
         const undiscountedSubtotal = order.items.reduce(
-            (sum, item) => sum + deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type) * item.qty, 0
+            (sum, item) => sum + deriveOldUnitPrice(item) * item.qty, 0
         );
         const itemDiscountTotal = printedCashDiscountTotal(order.items);
 
@@ -745,10 +764,10 @@ const QuoteCart = {
                 return `
             <tr class="qpt-component-row">
                 <td class="qpt-num"></td>
-                <td>${item.product_code || ''}</td>
-                <td class="qpt-component-name">• ${item.product_name}</td>
+                <td>${ebEscapeHtml(item.product_code || '')}</td>
+                <td class="qpt-component-name">• ${ebEscapeHtml(item.product_name)}</td>
                 <td class="qpt-num">${item.qty}</td>
-                <td class="qpt-num">${item.uom || 'PCS'}</td>
+                <td class="qpt-num">${ebEscapeHtml(item.uom || 'PCS')}</td>
                 <td class="qpt-right">$ 0.00</td>
                 <td class="qpt-num">—</td>
                 <td class="qpt-right">$ 0.00</td>
@@ -758,11 +777,11 @@ const QuoteCart = {
             return `
             <tr>
                 <td class="qpt-num">${lineNo}</td>
-                <td>${item.product_code || '—'}</td>
-                <td>${item.product_name}</td>
+                <td>${ebEscapeHtml(item.product_code || '—')}</td>
+                <td>${ebEscapeHtml(item.product_name)}</td>
                 <td class="qpt-num">${item.qty}</td>
-                <td class="qpt-num">${item.uom || 'PCS'}</td>
-                <td class="qpt-right">$ ${deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type).toFixed(2)}</td>
+                <td class="qpt-num">${ebEscapeHtml(item.uom || 'PCS')}</td>
+                <td class="qpt-right">$ ${deriveOldUnitPrice(item).toFixed(2)}</td>
                 <td class="qpt-num">${printedItemDiscountText(item) || '—'}</td>
                 <td class="qpt-right">$ ${printedItemAmount(item).toFixed(2)}</td>
             </tr>`;
@@ -791,7 +810,7 @@ const QuoteCart = {
                 <div>
                     <div class="qpt-title">${docTitle}</div>
                     <div class="qpt-meta-right">
-                        No : <b>${order.order_number}</b><br>
+                        No : <b>${ebEscapeHtml(order.order_number)}</b><br>
                         Date: <b>${this._formatQuoteDate(order.created_at)}</b>
                     </div>
                 </div>
@@ -799,17 +818,17 @@ const QuoteCart = {
 
             <div class="qpt-info-block">
                 <div class="qpt-info-col">
-                    <div class="qpt-info-row"><span class="qpt-info-label">C. Code</span><span class="qpt-info-value">${order.quote_code || '—'}</span></div>
-                    <div class="qpt-info-row"><span class="qpt-info-label">Clinic</span><span class="qpt-info-value qpt-khmer">${order.clinic_name || '—'}</span></div>
-                    <div class="qpt-info-row"><span class="qpt-info-label">Contact Tel</span><span class="qpt-info-value">${order.phone || '—'}</span></div>
-                    <div class="qpt-info-row"><span class="qpt-info-label">Address</span><span class="qpt-info-value qpt-khmer">${order.address || '—'}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">C. Code</span><span class="qpt-info-value">${ebEscapeHtml(order.quote_code || '—')}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Clinic</span><span class="qpt-info-value qpt-khmer">${ebEscapeHtml(order.clinic_name || '—')}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Contact Tel</span><span class="qpt-info-value">${ebEscapeHtml(order.phone || '—')}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Address</span><span class="qpt-info-value qpt-khmer">${ebEscapeHtml(order.address || '—')}</span></div>
                 </div>
                 <div class="qpt-info-col">
-                    <div class="qpt-info-row"><span class="qpt-info-label">Payment Term</span><span class="qpt-info-value">${order.payment_term || 'COD'}</span></div>
-                    <div class="qpt-info-row"><span class="qpt-info-label">Salesperson</span><span class="qpt-info-value">${order.salesperson || '—'}</span></div>
-                    <div class="qpt-info-row"><span class="qpt-info-label">User</span><span class="qpt-info-value">${order.quoted_by_name || '—'}</span></div>
-                    <div class="qpt-info-row"><span class="qpt-info-label">Installation Term</span><span class="qpt-info-value">${order.install_term || 'Free within Phnom Penh'}</span></div>
-                    <div class="qpt-info-row"><span class="qpt-info-label">Contact Person</span><span class="qpt-info-value">${order.contact_person || '—'}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Payment Term</span><span class="qpt-info-value">${ebEscapeHtml(order.payment_term || 'COD')}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Salesperson</span><span class="qpt-info-value">${ebEscapeHtml(order.salesperson || '—')}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">User</span><span class="qpt-info-value">${ebEscapeHtml(order.quoted_by_name || '—')}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Installation Term</span><span class="qpt-info-value">${ebEscapeHtml(order.install_term || 'Free within Phnom Penh')}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Contact Person</span><span class="qpt-info-value">${ebEscapeHtml(order.contact_person || '—')}</span></div>
                 </div>
             </div>
 
@@ -1577,9 +1596,11 @@ const ebBundlePicker = {
     },
 };
 
-/* Product names are admin-entered free text and go into <option> markup
-   built as a string above - escaped so a stray quote or angle bracket in a
-   name can't break (or inject into) the dropdown. */
+/* Escape a value before interpolating it into any HTML string that will be
+   assigned to innerHTML. Used for everything that came from the server: product
+   and promotion names (admin-entered), and the clinic/address/contact fields on
+   an order (customer-entered, so genuinely untrusted). A function declaration on
+   purpose - it's hoisted, so callers earlier in this file can use it. */
 function ebEscapeHtml(text) {
     return String(text ?? '').replace(/[&<>"']/g, ch => (
         { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]

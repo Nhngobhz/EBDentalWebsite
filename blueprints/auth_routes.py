@@ -1,8 +1,35 @@
+from datetime import date
+from urllib.parse import urlparse
+
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 from auth import account_type, current_account, is_staff, login_required
 from store_api import StoreAPIError, get_api_client
 
 auth_bp = Blueprint("auth", __name__)
+
+
+def _safe_next_url(candidate):
+    """The `?next=` destination, but only if it points back into this site.
+
+    `next` is attacker-supplied: it survives in the URL of any link ("log in to
+    see prices") that can be sent to someone. Handing it to redirect() unchecked
+    is an open redirect - `/login?next=https://evil.example/login` sends a user
+    who just signed in to a convincing copy of this site. Worse here, the
+    JSON-mode logins hand it to `window.location.href` in login.html /
+    register.html / google_signin.html, so a `javascript:` value would execute in
+    the page that already holds the freshly-authenticated session.
+
+    Only a plain path on this origin is allowed: no scheme, no host, and no
+    protocol-relative "//evil.example" (which a bare startswith("/") check would
+    happily accept). Anything else falls back to the normal landing page."""
+    if not candidate:
+        return None
+    parsed = urlparse(candidate)
+    if parsed.scheme or parsed.netloc:
+        return None
+    if not candidate.startswith("/") or candidate.startswith("//"):
+        return None
+    return candidate
 
 
 def _wants_json():
@@ -33,6 +60,26 @@ def _build_session_account(account_type, user=None, customer=None):
     }
 
 
+def _establish_session(result):
+    """Everything a successful authentication has in common, whichever way the account
+    was proven - a password (POST /login) or a Google ID token (POST /auth/google).
+    Both get back the same store-api LoginResponse shape. Returns where to send the
+    browser next."""
+    session["token"] = result["access_token"]
+    session["account_type"] = result["account_type"]
+    session["account"] = _build_session_account(
+        result["account_type"], user=result.get("user"), customer=result.get("customer")
+    )
+    flash(f"Welcome back, {session['account']['name']}!", "success")
+
+    next_url = _safe_next_url(request.args.get("next"))
+    if next_url:
+        return next_url
+    if result["account_type"] == "user":
+        return url_for("admin.dashboard")
+    return url_for("main.home")
+
+
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "GET":
@@ -60,24 +107,32 @@ def login():
         flash(e.detail, "error")
         return render_template("auth/login.html"), (e.status_code or 400)
 
-    session["token"] = result["access_token"]
-    session["account_type"] = result["account_type"]
-    session["account"] = _build_session_account(
-        result["account_type"], user=result.get("user"), customer=result.get("customer")
-    )
-    flash(f"Welcome back, {session['account']['name']}!", "success")
-
-    next_url = request.args.get("next")
-    if next_url:
-        redirect_url = next_url
-    elif result["account_type"] == "user":
-        redirect_url = url_for("admin.dashboard")
-    else:
-        redirect_url = url_for("main.home")
-
+    redirect_url = _establish_session(result)
     if wants_json:
         return jsonify({"success": True, "redirect_url": redirect_url})
     return redirect(redirect_url)
+
+
+@auth_bp.route("/auth/google", methods=["POST"])
+def google_login():
+    """Sign in / sign up with Google. Always JSON in and out - Google Identity
+    Services renders its own button (templates/partials/google_signin.html) and hands
+    the page a signed ID token, which this route forwards to store-api. The token, not
+    a password, is the credential; store-api is what verifies Google actually issued it
+    and decides which account it belongs to."""
+    payload = request.get_json(silent=True) or {}
+    credential = (request.form.get("credential") or payload.get("credential") or "").strip()
+    if not credential:
+        return jsonify({"success": False, "detail": "Google sign-in didn't return an account. Please try again."}), 400
+
+    client = get_api_client()
+    try:
+        result = client.google_login(credential)
+    except StoreAPIError as e:
+        return jsonify({"success": False, "detail": e.detail}), (e.status_code or 400)
+
+    return jsonify({"success": True, "redirect_url": _establish_session(result)})
+
 
 @auth_bp.route("/forgot-password", methods=["GET", "POST"])
 def forgot_password():
@@ -174,20 +229,20 @@ def profile_edit():
     me_path = "/users/me" if is_staff() else "/customers/me"
 
     if request.method == "POST":
-        if account_type() == "user":
-            payload = {
-                "user_name": request.form.get("name", "").strip(),
-                "email": request.form.get("email", "").strip(),
-                "phone_num": request.form.get("phone", "").strip() or None,
-                "address": request.form.get("address", "").strip() or None,
-            }
-        else:
-            payload = {
-                "customer_name": request.form.get("name", "").strip(),
-                "email": request.form.get("email", "").strip(),
-                "phone_num": request.form.get("phone", "").strip() or None,
-                "address": request.form.get("address", "").strip() or None,
-            }
+        payload = {
+            "email": request.form.get("email", "").strip(),
+            "phone_num": request.form.get("phone", "").strip() or None,
+            "address": request.form.get("address", "").strip() or None,
+            # Sent as explicit nulls when blank (rather than omitted) so clearing
+            # either field on the form actually clears it - store-api only touches
+            # the keys the payload includes.
+            "date_of_birth": request.form.get("date_of_birth", "").strip() or None,
+            "gender": request.form.get("gender", "").strip() or None,
+        }
+        # The only field that differs between the two principal types - everything
+        # above exists on both `users` and `customers` under the same name.
+        name_field = "user_name" if account_type() == "user" else "customer_name"
+        payload[name_field] = request.form.get("name", "").strip()
         try:
             updated = client.put_json(me_path, payload)
         except StoreAPIError as e:
@@ -211,7 +266,9 @@ def profile_edit():
         flash(e.detail, "error")
         me = current_account()
 
-    return render_template("auth/profile_edit.html", me=me)
+    # Caps the birthday date-picker client-side; store-api rejects a future date
+    # regardless, this just stops the user hitting that error in the first place.
+    return render_template("auth/profile_edit.html", me=me, today=date.today().isoformat())
 
 
 @auth_bp.route("/profile/password", methods=["POST"])

@@ -1,3 +1,5 @@
+from datetime import date
+
 from flask import flash, redirect, render_template, request, url_for
 
 from auth import permission_required
@@ -11,6 +13,11 @@ def _customer_optional_fields():
         value = request.form.get(field, "").strip()
         if value:
             payload[field] = value
+    # Unlike the fields above, these two are sent even when blank (as explicit
+    # nulls) so staff can clear a wrong birthday/gender back to empty - store-api
+    # only writes the keys the payload actually contains.
+    for field in ("date_of_birth", "gender"):
+        payload[field] = request.form.get(field, "").strip() or None
     payload["access_permission"] = request.form.get("access_permission") == "on"
     return payload
 
@@ -31,7 +38,12 @@ def customers():
     if search:
         params["q"] = search
     customer_list = client.get("/customers/", params=params)
-    return render_template("admin/customers.html", customers=customer_list, search_query=search)
+    return render_template(
+        "admin/customers.html",
+        customers=customer_list,
+        search_query=search,
+        today=date.today().isoformat(),
+    )
 
 
 @admin_bp.route("/customers/new", methods=["POST"])

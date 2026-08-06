@@ -56,15 +56,29 @@ def _raise_for_error(response):
     raise StoreAPIError(response.status_code, detail, payload)
 
 
+# One connection pool for the whole process, shared by every request.
+#
+# A requests.Session per StoreAPIClient meant a brand-new TCP (and, in a TLS
+# deployment, a full handshake) connection for EVERY call to store-api - and a
+# single page render makes several - with the socket left to be closed by the
+# garbage collector rather than by anyone. Sharing the pool is safe precisely
+# because nothing user-specific lives on it: the bearer token is passed per
+# request in _request()'s headers, never set on the session.
+_http = requests.Session()
+_http.mount("http://", requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=20))
+_http.mount("https://", requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=20))
+
+
 class StoreAPIClient:
     """One instance per request (see get_api_client) - each carries at most one bearer
-    token, so nothing from one user's session can bleed into another's request."""
+    token, so nothing from one user's session can bleed into another's request. The
+    underlying connection pool (_http) is shared process-wide; the token is not."""
 
     def __init__(self, base_url, token=None, timeout=10):
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.timeout = timeout
-        self.session = requests.Session()
+        self.session = _http
 
     def _headers(self, extra=None):
         headers = dict(extra or {})
@@ -119,6 +133,13 @@ class StoreAPIClient:
             "/auth/login",
             data={"username": email, "password": password},
         )
+
+    def google_login(self, credential):
+        """POST /auth/google - `credential` is the ID token Google Identity Services
+        handed the browser. store-api verifies it against Google's public keys and
+        answers with the same shape as login(), signing in an existing staff/customer
+        account with that email or creating a customer for it."""
+        return self.post_json("/auth/google", {"credential": credential})
 
     def register_customer(self, payload):
         return self.post_json("/auth/customer/register", payload)

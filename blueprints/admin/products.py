@@ -14,11 +14,13 @@ def _file_from_request():
 
 
 def _apply_discount(price, discount, discount_type):
-    """The Price field the admin fills in is the original (pre-discount) price - Product
-    has no separate original-price column, so the actual discounted amount has to be
-    computed here and sent as `price` to store-api. `discount`/`discount_type` are still
-    sent alongside as display metadata (formatting.derive_old_price uses them to
-    reconstruct this same original price for the "was $X" strikethrough)."""
+    """The Price field the admin fills in is the original (pre-discount) price, so the
+    discounted figure store-api charges has to be computed from it here.
+
+    Both numbers are now sent explicitly - the typed figure as `list_price`, this
+    computed one as `price` - so store-api stores the original rather than inferring
+    it later. It used to be sent as `price` alone, leaving the "was $X" to be
+    reconstructed by division on every read (see store-api's f2a9c4e18b73)."""
     try:
         p = float(price)
         d = float(discount)
@@ -49,6 +51,8 @@ def _product_form_payload():
     price = request.form.get("price", "").strip()
     discount = request.form.get("discount", "").strip()
     if price:
+        # The typed figure IS the list price; with no discount the two are equal.
+        payload["list_price"] = price
         payload["price"] = price
     if discount:
         discount_type = request.form.get("discount_type") or "percent"
@@ -119,6 +123,7 @@ def products_price(product_id):
     price = request.form.get("price", "").strip()
     discount = request.form.get("discount", "").strip()
     if price:
+        payload["list_price"] = price
         payload["price"] = price
     if discount:
         discount_type = request.form.get("discount_type") or "percent"

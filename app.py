@@ -6,6 +6,7 @@ templates + routes are merged with the real backend"). No local data/ folder any
 every page fetches live from store-api.
 """
 import os
+from datetime import timedelta
 
 from dotenv import load_dotenv
 from flask import Flask, flash, g, redirect, render_template, session, url_for
@@ -23,11 +24,22 @@ from blueprints.catalog import catalog_bp
 from blueprints.main import main_bp
 from blueprints.quote import quote_bp
 
+# Set APP_ENV=production in the deployment's .env. It's what switches on the
+# HTTPS-only session cookie and switches off the Werkzeug debugger below - both of
+# which would break/annoy local development if they keyed off nothing at all.
+IS_PRODUCTION = os.environ.get("APP_ENV", "development").strip().lower() == "production"
+
 
 
 def create_app():
     app = Flask(__name__)
     app.config["STORE_API_BASE_URL"] = os.environ.get("STORE_API_BASE_URL", "http://localhost:8000")
+    # Google Sign-In. Read in templates as {{ config.GOOGLE_CLIENT_ID }} (Flask exposes
+    # `config` to Jinja) - empty means the "Continue with Google" block renders nothing,
+    # so an unconfigured deployment simply doesn't advertise it. store-api needs the
+    # same value set on its side to verify the tokens the button produces; this side
+    # only renders the button.
+    app.config["GOOGLE_CLIENT_ID"] = os.environ.get("GOOGLE_CLIENT_ID", "")
     app.secret_key = os.environ.get("FLASK_SECRET_KEY")
     if not app.secret_key:
         raise RuntimeError("FLASK_SECRET_KEY is not set - copy .env.example to .env and fill it in.")
@@ -35,6 +47,22 @@ def create_app():
     # 5MB/20MB limits itself and returns a proper error - this just stops Flask from
     # rejecting the upload before store-api gets a chance to.
     app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
+
+    # Session cookie hardening. This cookie is the whole authentication story for
+    # this app - it carries the store-api bearer token server-side - so it gets the
+    # full set of flags rather than Flask's permissive defaults:
+    #   HTTPONLY  - script can't read it, so an XSS anywhere can't exfiltrate a session
+    #   SAMESITE  - not sent on cross-site POSTs, which is what stands in for CSRF
+    #               tokens on the form-post admin routes
+    #   SECURE    - HTTPS only; off unless APP_ENV=production, since a secure-only
+    #               cookie is never sent over the local http://127.0.0.1 dev server
+    #               and would silently break every login there
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["SESSION_COOKIE_SECURE"] = IS_PRODUCTION
+    # store-api's own tokens expire after 24h (ACCESS_TOKEN_EXPIRE_MINUTES); an
+    # abandoned browser session shouldn't outlive the token it holds.
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=24)
 
     # Static files are fingerprinted below (?v=<mtime> on every url_for('static')),
     # so browsers can safely cache them for a long time - an edited file gets a new
@@ -118,6 +146,22 @@ def create_app():
     app.register_blueprint(quote_bp)
     app.register_blueprint(admin_bp)
 
+    @app.after_request
+    def add_security_headers(response):
+        """Baseline response headers every page gets.
+
+        Deliberately the three that can't break a working page: no MIME sniffing
+        (an uploaded file can't be re-interpreted as script), no Referer leaking
+        to third parties (admin URLs carry record ids), and no embedding in a
+        frame (clickjacking the admin's action buttons). A Content-Security-Policy
+        is NOT set here - the templates use inline <script> blocks throughout, so
+        a real policy needs those extracted or nonced first, and a policy loose
+        enough to allow 'unsafe-inline' would only be decorative."""
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        return response
+
     @app.errorhandler(403)
     def handle_forbidden(_e):
         flash("You don't have permission to do that.", "error")
@@ -148,4 +192,8 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # debug=True mounts the Werkzeug interactive debugger, which is a remote shell
+    # to anyone who reaches a traceback - fine locally, never in production. Tied to
+    # the same APP_ENV switch so a production host started with `python app.py`
+    # doesn't quietly ship one.
+    app.run(debug=not IS_PRODUCTION)

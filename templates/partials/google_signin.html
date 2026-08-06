@@ -1,0 +1,83 @@
+{% if config.GOOGLE_CLIENT_ID %}
+{# "Continue with Google", shared by the Sign In and Register pages - one account
+   path, so it doesn't matter which page it's clicked from: an email Google has
+   already confirmed either matches an existing account or creates a customer.
+   Renders nothing at all when GOOGLE_CLIENT_ID isn't configured. #}
+<div class="google-auth" id="googleAuthBlock">
+    <div class="auth-divider"><span>or</span></div>
+    {# Google Identity Services renders its own button inside this host element -
+       its markup is Google's, so style the host, never what's inside it. #}
+    <div id="googleBtnHost" class="google-btn-host"></div>
+    <div id="googleAuthError" class="login-error"></div>
+</div>
+
+<script>
+(function () {
+    const block = document.getElementById('googleAuthBlock');
+    const host = document.getElementById('googleBtnHost');
+    const errorMsg = document.getElementById('googleAuthError');
+    // Carries a ?next= through, so signing in with Google from a gated page lands
+    // where the password form would have.
+    const POST_URL = '{{ url_for("auth.google_login") }}' + window.location.search;
+
+    function showError(message) {
+        errorMsg.textContent = message;
+        errorMsg.classList.add('show');
+    }
+
+    async function onCredential(response) {
+        errorMsg.classList.remove('show');
+        block.classList.add('is-busy');
+        try {
+            const resp = await fetch(POST_URL, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({ credential: response.credential }),
+            });
+            const data = await resp.json();
+            if (data.success) {
+                // Same reset the password path does - a cart built while logged out
+                // (or as someone else) shouldn't carry into the new session.
+                localStorage.removeItem('eb_quote_cart');
+                localStorage.removeItem('eb_quote_customer_info');
+                localStorage.removeItem('eb_quote_discount_type');
+                localStorage.removeItem('eb_quote_discount_value');
+                window.location.href = data.redirect_url;
+                return;
+            }
+            showError(data.detail || 'Google sign-in failed. Please try again.');
+        } catch (err) {
+            showError('Could not reach the server. Please check your connection and try again.');
+        } finally {
+            block.classList.remove('is-busy');
+        }
+    }
+
+    // Called by the GSI script's own onload below (it loads async, so a
+    // window 'load' listener can miss it).
+    window.ebInitGoogleSignIn = function () {
+        if (!window.google || !google.accounts || !google.accounts.id) return;
+        google.accounts.id.initialize({
+            client_id: '{{ config.GOOGLE_CLIENT_ID }}',
+            callback: onCredential,
+        });
+        // renderButton only accepts a pixel width in the 200-400 range.
+        const width = Math.max(200, Math.min(400, host.offsetWidth || 360));
+        google.accounts.id.renderButton(host, {
+            type: 'standard',
+            theme: 'outline',
+            size: 'large',
+            text: 'continue_with',
+            shape: 'pill',
+            logo_alignment: 'center',
+            width: width,
+        });
+    };
+})();
+</script>
+<script src="https://accounts.google.com/gsi/client" async defer onload="ebInitGoogleSignIn()"></script>
+{% endif %}

@@ -65,12 +65,51 @@ follows.
   on every write (via `require_permission(...)`, see the other guide's
   section 2) and is what actually enforces anything. Never add a
   security check here that isn't *also* enforced by store-api.
+- **The post-login `?next=` destination goes through `_safe_next_url()`**
+  (`blueprints/auth_routes.py`) and nothing else may use it raw. `next` is
+  attacker-supplied - it survives in any link that can be sent to someone - and
+  `_establish_session()` feeds it both to `redirect()` and, for the JSON
+  logins, to `window.location.href` in the page. Only a plain same-site path
+  is accepted: absolute URLs, protocol-relative `//host`, and `javascript:`
+  are all dropped back to the default landing page.
+- **Session cookie flags are set in `create_app()`**: HttpOnly + SameSite=Lax
+  always, and Secure whenever `APP_ENV=production`. Secure is env-gated
+  because a Secure cookie is never sent over the local `http://127.0.0.1` dev
+  server - turning it on unconditionally makes local login look broken. The
+  same flag switches off the Werkzeug debugger in `python app.py`.
 - `login_required` / `staff_required` / `permission_required(*names)`
   (all in `auth.py`) are route decorators built on the same helpers.
   `admin_bp` (`blueprints/admin/__init__.py`) applies `staff_required` to
   *every* route on the blueprint via `@admin_bp.before_request` - so an
   individual admin route only needs `@permission_required(...)` on top of
   that when store-api demands more than just "is staff".
+- **"Continue with Google"** (added 2026-08-05) is a second way into the
+  same session, not a second session model. `partials/google_signin.html`
+  (included by both `auth/login.html` and `auth/register.html`, and
+  rendering **nothing** unless `GOOGLE_CLIENT_ID` is configured) lets
+  Google Identity Services render its own button; the ID token it produces
+  is POSTed to `auth.google_login` (`/auth/google`), which forwards it to
+  store-api's `POST /auth/google` and stores the result exactly like a
+  password login. Both routes end in `_establish_session(result)` - the one
+  place that writes `token`/`account_type`/`account` and picks the
+  post-login redirect - so **anything that should happen on login goes
+  there, not in `login()`**. This side never verifies anything about the
+  Google token; it's store-api that decides whether to believe it (see the
+  other guide's 1.6, including why a Google account has no password here).
+  `GOOGLE_CLIENT_ID` must be set in **both** apps' `.env` (this one renders
+  the button, store-api verifies the token), and every origin the site is
+  served from has to be an Authorized JavaScript origin on that Google
+  credential or the button silently fails to render.
+- `/profile` and `/profile/edit` (`blueprints/auth_routes.py`) serve **both**
+  principal types from one pair of templates, switching on `is_staff()` to pick
+  `/users/me` vs `/customers/me` and to read `user_name`/`user_image` vs
+  `customer_name`/`customer_image`. Everything else on the form
+  (`email`, `phone_num`, `address`, `date_of_birth`, `gender`) exists on both
+  store-api tables under the same name and needs no branch - `role_title` is
+  currently the only staff-only field, and it's guarded with `is_staff()`.
+  Before surfacing a new profile field, check whether `users`, `customers`, or
+  both actually have it; adding a one-sided field unguarded renders an empty
+  row for the other principal type.
 - The three decorators fail in three deliberately different ways:
   `login_required` (storefront pages) flashes and redirects to `/login`;
   `staff_required` (the `/admin/*` gate) **`abort(404)`s** so the admin
@@ -147,6 +186,16 @@ The matching template (`templates/admin/*.html`) always:
   attribute on each `<tr>`, matched against a lowercased search input
   (see `filter<Things>Table()` in each template's `extra_js`).
 
+**Escape anything from the server that you build into an HTML string.**
+Jinja auto-escapes and `|tojson` is safe, but the JS in these pages assembles
+markup by hand and assigns it to `innerHTML` - and `.textContent` is not an
+option for a whole table row. Wrap every interpolated server value in
+`ebEscapeHtml()` (`main.js`). This matters most where the text is
+*customer*-entered rather than admin-entered: the order fields
+(`clinic_name`, `address`, `contact_person`, phone, terms) rendered by
+`QuoteCart.buildPrintTemplate()` and the admin Orders modal come straight
+from a checkout form a stranger filled in.
+
 **Bundle contents pickers (added 2026-07-31)**: three admin modals let an
 admin say which products something contains - Promotion "Included
 Products", Set "Included Products", and Product "Comes With (Free)". They
@@ -222,11 +271,21 @@ anything quote-related.
   already saved, Special Discount is the separate order-level
   percent/cash discount only `product_management` staff can set
   (`QuoteCart.getDiscountType()/getDiscountValue()`), and Grand Total is
-  what's actually charged. Sub-Total/Discount are reconstructed client-side
-  via `deriveOldUnitPrice()` (mirrors `formatting.py`'s
-  `derive_old_price()`) since store-api only stores the final charged
-  `unit_price` + the discount that produced it, never a separate original
-  price column.
+  what's actually charged. Sub-Total/Discount come from each line's
+  **stored** pre-discount price - `deriveOldUnitPrice(item)` (`main.js`) just
+  reads `OrderItem.list_price`, and `formatting.py`'s `was_price()` reads
+  `Product.list_price`. Neither divides the discount back out any more: that
+  reconstruction lived in three places that had to agree, and the figure it
+  produced silently moved whenever a price was edited. See store-api's
+  `f2a9c4e18b73` migration.
+
+  Two consequences worth knowing when touching this code:
+  - `deriveOldUnitPrice()` now takes **the whole item**, not
+    `(unitPrice, discount, discountType)`. The cart drawer doesn't call it at
+    all - a cart line carries its own `oldPrice`, captured when it was added.
+  - The admin Product form's **Price field is the list price**. The blueprint
+    sends it as `list_price` and sends `_apply_discount()`'s result as `price`,
+    so store-api stores both explicitly rather than inferring either.
 - `QuoteCart.buildPrintTemplate(order)` and `QuoteCart.exportPDF(suffix)`
   (both in `main.js`) are deliberately split out as reusable, order-only
   functions (no dependency on the local cart/session) - this is what lets
@@ -273,6 +332,7 @@ Exposed as Jinja globals in `app.py` (`img`, `file_url`, `price`,
 | `format_price` (Jinja `price()`) | Safe to call on anything `to_number()` may have produced - real number → `"$1,234.56"`, masked → `"Login to view price"`, `None` → `""`. |
 | `format_date` | ISO 8601 string (or `datetime`) → `"Jul 21, 2026"` by default. |
 | `adapt_product` / `adapt_promotion` / `adapt_set` / `adapt_order` | Per-entity adapters - run **once**, immediately after fetching from store-api, before the dict reaches a template or a `tojson` blob. If you fetch a new list of orders/products/promotions/sets somewhere, run it through the matching adapter before doing anything else with it. |
+| `was_price(list_price, price)` | The struck-through "was $X", or `None` when there's nothing to strike (no discount, or a masked viewer). `adapt_product` sets `product["was_price"]` from it, which is what templates render and what a cart line stores as `oldPrice`. Replaced `derive_old_price()`, which reconstructed the figure by division - see section 4. |
 
 ## 6. Common agent mistakes to avoid
 

@@ -78,23 +78,28 @@ def format_price(value):
         return ""
 
 
-def derive_old_price(price, discount, discount_type="percent"):
-    """Product only stores the final `price` + a `discount` (percent or cash, per
-    discount_type) - there is no absolute original price stored server-side (unlike
-    Promotion, which keeps a real old_price). Reconstruct one for "was $X" display, only
-    when there's an actual discount and price is a real (unmasked) number."""
-    if not discount or price is None or is_masked(price):
+def was_price(list_price, price):
+    """The struck-through "was $X" to show next to a price, or None when there's
+    nothing to strike through.
+
+    store-api now stores `list_price` (the pre-discount price) outright. This used
+    to be `derive_old_price()`, which reconstructed it here as
+    `price / (1 - discount/100)` - and that made the "was" figure slide whenever
+    the charged price was edited, since it was never a stored fact at all. See
+    store-api's f2a9c4e18b73 migration.
+
+    None is returned unless the list price genuinely exceeds what's being charged,
+    so an undiscounted product doesn't render a strikethrough of its own price, and
+    a viewer without price access (whose `list_price` comes back masked to None)
+    gets nothing."""
+    if list_price is None or price is None or is_masked(price) or is_masked(list_price):
         return None
     try:
-        price = float(price)
-        discount = float(discount)
+        if float(list_price) > float(price):
+            return float(list_price)
     except (TypeError, ValueError):
         return None
-    if discount_type == "cash":
-        return price + discount
-    if discount >= 100:
-        return None
-    return price / (1 - discount / 100)
+    return None
 
 
 def format_date(value, fmt="%b %d, %Y"):
@@ -114,9 +119,8 @@ def adapt_product(product):
     product = dict(product)
     product["price"] = to_number(product.get("price"))
     product["discount"] = to_number(product.get("discount"))
-    product["was_price"] = derive_old_price(
-        product["price"], product["discount"], product.get("discount_type", "percent")
-    )
+    product["list_price"] = to_number(product.get("list_price"))
+    product["was_price"] = was_price(product["list_price"], product["price"])
     # Products this one comes with for free. Carries no prices of its own (name /
     # code / uom / qty only - see BundleItemOut in store-api), so unlike every
     # other field here it needs no numeric coercion, just a guaranteed list.
