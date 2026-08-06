@@ -48,6 +48,29 @@
             </div>
         </section>
 
+
+        <!-- Special Product Spotlight -->
+        {% if special_products %}
+        <section style="margin-top: 30px;">
+            <div class="section-header reveal">
+                <h3>LargV CBCT 5D Technology</h3>
+            </div>
+            <div class="special-product-strip" style="margin-top: 10px;">
+                {% for sp in special_products %}
+                <a class="special-product-card" href="{{ url_for('catalog.special_product', slug=sp.slug) }}">
+                    <div class="special-product-card-img" style="background-image:url('{{ sp.hero_image }}');"></div>
+                    <div class="special-product-card-body">
+                        <span class="special-product-card-eyebrow">{{ sp.eyebrow }}</span>
+                        <h3>{{ sp.name }}</h3>
+                        <p>{{ sp.tagline }}</p>
+                        <span class="special-product-card-cta">Explore <i class="fas fa-arrow-right"></i></span>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
         <!-- About Teaser -->
         
 

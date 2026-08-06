@@ -1,0 +1,72 @@
+{
+  "Product": [
+    {
+      "type": "feature",
+      "title": "Key Specifications",
+      "image": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAgvIz_0AYorPqo3AYw8AU4_wc.png",
+      "paragraphs": [],
+      "tables": [
+        [
+          [
+            {"img": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAgvIz_0AYowIOvlgIwngE4ngE.png", "text": "4X3 — 4 sets of a total of 12 cameras"},
+            {"img": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAgvIz_0AYonL__6wQwngE4ngE.png", "text": "0.5s — Rapid capturing"},
+            {"img": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAgvIz_0AYooKLjswQwngE4ngE.png", "text": "0.3mm — Accuracy reaches 0.3mm"},
+            {"img": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAgvIz_0AYouOCO-QMwnwE4ngE.png", "text": "Multi-Format — STL, OBJ and PLY formats"}
+          ]
+        ]
+      ],
+      "extra_images": []
+    },
+    {
+      "type": "image_pair",
+      "images": [
+        "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAgvIz_0AYoqOr6nQEwxgg4qAU.png",
+        "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAgvIz_0AYorvifuwQwoQQ4qAU.png"
+      ]
+    },
+    {
+      "type": "feature",
+      "id": "precision-capture",
+      "title": "Precision Capture",
+      "image": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAgvIz_0AYokO657Acw-gY4vwM.png",
+      "paragraphs": [
+        "True-to-Life Facial Contours, Hues & Proportions – Photorealistic Detail Rendering."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "3d-facial-analysis",
+      "title": "3D Facial Analysis",
+      "image": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAgvIz_0AYoqrWE4QUw-gY4vwM.png",
+      "paragraphs": [
+        "Five Key Areas (Nasal & Forehead, Facial Shape, Lips & Chin, Proportions, Aesthetic Triangles) with 17 Parameters."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "ai-smile-design",
+      "title": "AI-Driven Smile Design",
+      "image": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAgvIz_0AYoloCP2Acw-gY4wAM.png",
+      "paragraphs": [
+        "Generating personalized aesthetic treatment plans that enable patient involvement in outcome visualization, while facilitating streamlined clinician-patient discussions."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "dental-innovation",
+      "title": "Dental Innovation",
+      "image": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAgvIz_0AYonPWh-wYw-gY4vwM.png",
+      "paragraphs": [
+        "Combining 3D facial models with intraoral scans and CT data enables accurate reconstruction of craniofacial anatomy, enhancing treatment planning for orthodontics, prosthodontics, implants and orthognathic surgery."
+      ],
+      "extra_images": [],
+      "tables": []
+    }
+  ]
+}

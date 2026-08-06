@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template
 
+from special_products import SPECIAL_PRODUCTS
 from store_api import get_api_client
 
 main_bp = Blueprint("main", __name__)
@@ -16,7 +17,10 @@ def home():
     # processor, but passed explicitly too (matches the original mock's own pattern).
     client = get_api_client()
     brands = client.get("/brands/", params={"limit": 200})
-    return render_template("main/home.html", brands=brands)
+    special_products = [
+        {"slug": slug, **meta} for slug, meta in SPECIAL_PRODUCTS.items()
+    ]
+    return render_template("main/home.html", brands=brands, special_products=special_products)
 
 
 @main_bp.route("/materials")

@@ -1,0 +1,519 @@
+/* ==========================================================================
+   Special Product page (manufacturer-spotlight, static content)
+   See special_products.py / templates/products/special_detail.html
+   ========================================================================== */
+
+.sp-hero {
+    background: linear-gradient(135deg, #0f172a 0%, #16215a 55%, #0f172a 100%);
+    padding: 14px 0;
+    color: #fff;
+    overflow: hidden;
+}
+
+.sp-hero-inner {
+    max-width: 1100px;
+}
+
+.sp-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #e2e8f0;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.8rem;
+    margin-bottom: 10px;
+    opacity: 0.9;
+    transition: var(--transition);
+}
+
+.sp-back-link:hover {
+    opacity: 1;
+    color: #fff;
+}
+
+.sp-hero-split {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    height: 150px;
+}
+
+.sp-hero-media {
+    flex: 1 1 55%;
+    min-width: 0;
+    align-self: stretch;
+    display: flex;
+}
+
+.sp-hero-media img,
+.sp-hero-media video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 8px;
+    display: block;
+    background: #000;
+}
+
+.sp-hero-video-trigger {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.sp-play-btn {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 0.7rem;
+    transition: var(--transition);
+}
+
+.sp-hero-video-trigger:hover .sp-play-btn {
+    background: var(--accent-light);
+    border-color: var(--accent-light);
+    transform: translate(-50%, -50%) scale(1.08);
+}
+
+.sp-video-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+}
+
+.sp-video-modal.active {
+    display: flex;
+}
+
+.sp-video-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+}
+
+.sp-video-modal-content {
+    position: relative;
+    width: min(900px, 92vw);
+    z-index: 1;
+}
+
+.sp-video-modal-content video {
+    width: 100%;
+    max-height: 85vh;
+    border-radius: 8px;
+    display: block;
+    background: #000;
+}
+
+.sp-video-modal-close {
+    position: absolute;
+    top: -40px;
+    right: 0;
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 2rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.sp-hero-text {
+    flex: 1 1 45%;
+    min-width: 0;
+}
+
+.sp-eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+    font-size: 0.7rem;
+    color: var(--accent-light);
+    margin-bottom: 4px;
+}
+
+.sp-title {
+    font-size: clamp(1.3rem, 2.2vw, 1.8rem);
+    font-weight: 800;
+    line-height: 1.15;
+    margin-bottom: 6px;
+}
+
+.sp-tagline {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    margin-bottom: 2px;
+}
+
+.sp-subtitle {
+    font-size: 0.75rem;
+    color: #cbd5e1;
+    margin-bottom: 10px;
+}
+
+.sp-hero-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.sp-hero-actions .btn-primary,
+.sp-hero-actions .btn-outline {
+    padding: 6px 16px;
+    font-size: 0.75rem;
+}
+
+.sp-btn-outline-light {
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.6);
+    color: #fff;
+}
+
+.sp-btn-outline-light:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+/* Tabs ------------------------------------------------------------------ */
+
+.sp-tabs {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+    margin: 40px 0 36px;
+    flex-wrap: wrap;
+}
+
+.sp-tab-btn {
+    background: none;
+    border: none;
+    padding: 14px 22px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-light);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: var(--transition);
+}
+
+.sp-tab-btn:hover {
+    color: var(--text);
+}
+
+.sp-tab-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.sp-tab-panel {
+    display: none;
+}
+
+.sp-tab-panel.active {
+    display: block;
+    animation: sp-fade-in 0.25s ease;
+}
+
+@keyframes sp-fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Section header ---------------------------------------------------------- */
+
+.sp-section-header {
+    text-align: center;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 48px 0 24px;
+}
+
+.sp-tab-panel > .sp-section-header:first-child {
+    margin-top: 0;
+}
+
+.sp-full-image {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.sp-full-image img {
+    max-width: 100%;
+    border-radius: var(--radius);
+}
+
+/* Feature rows (image + text) --------------------------------------------- */
+
+.sp-feature {
+    display: flex;
+    align-items: center;
+    gap: 40px;
+    padding: 28px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.sp-feature:last-child {
+    border-bottom: none;
+}
+
+.sp-feature-reverse {
+    flex-direction: row-reverse;
+}
+
+.sp-feature-media {
+    flex: 0 0 40%;
+    max-width: 40%;
+}
+
+.sp-feature-media img {
+    width: 100%;
+    max-height: 420px;
+    object-fit: contain;
+    border-radius: var(--radius);
+    display: block;
+    margin: 0 auto;
+}
+
+.sp-feature-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.sp-feature-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 10px;
+}
+
+.sp-feature-text {
+    color: var(--text-light);
+    line-height: 1.7;
+    margin-bottom: 8px;
+}
+
+.sp-extra-images {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+}
+
+.sp-extra-images img {
+    max-width: 100%;
+    border-radius: var(--radius);
+}
+
+/* Icon feature grid (e.g. the 12-tile spec highlights) --------------------- */
+
+.sp-icon-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 8px;
+}
+
+.sp-icon-card {
+    background: var(--primary);
+    color: #fff;
+    border-radius: var(--radius);
+    padding: 24px 16px;
+    text-align: center;
+}
+
+.sp-icon-card-icon {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    margin-bottom: 12px;
+}
+
+.sp-icon-card p {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: #e2e8f0;
+    margin: 0;
+}
+
+/* SKU / model image switcher ----------------------------------------------- */
+
+.sp-sku-switcher {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.sp-sku-tabs {
+    display: inline-flex;
+    gap: 6px;
+    background: var(--bg);
+    border-radius: 999px;
+    padding: 6px;
+    margin-bottom: 24px;
+}
+
+.sp-sku-tab-btn {
+    border: none;
+    background: none;
+    padding: 10px 20px;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-light);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.sp-sku-tab-btn.active {
+    background: var(--surface);
+    color: var(--accent);
+    box-shadow: var(--card-shadow);
+}
+
+.sp-sku-images {
+    position: relative;
+}
+
+.sp-sku-image {
+    display: none;
+    max-width: 100%;
+    border-radius: var(--radius);
+}
+
+.sp-sku-image.active {
+    display: inline-block;
+}
+
+/* Photo gallery ------------------------------------------------------------ */
+
+.sp-gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+}
+
+.sp-gallery-item {
+    display: block;
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--card-shadow);
+}
+
+.sp-gallery-item img {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    display: block;
+    transition: var(--transition);
+}
+
+.sp-gallery-item:hover img {
+    transform: scale(1.05);
+}
+/* Two-up uncropped image pair (e.g. front view + angle view) --------------- */
+
+.sp-image-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin: 8px 0 28px;
+}
+
+.sp-image-pair img {
+    width: 100%;
+    height: 320px;
+    object-fit: contain;
+    display: block;
+    border-radius: var(--radius);
+    background: var(--bg);
+}
+
+@media (max-width: 600px) {
+    .sp-image-pair {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* CTA card ------------------------------------------------------------------ */
+
+.sp-cta-card {
+    text-align: center;
+    margin: 48px 0 60px;
+    padding: 36px 24px;
+}
+
+/* Responsive ----------------------------------------------------------------- */
+
+@media (max-width: 768px) {
+    .sp-hero {
+        padding: 16px 0;
+    }
+
+    .sp-hero-split {
+        flex-direction: column;
+        text-align: center;
+        gap: 14px;
+        height: auto;
+    }
+
+    .sp-hero-media {
+        align-self: auto;
+    }
+
+    .sp-hero-media img,
+    .sp-hero-media video {
+        height: 160px;
+    }
+
+    .sp-hero-actions {
+        justify-content: center;
+    }
+
+    .sp-feature,
+    .sp-feature-reverse {
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .sp-feature-media {
+        max-width: 100%;
+        flex-basis: auto;
+    }
+
+    .sp-icon-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .sp-tabs {
+        gap: 0;
+    }
+
+    .sp-tab-btn {
+        padding: 12px 14px;
+        font-size: 0.9rem;
+    }
+}

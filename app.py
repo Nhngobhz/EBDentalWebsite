@@ -24,6 +24,7 @@ from blueprints.main import main_bp
 from blueprints.quote import quote_bp
 
 
+
 def create_app():
     app = Flask(__name__)
     app.config["STORE_API_BASE_URL"] = os.environ.get("STORE_API_BASE_URL", "http://localhost:8000")

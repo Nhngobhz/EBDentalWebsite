@@ -1,0 +1,572 @@
+{
+  "Product": [
+    {
+      "type": "header",
+      "text": "CT / CEPH / PAN"
+    },
+    {
+      "type": "image",
+      "url": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgwt3a0AYo6Mb1vgQwxgc4lgU.jpg"
+    },
+    {
+      "type": "feature",
+      "id": "module4901",
+      "title": "Four Scanning Modes",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgnd7a0AYo7obIlgQwwwQ42QM.jpg",
+      "paragraphs": [
+        "SD：Standard Scan",
+        "FS：Fast Scan ( CT Scan Speed Reach Up to 6s)",
+        "HD：High Definition Scan",
+        "UHD：Ultra-high Definition Scan"
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4904",
+      "title": "Oneshot CEPH",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgnd7a0AYoz5TtmwUwwwQ42QM.jpg",
+      "paragraphs": [
+        "Just 1 Second Scan for Stable Cephalometric Image.",
+        "Avoid Artifacts from Patient Motion."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4905",
+      "title": "More Options",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgnd7a0AYoz5TtmwUwwwQ42QM.jpg",
+      "paragraphs": [
+        "2 in 1(CBCT+PAN) & 3 in 1(CBCT+PAN+CEPH)"
+      ],
+      "extra_images": [
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgkuDa0AYolsr7wAEw4Ac4pQQ.jpg"
+      ],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4906",
+      "title": "Cooling System",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgyeDa0AYoyOi9hgcwvgQ4wgM.jpg",
+      "paragraphs": [
+        "Sustainable Shooting without Cooling Down, Cooling System is Equipped to Break Through the Traditional Cooling Limitations and Ensure the Stable Operation Under High Temperature and Sustainable Shooting Scenes."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4907",
+      "title": "Two PANs Options",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgnd7a0AYoz5TtmwUwwwQ42QM.jpg",
+      "paragraphs": [
+        "2D PAN & PAN Reconstructed from 3D Image Data"
+      ],
+      "extra_images": [
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgj7Wc0gYowdvpgAMwjQg4uQY.jpg"
+      ],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4908",
+      "title": "High Resolution",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgnd7a0AYoz5TtmwUwwwQ42QM.jpg",
+      "paragraphs": [
+        "High Resolution Up to 3.0-5.0 lp/mm",
+        "Voxel Size 0.04-0.3 mm",
+        "HD Detector Pixel Size Up to 95μm"
+      ],
+      "extra_images": [
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAg2uHa0AYokpeW1gIwjQg4vwM.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgjuLa0AYo7JjbsgcwjQg4vwM.jpg"
+      ],
+      "tables": []
+    },
+    {
+      "type": "header",
+      "text": "Optional FOVs"
+    },
+    {
+      "type": "sku_switcher",
+      "names": [
+        "Smart3D-X",
+        "Smart3D-X SE",
+        "Smart3D-X Pro"
+      ],
+      "images": [
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgouPa0AYouZao-gUw6QY41QI.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgouPa0AYo8Ky53wcw6QY41QI.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgouPa0AYo96e72Acw6QY41QI.jpg"
+      ]
+    },
+    {
+      "type": "feature",
+      "id": "module4914",
+      "title": null,
+      "image": null,
+      "paragraphs": [],
+      "extra_images": [],
+      "tables": [
+        [
+          [
+            {
+              "text": "360°scan and 800 frame images with unique CT algorithms",
+              "img": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAg1Oba0AYo1Pe77AEwSThJ.png"
+            },
+            {
+              "text": "QuartZ 4 scan platform, supporting flexible scan mode",
+              "img": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAg1Oba0AYozpHvqAYwSThJ.png"
+            },
+            {
+              "text": "Multiple focus layers in panoramic imaging, fitting the patient's dental arch",
+              "img": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAg1Oba0AYo-NmhlQEwSThJ.png"
+            }
+          ],
+          [
+            {
+              "text": "Easy-to-target scan area",
+              "img": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAg1Oba0AYokbKDQzBJOEk.png"
+            },
+            {
+              "text": "8-9 positioning lasers with face-to-face communication to posit precisely",
+              "img": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAg1eba0AYoirT35gcwSThJ.png"
+            },
+            {
+              "text": "X-type base is convenient for wheelchair-bound patients",
+              "img": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAg1eba0AYouLyKjQEwSThJ.png"
+            }
+          ],
+          [
+            {
+              "text": "10＂LED touch screen",
+              "img": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAg1eba0AYovOGgATBJOEk.png"
+            },
+            {
+              "text": "Storage box design",
+              "img": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAg1eba0AYo2teWuAMwSThJ.png"
+            },
+            {
+              "text": "Voice reminder",
+              "img": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAg1eba0AYotOfMqgcwSThJ.png"
+            }
+          ],
+          [
+            {
+              "text": "The Compatible Globally Power Supply Wide Voltage Range: AC 110~230V 50/60Hz",
+              "img": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAg1eba0AYog-2S1wIwSjhK.png"
+            },
+            {
+              "text": "Simplified Chinese/Traditional Chinese/English/French/Spanish/ Russian/Polish/Turkish/Portuguese",
+              "img": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAg1eba0AYovq313gYwSjhK.png"
+            },
+            {
+              "text": "Carbon Fiber Cheek Clip & Stable Jaw Bracket To Create a Stable Shooting Support System",
+              "img": "https://34182389.s21i.faiusr.com/4/ABUIABAEGAAg1eba0AYogL6kvQEwSjhK.png"
+            }
+          ]
+        ]
+      ]
+    },
+    {
+      "type": "feature",
+      "id": "module4927",
+      "title": "Product Size Display（With Ceph）",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgnd7a0AYoz5TtmwUwwwQ42QM.jpg",
+      "paragraphs": [
+        "Product Size Display（Without Ceph）",
+        "Product Size Display（Without Ceph）"
+      ],
+      "extra_images": [
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAg0_7a0AYo8LXR-gcwjQg4nwQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgmO-a0AYomOOn7AEwjQg46QQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgmO-a0AYoxIOagQUwjQg4mQQ.jpg"
+      ],
+      "tables": []
+    }
+  ],
+  "Software": [
+    {
+      "type": "feature",
+      "id": "module4945",
+      "title": "Multiple Images",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAg-fHa0AYozsu0IDDsAzj1AQ.jpg",
+      "paragraphs": [
+        "Support CT / PAN / CEPH."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4947",
+      "title": "AI+PAN",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAg-fHa0AYo1MKM9QMw7AM49QE.jpg",
+      "paragraphs": [
+        "CT Reconstruct Panoramically: learning-based CT reconstruction algorithm, the With the new deep system can obtain a precise CBCT image. Panoramic Images: Together with the new intelligent auto-focus and multilayer panoramic technology, the system automatically fits the best panoramic curves and reconstructs a better image."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4960",
+      "title": "AI+Nerve",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAg3-ba0AYohZaDzwIw7AM49QE.jpg",
+      "paragraphs": [
+        "This function can locate the shape of the inferior alveolar nerve in 3D space, as well as the positional relationship between the relative alveolar bone wall, adjacent teeth, and implants, providing a reference for doctors, greatly improving work efficiency and reducing surgical risks."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4958",
+      "title": "AI+Low Dose",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAg3vba0AYoyI3zsAcw7AM49QE.jpg",
+      "paragraphs": [
+        "Boosted by the deep learning-based CT reconstruction algorithm, the Smart3D-X can now obtain more deﬁned tomography while further reducing the radiation dose, continuing to raise the industry standard for low-dose control."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4951",
+      "title": "Metal Artifact Reduction",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgz-Ta0AYortK8hwMw7AM49QE.jpg",
+      "paragraphs": [
+        "With the new T-MAR reduction module for metal artifact removal, the system corrects metal artifacts intelligently. It avoids overmodification and saves the original clinical data."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4946",
+      "title": "Lateral Cephalometric Measurements",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAg-fHa0AYo_MTFhgYw7AM49QE.jpg",
+      "paragraphs": [
+        "In comparison to traditional two-dimensional cephalometric radiographs, lateral cephalograms on CBCT can better reflect the true craniofacial morphology. With higher accuracy in landmark point identification and line distance measurement, it can avoid the distortion of patient measurement data caused by superimposition, image blurring and facial asymmetry of two-dimensional anatomical structures."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4957",
+      "title": "3D Fine Reconstruction",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAg3-ba0AYo8JPspgcw7AM49QE.jpg",
+      "paragraphs": [
+        "The smallest voxel size reaches 0.04 mm, which is more suitable for the diagnosis of dental pulp disease."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4954",
+      "title": "Density Measurement",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgovXa0AYolIK_xQQw7AM49QE.jpg",
+      "paragraphs": [
+        "Visual assessment of bone quality, bringing greater convenience to dentists."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4959",
+      "title": "AI+Automatic Head Position Correction",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAg3-ba0AYouKnGfzDsAzj1AQ.jpg",
+      "paragraphs": [
+        "It enhances the accuracy and reliability of CT imaging, producing more precise lateral cephalometric images. It also ensures that scan results at different times can be compared and analyzed effectively."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4964",
+      "title": "AI+Three-Section Airway Analysis",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAg2ryd0gYowMuxvQQw7AM49QE.jpg",
+      "paragraphs": [
+        "It divides the airway into three regions—nasopharynx, oropharynx, and laryngopharynx—for quantitative evaluation of volume, minimum cross-sectional area, and morphological characteristics. It accurately identifies narrowed airway regions and helps assess the impact of different anatomical structures on airway function, providing objective data for orthodontics, orthognathic surgery, OSA risk evaluation, and clinical treatment planning."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4942",
+      "title": "AI+Oral Implant",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAg-fHa0AYo5b2J-QEw7AM49QE.jpg",
+      "paragraphs": [
+        "LargeV AI Implant integrates advanced AI technology to automatically measure bone height, bone width, and the distance to adjacent teeth. It intelligently recommends suitable implant models and enables automatic implant placement. This helps doctors complete precise implant planning in a short time, significantly enhancing the accuracy and safety of implant surgeries, while providing patients with a more reliable digital implant solution."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4966",
+      "title": "AI+Maxillary Sinus Segmentation",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAglPja0AYo5PmTcjDsAzj1AQ.jpg",
+      "paragraphs": [
+        "This leading technology not only provides a high-precision 3D model of the superior maxillary sinus, but also helps doctors to distinguish the position and size, which contributes to customized surgical plans."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4944",
+      "title": "AI+Maxillary Sinus Analysis",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgjMac0gYojoPqZDDsAzj1AQ.jpg",
+      "paragraphs": [
+        "Maxillary sinus conditions are often linked to odontogenic infections and implant surgery risks. It enables clinicians to assess sinus health, detect early lesions, and quantify disease extent. It improves diagnostic efficiency and accuracy, providing strong support for treatment planning."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4948",
+      "title": "AI+Root-Bone Relationship",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgpPTa0AYoj47RzgYw7AM49QE.jpg",
+      "paragraphs": [
+        "AI technology provides diagnostic support and treatment guidance for fields like orthodontics, implantology, periodontics, and extraction. By analyzing the relationship between the bone and the teeth, it enhances treatment accuracy, improving success rates while minimizing complications during and after procedures."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4949",
+      "title": "AI+Bone Graft Volume Estimation",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgz-Ta0AYorN287QIw7AM49QE.jpg",
+      "paragraphs": [
+        "Accurate estimation of bone graft volume is critical in implant surgery. AI helps doctors calculate the precise amount of bone graft required, reducing the risk of surgical failure due to either insufficient or excessive graft material."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4963",
+      "title": "AI+TMJ Automatic Positioning Diagnosis",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAg3vba0AYosM_TlQUw7AM49QE.jpg",
+      "paragraphs": [
+        "The display mode of comparing the left and right temporomandibular joints, with the cross positioning line automatically located at the temporomandibular joint, facilitates the diagnosis and treatment of temporomandibular joint diseases by doctors"
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4953",
+      "title": "Multi-Planar Reconstruction (MPR)",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgo-Xa0AYouMfEogMw7AM49QE.jpg",
+      "paragraphs": [
+        "In SmartVPro software, doctors can simultaneously view axial, coronal, and sagittal images. The software also allows for customized slice positioning, enabling buccolingual and mesiodistal cross-sections at any desired location. This feature enhances diagnostic convenience by providing comprehensive imaging perspectives."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4956",
+      "title": "Image Slice for Implanting",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgovXa0AYo0ei37wQw7AM49QE.jpg",
+      "paragraphs": [
+        "It permits the evaluation of the overall osteogenesis and facilitates the macroscopic observation of the bone condition around implants."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4950",
+      "title": "AI+Maxillary Bone Segmentation",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgz-Ta0AYo-NrinwQw7AM49QE.jpg",
+      "paragraphs": [
+        "AI aids in assessing bone structure, identifying pathologies, and analyzing the alveolar bone for reliable insights into implant placement and bone graft volume estimation. This offers doctors a solid foundation for precise treatment planning."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4965",
+      "title": "AI+Mandible Segmentation",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgk-ja0AYo7OX1-gUw7AM49QE.jpg",
+      "paragraphs": [
+        "It accurately evaluates the morphology and position of jaw, as well as provide doctors with reliable anatomical structures."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4961",
+      "title": "AI+Predict Bone Age by Observing the Cervical Spine",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAg3vba0AYomL2qrQMw7AM49QE.jpg",
+      "paragraphs": [
+        "With bone age analysis, the patient's growth and development level and maturity can be accurately evaluated. It can provide reference for the diagnosis of oral diseases and the selection of orthodontic treatment solution."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4955",
+      "title": "AI+Tooth Perspectives",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAg-fHa0AYolKbpqwQw7AM49QE.jpg",
+      "paragraphs": [
+        "3D reconstruction of a single teeth is carried out to clearly display the shape of the tooth, the form of the pulp cavity, and the 3D structure of the root canal and gums."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4962",
+      "title": "AI+CEPH Measurement(Optional)",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAg3vba0AYojpPWygEw7AM49QE.jpg",
+      "paragraphs": [
+        "The neural network is trained by mega data, which automatically identiﬁes orthodontic anatomical landmark points, draws anatomical structures and outputs measurement reports according to the selected measurement methods."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4967",
+      "title": "AI+Lingual Canal Detection",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAglPja0AYoz4397AUw7AM49QE.jpg",
+      "paragraphs": [
+        "This helps doctors accurately locate and identify the position and structure of lingual canals, understanding its anatomical features in the mandible. This is crucial in preventing unexpected bleeding during implant surgeries."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module6070",
+      "title": "Intelligent Dental and Endodontic Measurement",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgl72d0gYo1I2IjwUw7AM49QE.jpg",
+      "paragraphs": [
+        "Automatically identifies tooth and root canal structures, rapidly locates the position, number, and morphology of root canals, and performs automatic root canal length measurement. It provides accurate and efficient imaging support for endodontic treatment, preoperative evaluation, and treatment planning."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4968",
+      "title": "AI+Teeth Segmentation",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAglPja0AYohKqLmgEw7AM49QE.jpg",
+      "paragraphs": [
+        "With this feature, doctors can more accurately understand the shape and position of the teeth, diagnose issues such as cavities, tooth deformities, and missing teeth, and provide patients with more precise treatment solutions."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4969",
+      "title": "AI+Simulated Tooth Extraction",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAglPja0AYox8rf8wUw7AM49QE.jpg",
+      "paragraphs": [
+        "As a tool for doctor-patient communication, AI simulated tooth extraction uses virtual scenarios to demonstrate the tooth extraction procedure and highlight important considerations. It helps patients to understand the treatment process."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4970",
+      "title": "AI+Automatic Implant Placement",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgk-ja0AYowOvirAIw7AM49QE.jpg",
+      "paragraphs": [
+        "By segmenting the patient's oral structure, AI algorithms determine the best position and angle for implant insertion. It controls the risk of implantation, minimizes planning time."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4952",
+      "title": "Implant Simulation",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgo-Xa0AYouMDAngMw7AM49QE.jpg",
+      "paragraphs": [
+        "It can evaluate the bone quality and bone quantity of the implant area, automatically outline the neural tube. Clarifying the relationship between the implant position and the adjacent anatomical structure to accurately select the implant position, the optimal length and diameter of the implant. It can improve the success rate, and avoid possible nerve or blood vessel damage."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4971",
+      "title": "AI+Multi-Implant Placement with One-Click",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgk-ja0AYoraS9kAMw7AM49QE.jpg",
+      "paragraphs": [
+        "This feature is ideal for multiple teeth, partial, and full-mouth implants. It significantly reduces the time for doctors to design implant surgery plans. It enhances doctor-patient communication efficiency and increases the acceptance of treatment plans."
+      ],
+      "extra_images": [],
+      "tables": []
+    },
+    {
+      "type": "feature",
+      "id": "module4972",
+      "title": "AI+Root Canal Segmentation",
+      "image": "https://34182389.s21i.faiusr.com/2/ABUIABACGAAglPja0AYonLSthgUw7AM49QE.jpg",
+      "paragraphs": [
+        "It assists doctors in quickly and accurately identifying the position, shape, and structure of root canals. This provides more precise diagnostic information and treatment planning, proving essential for root canal treatments, apical surgeries, and other dental procedures."
+      ],
+      "extra_images": [],
+      "tables": []
+    }
+  ],
+  "Imaging": [
+    {
+      "type": "gallery",
+      "images": [
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgvOuB0wYo3qvXigMwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgvOuB0wYolYaH4AIwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgvOuB0wYokK276gcwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgvOuB0wYos8HipgcwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgvOuB0wYolOGWCjCEBzimBA.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgvOuB0wYozp-uqwEwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgveuB0wYo9a2_jQYwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgveuB0wYol8ylngUwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgveuB0wYohM_okwcwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgveuB0wYo6uyjXzCEBzimBA.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgvuuB0wYowrSPxQMwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgvuuB0wYot7HeKjCEBzimBA.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgvuuB0wYo_K3n9gQwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgvuuB0wYo7eSrRjCEBzimBA.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgvuuB0wYo4KuOkAEwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgvuuB0wYoqNvXsAUwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgv_uB0wYo3L7N9AIwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgv_uB0wYo0rXKpgQwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgv_uB0wYooaeMgQMwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgv_uB0wYo0KmruwQwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgv_uB0wYoxKPwzwcwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgv_uB0wYo5Neb5gcwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgweuB0wYouoKXhwcwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgweuB0wYooJidygQwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgweuB0wYo8Oy66gQwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgweuB0wYowvPx6gYwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgweuB0wYoueKAlAcwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgweuB0wYompbIiAEwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgwuuB0wYorqqu_gcwhAc4pgQ.jpg",
+        "https://34182389.s21i.faiusr.com/2/ABUIABACGAAgwuuB0wYovoKFwwQwhAc4pgQ.jpg"
+      ]
+    }
+  ]
+}

@@ -3,7 +3,9 @@ from urllib.parse import urlencode
 from flask import Blueprint, abort, render_template, request, url_for
 
 from formatting import adapt_product, adapt_promotion, adapt_set
+from special_products import SPECIAL_PRODUCTS, get_special_product
 from store_api import StoreAPIError, get_api_client
+
 
 catalog_bp = Blueprint("catalog", __name__)
 
@@ -39,6 +41,10 @@ def products_catalog():
         base = url_for("catalog.products_catalog")
         return f"{base}?{urlencode(query)}" if query else base
 
+    special_products = [
+        {"slug": slug, **meta} for slug, meta in SPECIAL_PRODUCTS.items()
+    ]
+
     return render_template(
         "products/catalog.html",
         products=products,
@@ -50,6 +56,7 @@ def products_catalog():
         search_query=search_query,
         page_title=page_title,
         catalog_url=catalog_url,
+        special_products=special_products,
     )
 
 
@@ -85,3 +92,12 @@ def promotions_page():
     raw_sets = client.get("/sets/", params={"limit": 200})
     sets = [adapt_set(s) for s in raw_sets]
     return render_template("main/promotions.html", promotions=promotions, sets=sets)
+
+@catalog_bp.route("/products/special/<slug>")
+def special_product(slug):
+    """Manufacturer-spotlight product page - fully static, no store-api call.
+    See special_products.py for how to add another one of these."""
+    product = get_special_product(slug)
+    if not product:
+        abort(404)
+    return render_template("products/special_detail.html", product=product)

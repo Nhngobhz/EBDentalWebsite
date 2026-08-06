@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.name }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/special-product.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="sp-page">
+
+    <section class="sp-hero">
+        <div class="container sp-hero-inner">
+            <a href="{{ url_for('main.home') }}" class="sp-back-link">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+            <div class="sp-hero-split">
+                <div class="sp-hero-media">
+                    {% if product.hero_video %}
+                    <button type="button" class="sp-hero-video-trigger" data-sp-video="{{ product.hero_video }}" aria-label="Play video">
+                        <img src="{{ product.hero_image }}" alt="{{ product.name }}" loading="eager">
+                        <span class="sp-play-btn"><i class="fas fa-play"></i></span>
+                    </button>
+                    {% else %}
+                    <img src="{{ product.hero_image }}" alt="{{ product.name }}" loading="eager">
+                    {% endif %}
+                </div>
+                <div class="sp-hero-text">
+                    <div class="sp-eyebrow">{{ product.eyebrow }}</div>
+                    <h1 class="sp-title">{{ product.name }}</h1>
+                    <p class="sp-tagline">{{ product.tagline }}</p>
+                    {% if product.subtitle %}<p class="sp-subtitle">{{ product.subtitle }}</p>{% endif %}
+                    <div class="sp-hero-actions">
+                        <a href="#sp-tabs" class="btn-primary">Explore Product</a>
+                        <a href="{{ url_for('main.contact') }}" class="btn-outline sp-btn-outline-light">
+                            <i class="fas fa-phone"></i> Contact Us
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="container">
+
+        <nav id="sp-tabs" class="sp-tabs" role="tablist">
+            {% for tab in product.tabs %}
+            <button type="button"
+                    class="sp-tab-btn{% if loop.first %} active{% endif %}"
+                    data-sp-tab="{{ tab.key }}"
+                    role="tab"
+                    aria-selected="{{ 'true' if loop.first else 'false' }}">
+                {{ tab.label }}
+            </button>
+            {% endfor %}
+        </nav>
+
+        {% for tab in product.tabs %}
+        <div class="sp-tab-panel{% if loop.first %} active{% endif %}" data-sp-panel="{{ tab.key }}">
+            {% for block in tab.blocks %}
+
+                {% if block.type == 'header' %}
+                <h2 class="sp-section-header">{{ block.text }}</h2>
+
+                {% elif block.type == 'image' %}
+                <div class="sp-full-image">
+                    <img src="{{ block.url }}" alt="" loading="lazy">
+                </div>
+
+                {% elif block.type == 'sku_switcher' %}
+                <div class="sp-sku-switcher" data-sp-sku-group>
+                    <div class="sp-sku-tabs">
+                        {% for name in block.names %}
+                        <button type="button" class="sp-sku-tab-btn{% if loop.first %} active{% endif %}" data-sp-sku="{{ loop.index0 }}">{{ name }}</button>
+                        {% endfor %}
+                    </div>
+                    <div class="sp-sku-images">
+                        {% for image in block.images %}
+                        <img src="{{ image }}" alt="{{ block.names[loop.index0] if loop.index0 < block.names|length else '' }}"
+                             class="sp-sku-image{% if loop.first %} active{% endif %}" data-sp-sku-image="{{ loop.index0 }}" loading="lazy">
+                        {% endfor %}
+                    </div>
+                </div>
+
+                {% elif block.type == 'gallery' %}
+                <div class="sp-gallery">
+                    {% for image in block.images %}
+                    <a href="{{ image }}" target="_blank" rel="noopener" class="sp-gallery-item">
+                        <img src="{{ image }}" alt="" loading="lazy">
+                    </a>
+                    {% endfor %}
+                </div>
+
+                {% elif block.type == 'image_pair' %}
+                <div class="sp-image-pair">
+                    {% for image in block.images %}
+                    <img src="{{ image }}" alt="" loading="lazy">
+                    {% endfor %}
+                </div>
+
+                {% elif block.type == 'feature' %}
+                <div class="sp-feature{% if loop.index0 is even %} sp-feature-reverse{% endif %}">
+                    {% if block.image %}
+                    <div class="sp-feature-media">
+                        <img src="{{ block.image }}" alt="{{ block.title or '' }}" loading="lazy">
+                    </div>
+                    {% endif %}
+                    <div class="sp-feature-body">
+                        {% if block.title %}<h3 class="sp-feature-title">{{ block.title }}</h3>{% endif %}
+                        {% for p in block.paragraphs %}
+                        <p class="sp-feature-text">{{ p }}</p>
+                        {% endfor %}
+
+                        {% if block.tables %}
+                        <div class="sp-icon-grid">
+                            {% for row in block.tables[0] %}
+                                {% for cell in row %}
+                                <div class="sp-icon-card">
+                                    {% if cell.img %}<img src="{{ cell.img }}" alt="" class="sp-icon-card-icon" loading="lazy">{% endif %}
+                                    <p>{{ cell.text }}</p>
+                                </div>
+                                {% endfor %}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if block.extra_images %}
+                <div class="sp-extra-images">
+                    {% for image in block.extra_images %}
+                    <img src="{{ image }}" alt="" loading="lazy">
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% endif %}
+
+            {% endfor %}
+        </div>
+        {% endfor %}
+
+        <div class="dash-card sp-cta-card">
+            <h3><i class="fas fa-comment-dots"></i> Interested in the {{ product.name }}?</h3>
+            <p style="color: var(--text-light); margin: 8px 0 16px;">Reach out to our team for pricing, a live demo, or technical specifications.</p>
+            <a class="btn-hero" href="{{ url_for('main.contact') }}" style="display:inline-flex;">
+                <i class="fas fa-phone"></i> Contact Us
+            </a>
+        </div>
+
+    </div>
+
+    {% if product.hero_video %}
+    <div class="sp-video-modal" id="spVideoModal">
+        <div class="sp-video-modal-backdrop" data-sp-video-close></div>
+        <div class="sp-video-modal-content">
+            <button type="button" class="sp-video-modal-close" data-sp-video-close aria-label="Close video">&times;</button>
+            <video id="spVideoModalPlayer" controls playsinline></video>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    // Main tab switching (Product / Software / Imaging / ...)
+    document.querySelectorAll('.sp-tab-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var key = btn.getAttribute('data-sp-tab');
+            document.querySelectorAll('.sp-tab-btn').forEach(function (b) {
+                b.classList.toggle('active', b === btn);
+                b.setAttribute('aria-selected', b === btn ? 'true' : 'false');
+            });
+            document.querySelectorAll('.sp-tab-panel').forEach(function (panel) {
+                panel.classList.toggle('active', panel.getAttribute('data-sp-panel') === key);
+            });
+        });
+    });
+
+    // Nested SKU image switcher (e.g. Smart3D-X / SE / Pro FOV diagrams)
+    document.querySelectorAll('[data-sp-sku-group]').forEach(function (group) {
+        var tabs = group.querySelectorAll('.sp-sku-tab-btn');
+        var images = group.querySelectorAll('[data-sp-sku-image]');
+        tabs.forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var idx = btn.getAttribute('data-sp-sku');
+                tabs.forEach(function (b) { b.classList.toggle('active', b === btn); });
+                images.forEach(function (img) {
+                    img.classList.toggle('active', img.getAttribute('data-sp-sku-image') === idx);
+                });
+            });
+        });
+    });
+
+    // Hero video lightbox
+    var videoModal = document.getElementById('spVideoModal');
+    var videoPlayer = document.getElementById('spVideoModalPlayer');
+
+    function openVideoModal(src) {
+        if (!videoModal || !videoPlayer) return;
+        videoPlayer.src = src;
+        videoModal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        videoPlayer.play();
+    }
+
+    function closeVideoModal() {
+        if (!videoModal || !videoPlayer) return;
+        videoPlayer.pause();
+        videoPlayer.removeAttribute('src');
+        videoPlayer.load();
+        videoModal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    document.querySelectorAll('.sp-hero-video-trigger').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            openVideoModal(btn.getAttribute('data-sp-video'));
+        });
+    });
+
+    document.querySelectorAll('[data-sp-video-close]').forEach(function (el) {
+        el.addEventListener('click', closeVideoModal);
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeVideoModal();
+    });
+})();
+</script>
+{% endblock %}
