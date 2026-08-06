@@ -303,16 +303,15 @@
                 <td>${ebEscapeHtml(item.product_name)}</td>
                 <td>${ebEscapeHtml(item.product_code || '—')}</td>
                 <td>${item.qty}</td>
-                <td>${formatMoney(deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type))}</td>
+                <td>${formatMoney(deriveOldUnitPrice(item))}</td>
                 <td>${printedItemDiscountText(item) || '—'}</td>
                 <td>${formatMoney(printedItemAmount(item))}</td>
             </tr>`).join('');
 
-        // Sub-Total/Discount are reconstructed from each item's charged unit_price + its
-        // snapshotted product-level discount (see deriveOldUnitPrice() in main.js) -
-        // store-api only stores the final charged price, never a separate original one.
+        // Sub-Total/Discount come from each line's snapshotted list_price vs the
+        // unit_price actually charged (see deriveOldUnitPrice() in main.js).
         const undiscountedSubtotal = order.items.reduce(
-            (sum, item) => sum + deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type) * item.qty, 0
+            (sum, item) => sum + deriveOldUnitPrice(item) * item.qty, 0
         );
         const itemDiscountTotal = printedCashDiscountTotal(order.items);
         document.getElementById('orderSubtotal').textContent = formatMoney(undiscountedSubtotal);

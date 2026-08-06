@@ -231,19 +231,22 @@ function formatItemDiscount(discount, discountType) {
     return discountType === 'cash' ? '$' + Number(discount).toFixed(2) : Number(discount) + '%';
 }
 
-/* Reconstructs a line's undiscounted unit price from its charged unit_price + the
-   product-level discount snapshotted onto it (see OrderItem.discount/discount_type in
-   store-api) - mirrors formatting.py's derive_old_price() on the Flask side, which does
-   the same thing for the product catalog's "was $X" display. Used by the printed quote
-   and the admin Orders view modal to show "Sub-Total (undiscounted)"/"Discount (money
-   saved)" as a real breakdown instead of just the already-discounted charged price. */
-function deriveOldUnitPrice(unitPrice, discount, discountType) {
-    const price = Number(unitPrice);
-    const d = Number(discount || 0);
-    if (!d) return price;
-    if (discountType === 'cash') return price + d;
-    if (d >= 100) return price;
-    return price / (1 - d / 100);
+/* A line's undiscounted unit price, i.e. the "UP before Discount" column on the
+   printed quote and the Sub-Total/Discount breakdown in the admin Orders modal.
+
+   This now READS the figure (OrderItem.list_price, snapshotted server-side when the
+   order was placed) instead of reconstructing it as unit_price / (1 - discount/100).
+   The old reconstruction existed only because store-api stored no original price;
+   three separate copies of it had to agree, and it silently changed whenever a price
+   was edited. See store-api's f2a9c4e18b73 migration.
+
+   `item` is an OrderItem as returned by store-api. The fallback to unit_price covers
+   a line whose list_price didn't come through (an older cached payload), where "no
+   discount" is the right thing to show rather than NaN. */
+function deriveOldUnitPrice(item) {
+    const listPrice = Number(item.list_price);
+    const unitPrice = Number(item.unit_price);
+    return Number.isFinite(listPrice) && listPrice > unitPrice ? listPrice : unitPrice;
 }
 
 /* Printed quote/invoice item table only (buildPrintTemplate + the admin Orders view
@@ -258,7 +261,7 @@ function printedItemDiscountText(item) {
 
 function printedItemAmount(item) {
     return item.discount_type === 'cash'
-        ? deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type) * item.qty
+        ? deriveOldUnitPrice(item) * item.qty
         : Number(item.line_amount);
 }
 
@@ -269,7 +272,7 @@ function printedItemAmount(item) {
 function printedCashDiscountTotal(items) {
     return items.reduce((sum, item) => {
         if (item.discount_type !== 'cash') return sum;
-        const oldUnitPrice = deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type);
+        const oldUnitPrice = deriveOldUnitPrice(item);
         return sum + (oldUnitPrice - Number(item.unit_price)) * item.qty;
     }, 0);
 }
@@ -356,8 +359,9 @@ const QuoteCart = {
         } else {
             // Code, UOM, and discount come straight from the product record
             // (set by admin) — salespeople only ever adjust qty on the quote.
-            // was_price is the reconstructed pre-discount price; price is what's
-            // actually charged (admin already applied the discount to it).
+            // was_price is the product's stored list_price when it exceeds what's
+            // charged (see formatting.py's was_price); price is what's actually
+            // charged, with the admin's discount already applied.
             items.push({
                 kind: 'product',
                 id: product.id,
@@ -500,9 +504,15 @@ const QuoteCart = {
     // Sub-Total is the combined list price before each product's own discount; Discount
     // is the money that discount actually saved. getTotal() above (the charged total)
     // stays == Sub-Total - Discount, so Grand Total's math is unaffected by this split -
-    // it's purely a display breakdown, same reconstruction as deriveOldUnitPrice().
+    // it's purely a display breakdown.
+    //
+    // Reads each line's own `oldPrice` (captured from the product's list_price, or a
+    // bundle's old_price, when it was added to the cart) rather than dividing the
+    // discount back out of `price`.
     getUndiscountedTotal() {
-        return this.getItems().reduce((sum, i) => sum + deriveOldUnitPrice(i.price, i.discount, i.discountType) * i.qty, 0);
+        return this.getItems().reduce(
+            (sum, i) => sum + (i.oldPrice > i.price ? i.oldPrice : i.price) * i.qty, 0
+        );
     },
 
     getItemDiscountTotal() {
@@ -738,7 +748,7 @@ const QuoteCart = {
         // Discount is the %, and Amount (line_amount) is the price actually
         // charged × qty.
         const undiscountedSubtotal = order.items.reduce(
-            (sum, item) => sum + deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type) * item.qty, 0
+            (sum, item) => sum + deriveOldUnitPrice(item) * item.qty, 0
         );
         const itemDiscountTotal = printedCashDiscountTotal(order.items);
 
@@ -771,7 +781,7 @@ const QuoteCart = {
                 <td>${ebEscapeHtml(item.product_name)}</td>
                 <td class="qpt-num">${item.qty}</td>
                 <td class="qpt-num">${ebEscapeHtml(item.uom || 'PCS')}</td>
-                <td class="qpt-right">$ ${deriveOldUnitPrice(item.unit_price, item.discount, item.discount_type).toFixed(2)}</td>
+                <td class="qpt-right">$ ${deriveOldUnitPrice(item).toFixed(2)}</td>
                 <td class="qpt-num">${printedItemDiscountText(item) || '—'}</td>
                 <td class="qpt-right">$ ${printedItemAmount(item).toFixed(2)}</td>
             </tr>`;

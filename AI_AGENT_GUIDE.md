@@ -271,11 +271,21 @@ anything quote-related.
   already saved, Special Discount is the separate order-level
   percent/cash discount only `product_management` staff can set
   (`QuoteCart.getDiscountType()/getDiscountValue()`), and Grand Total is
-  what's actually charged. Sub-Total/Discount are reconstructed client-side
-  via `deriveOldUnitPrice()` (mirrors `formatting.py`'s
-  `derive_old_price()`) since store-api only stores the final charged
-  `unit_price` + the discount that produced it, never a separate original
-  price column.
+  what's actually charged. Sub-Total/Discount come from each line's
+  **stored** pre-discount price - `deriveOldUnitPrice(item)` (`main.js`) just
+  reads `OrderItem.list_price`, and `formatting.py`'s `was_price()` reads
+  `Product.list_price`. Neither divides the discount back out any more: that
+  reconstruction lived in three places that had to agree, and the figure it
+  produced silently moved whenever a price was edited. See store-api's
+  `f2a9c4e18b73` migration.
+
+  Two consequences worth knowing when touching this code:
+  - `deriveOldUnitPrice()` now takes **the whole item**, not
+    `(unitPrice, discount, discountType)`. The cart drawer doesn't call it at
+    all - a cart line carries its own `oldPrice`, captured when it was added.
+  - The admin Product form's **Price field is the list price**. The blueprint
+    sends it as `list_price` and sends `_apply_discount()`'s result as `price`,
+    so store-api stores both explicitly rather than inferring either.
 - `QuoteCart.buildPrintTemplate(order)` and `QuoteCart.exportPDF(suffix)`
   (both in `main.js`) are deliberately split out as reusable, order-only
   functions (no dependency on the local cart/session) - this is what lets
@@ -322,6 +332,7 @@ Exposed as Jinja globals in `app.py` (`img`, `file_url`, `price`,
 | `format_price` (Jinja `price()`) | Safe to call on anything `to_number()` may have produced - real number → `"$1,234.56"`, masked → `"Login to view price"`, `None` → `""`. |
 | `format_date` | ISO 8601 string (or `datetime`) → `"Jul 21, 2026"` by default. |
 | `adapt_product` / `adapt_promotion` / `adapt_set` / `adapt_order` | Per-entity adapters - run **once**, immediately after fetching from store-api, before the dict reaches a template or a `tojson` blob. If you fetch a new list of orders/products/promotions/sets somewhere, run it through the matching adapter before doing anything else with it. |
+| `was_price(list_price, price)` | The struck-through "was $X", or `None` when there's nothing to strike (no discount, or a masked viewer). `adapt_product` sets `product["was_price"]` from it, which is what templates render and what a cart line stores as `oldPrice`. Replaced `derive_old_price()`, which reconstructed the figure by division - see section 4. |
 
 ## 6. Common agent mistakes to avoid
 
