@@ -1189,3 +1189,392 @@ table.qpt-table td.qpt-right { text-align: right; }
     object-fit: cover;
     display: block;
 }
+
+/* ============================================================
+   ACCOUNT DRAWER — the slide-over behind the header avatar.
+   Genuinely edge-anchored (the cart "drawer" is a centered modal
+   despite its name), so it animates on transform rather than
+   being display:none/flex-swapped: sliding needs the element to
+   already be laid out. Markup: partials/account_drawer.html,
+   behaviour: AccountDrawer in main.js.
+   ============================================================ */
+.account-drawer-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999998;
+    background: var(--modal-overlay);
+    backdrop-filter: blur(6px);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+.account-drawer-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+.account-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100%;
+    width: 380px;
+    max-width: 100%;
+    background: var(--surface);
+    z-index: 9999999;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -20px 0 60px rgba(0, 0, 0, 0.25);
+    transform: translateX(100%);
+    visibility: hidden;
+    transition: transform 0.35s cubic-bezier(.4, 0, .2, 1), visibility 0.35s;
+}
+.account-drawer.active {
+    transform: translateX(0);
+    visibility: visible;
+}
+.account-drawer-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 22px;
+    border-bottom: 1px solid var(--border);
+}
+.account-drawer-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--bg);
+    flex-shrink: 0;
+}
+.account-drawer-identity {
+    flex: 1;
+    min-width: 0;
+}
+.account-drawer-identity strong {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.account-drawer-identity span {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-light);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---- Tabs ---- */
+.account-drawer-tabs {
+    display: flex;
+    padding: 0 22px;
+    border-bottom: 1px solid var(--border);
+    gap: 6px;
+}
+.account-tab {
+    flex: 1;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 12px 4px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-light);
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+.account-tab:hover {
+    color: var(--text);
+}
+.account-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+.account-drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 22px 28px;
+}
+.account-panel {
+    display: none;
+}
+.account-panel.active {
+    display: block;
+}
+
+/* ---- Orders tab ---- */
+.account-orders-loading,
+.account-orders-empty {
+    text-align: center;
+    padding: 48px 12px;
+    color: var(--text-light);
+    font-size: 0.85rem;
+}
+.account-orders-empty i {
+    font-size: 2.2rem;
+    opacity: 0.3;
+    margin-bottom: 12px;
+    display: block;
+}
+.account-order-card {
+    /* A button, so the whole card can open the order - reset the UA button look
+       and restore the block layout the card markup assumes. */
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    background: var(--bg);
+    transition: var(--transition);
+}
+.account-order-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+}
+.account-order-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+}
+.account-order-no {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text);
+}
+.account-order-total {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--accent);
+}
+.account-order-meta {
+    margin-top: 4px;
+    font-size: 0.72rem;
+    color: var(--text-light);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+}
+.account-order-tags {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.account-tag {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 99px;
+    background: var(--border);
+    color: var(--text-soft);
+}
+.account-tag.paid {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+}
+.account-tag.unpaid {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--warning);
+}
+.account-tag.order {
+    background: rgba(8, 145, 178, 0.15);
+    color: var(--accent);
+}
+
+/* ---- Settings tab ---- */
+.account-detail-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.82rem;
+}
+.account-detail-row span {
+    color: var(--text-light);
+}
+.account-detail-row strong {
+    color: var(--text);
+    font-weight: 600;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+.account-links {
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.account-links a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 12px;
+    border-radius: 10px;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-soft);
+    transition: var(--transition);
+}
+.account-links a span {
+    flex: 1;
+}
+.account-links a i:last-child {
+    font-size: 0.7rem;
+    opacity: 0.5;
+}
+.account-links a:hover {
+    background: var(--bg);
+    color: var(--accent);
+}
+.account-links a.danger {
+    color: var(--danger);
+}
+.account-links a.danger:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .account-drawer,
+    .account-drawer-overlay {
+        transition: none;
+    }
+}
+
+/* ---- Order detail (inside the account drawer) ---- */
+.account-back-btn {
+    background: none;
+    border: none;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-light);
+    cursor: pointer;
+    padding: 0 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: var(--transition);
+}
+.account-back-btn:hover {
+    color: var(--accent);
+}
+.account-detail-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 6px;
+}
+.account-detail-head strong {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text);
+}
+.account-detail-head span {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--text-light);
+    margin-top: 2px;
+}
+.account-items {
+    margin: 14px 0;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+.account-item-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    font-size: 0.82rem;
+    color: var(--text);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+.account-item-row:last-child {
+    border-bottom: none;
+}
+/* A $0 line spelling out what the line above includes (a promotion/set's members,
+   a product's freebies) - indented and muted, never priced. */
+.account-item-row.component {
+    padding-left: 26px;
+    font-size: 0.76rem;
+    color: var(--text-light);
+    background: var(--bg);
+}
+.account-item-name {
+    flex: 1;
+}
+.account-item-qty {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--text-light);
+    margin-top: 2px;
+}
+.account-item-row.component .account-item-qty {
+    display: inline;
+    margin: 0;
+}
+.account-item-amount {
+    font-weight: 600;
+    white-space: nowrap;
+}
+.account-detail-row.grand {
+    border-bottom: none;
+    font-size: 0.95rem;
+}
+.account-detail-row.grand strong {
+    color: var(--accent);
+    font-weight: 700;
+}
+.account-pdf-btn {
+    width: 100%;
+    margin-top: 16px;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #fff;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: var(--transition);
+}
+.account-pdf-btn:hover:not(:disabled) {
+    background: var(--accent-light);
+}
+.account-pdf-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}

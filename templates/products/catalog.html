@@ -87,7 +87,10 @@
                 {% endif %}
 
                 {% for p in products %}
-                <div class="product-card product-card-vertical reveal" style="--i: {{ loop.index0 % 4 }}; cursor:pointer;" onclick="openProductModal({{ p.id }})">
+                {# A real link, not an onclick - the card used to pop a modal, and a
+                   product now has a full page of its own worth linking/sharing. #}
+                <a class="product-card product-card-vertical reveal" style="--i: {{ loop.index0 % 4 }};"
+                   href="{{ url_for('catalog.product_detail', product_id=p.id) }}">
                     <div class="product-image-wrap">
                         <img class="product-image"
                              src="{{ img(p.product_image) }}"
@@ -106,7 +109,7 @@
                         </div>
                         <div class="view-detail">View Details <i class="fas fa-arrow-right"></i></div>
                     </div>
-                </div>
+                </a>
                 {% endfor %}
             </div>
         </div>
@@ -115,16 +118,5 @@
 </div>
 {% endblock %}
 
-{% block extra_js %}
-<script>
-    // Read by openProductModal() / main.js when a product card is clicked.
-    // Image paths are resolved through img() here too, same as the cards
-    // above — otherwise the modal would show a broken image for anything
-    // using a local filename instead of a full URL.
-    {% set products_json = [] %}
-    {% for p in products %}
-    {% set _ = products_json.append(dict(p, image=img(p.product_image))) %}
-    {% endfor %}
-    const PRODUCTS_DATA = {{ products_json|tojson }};
-</script>
-{% endblock %}
+{# No PRODUCTS_DATA blob here anymore: cards link straight to the product page,
+   so nothing on this page needs every product's details up front. #}

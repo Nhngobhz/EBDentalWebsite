@@ -2,32 +2,79 @@
 
 {% block title %}{{ product.product_name }}{% endblock %}
 
+{# `gallery` is built in the route (catalog.product_detail): the product's main
+   picture first, then every extra photo uploaded against it. #}
 {% block content %}
 <div id="productPage">
     <div class="container">
 
-        <a href="{{ url_for('catalog.products_catalog') }}" class="btn-hero" style="margin: 20px 0; display: inline-flex;">
-            <i class="fas fa-arrow-left"></i> All Products
-        </a>
+        <nav class="pd-breadcrumb" aria-label="Breadcrumb">
+            <a href="{{ url_for('main.home') }}">Home</a>
+            <i class="fas fa-chevron-right"></i>
+            <a href="{{ url_for('catalog.products_catalog') }}">Products</a>
+            {% if product.brand %}
+            <i class="fas fa-chevron-right"></i>
+            <a href="{{ url_for('catalog.products_catalog', brand=product.brand.id) }}">{{ product.brand.brand_name }}</a>
+            {% endif %}
+            <i class="fas fa-chevron-right"></i>
+            <span class="current">{{ product.product_name }}</span>
+        </nav>
 
-        <div class="product-detail">
-            <div class="product-detail-image-wrap">
-                <img src="{{ img(product.product_image) }}"
-                     alt="{{ product.product_name }}" />
-                {% if product.badge == 'sale' %}<div class="product-badge sale">Sale</div>
-                {% elif product.badge == 'new' %}<div class="product-badge new">New</div>
-                {% elif product.badge == 'hot' %}<div class="product-badge hot">🔥 Hot</div>{% endif %}
+        <div class="pd-layout">
+
+            <!-- ---------- Gallery ---------- -->
+            <div class="pd-gallery">
+                <div class="pd-thumbs" id="pdThumbs" role="tablist" aria-label="Product images">
+                    {% for src in gallery %}
+                    <button type="button" class="pd-thumb {{ 'active' if loop.first }}" data-index="{{ loop.index0 }}"
+                            role="tab" aria-selected="{{ 'true' if loop.first else 'false' }}"
+                            aria-label="Image {{ loop.index }} of {{ gallery|length }}">
+                        <img src="{{ src }}" alt="" loading="lazy" />
+                    </button>
+                    {% endfor %}
+                </div>
+
+                <div class="pd-stage">
+                    <img id="pdMainImage" src="{{ gallery[0] }}" alt="{{ product.product_name }}" />
+                    {% if product.badge == 'sale' %}<div class="product-badge sale">Sale</div>
+                    {% elif product.badge == 'new' %}<div class="product-badge new">New</div>
+                    {% elif product.badge == 'hot' %}<div class="product-badge hot">🔥 Hot</div>{% endif %}
+                    <button type="button" class="pd-zoom-hint" id="pdZoomBtn">
+                        <i class="fas fa-search-plus"></i> Click to enlarge
+                    </button>
+                </div>
             </div>
 
-            <div class="product-detail-info">
-                <div class="product-detail-brand">{{ product.brand.brand_name if product.brand else '' }}</div>
-                <h1 class="product-detail-title">{{ product.product_name }}</h1>
-                <p class="product-detail-desc">{{ product.description }}</p>
+            <!-- ---------- Description column ---------- -->
+            <div class="pd-info">
+                {% if product.brand %}
+                <a class="pd-brand" href="{{ url_for('catalog.products_catalog', brand=product.brand.id) }}">
+                    Visit the {{ product.brand.brand_name }} store <i class="fas fa-arrow-right"></i>
+                </a>
+                {% endif %}
+                <h1 class="pd-title">{{ product.product_name }}</h1>
 
-                <div class="product-detail-price">
-                    {{ price(product.price) }}
-                    {% if product.was_price %}<span class="old">{{ price(product.was_price) }}</span>{% endif %}
+                <div class="pd-meta">
+                    {% if product.product_code %}<span><i class="fas fa-barcode"></i> {{ product.product_code }}</span>{% endif %}
+                    {% if product.category %}<span><i class="fas fa-folder-open"></i> {{ product.category.category_name }}</span>{% endif %}
+                    <span><i class="fas fa-box"></i> Sold per {{ (product.uom or 'pcs')|lower }}</span>
                 </div>
+
+                <div class="pd-price-row">
+                    <span class="pd-price">{{ price(product.price) }}</span>
+                    {% if product.was_price %}
+                    <span class="pd-was">{{ price(product.was_price) }}</span>
+                    <span class="pd-save">
+                        {% if product.discount_type == 'cash' %}Save {{ price(product.discount) }}
+                        {% else %}Save {{ (product.discount or 0)|round|int }}%{% endif %}
+                    </span>
+                    {% endif %}
+                </div>
+
+                {% if product.description %}
+                <div class="pd-section-title">About this item</div>
+                <p class="pd-desc">{{ product.description }}</p>
+                {% endif %}
 
                 {# Free products that ride along with this one - added to the cart
                    automatically and printed on the quote at $0.00. #}
@@ -40,40 +87,186 @@
                 </ul>
                 {% endif %}
 
-                <div class="product-detail-actions">
-                    {% if can_quote() %}
-                    <button type="button" class="btn-primary" id="detailAddToQuoteBtn"><i class="fas fa-shopping-cart"></i> Add to Cart</button>
-                    {% else %}
-                    <a class="btn-primary" href="{{ url_for('main.contact') }}" style="text-decoration:none; display:inline-flex; align-items:center; gap:8px;">
-                        <i class="fas fa-lock"></i> {{ 'Log in to request a quote' if not is_logged_in() else 'Contact us for pricing' }}
-                    </a>
-                    {% endif %}
-                    <a class="btn-outline" href="{{ url_for('main.contact') }}" style="text-decoration:none; display:inline-flex; align-items:center; gap:8px;">
-                        <i class="fas fa-phone"></i> Contact Us
-                    </a>
-                </div>
+                <div class="pd-section-title">Product details</div>
+                <table class="pd-spec-table">
+                    <tbody>
+                        {% if product.brand %}<tr><th>Brand</th><td>{{ product.brand.brand_name }}</td></tr>{% endif %}
+                        {% if product.category %}<tr><th>Category</th><td>{{ product.category.category_name }}</td></tr>{% endif %}
+                        <tr><th>Item code</th><td>{{ product.product_code or '—' }}</td></tr>
+                        <tr><th>Unit of measure</th><td>{{ product.uom or 'PCS' }}</td></tr>
+                        {% if manual %}<tr><th>Documentation</th><td>User manual available</td></tr>{% endif %}
+                    </tbody>
+                </table>
             </div>
+
+            <!-- ---------- Buy box ---------- -->
+            <aside class="pd-buybox">
+                <div class="pd-buybox-price">{{ price(product.price) }}</div>
+                {% if product.was_price %}
+                <div class="pd-buybox-was">Was <s>{{ price(product.was_price) }}</s></div>
+                {% endif %}
+
+                <div class="pd-stock"><i class="fas fa-circle-check"></i> Available to order</div>
+
+                {% if can_quote() %}
+                <label class="pd-qty-label" for="pdQty">Quantity</label>
+                <div class="pd-qty">
+                    <button type="button" id="pdQtyMinus" aria-label="Decrease quantity"><i class="fas fa-minus"></i></button>
+                    <input type="number" id="pdQty" value="1" min="1" max="100000" inputmode="numeric" aria-label="Quantity">
+                    <button type="button" id="pdQtyPlus" aria-label="Increase quantity"><i class="fas fa-plus"></i></button>
+                </div>
+                <button type="button" class="btn-primary pd-cta" id="detailAddToQuoteBtn">
+                    <i class="fas fa-shopping-cart"></i> Add to Cart
+                </button>
+                {% else %}
+                <a class="btn-primary pd-cta" href="{{ url_for('main.contact') if is_logged_in() else url_for('auth.login') }}">
+                    <i class="fas fa-lock"></i> {{ 'Contact us for pricing' if is_logged_in() else 'Log in to see prices' }}
+                </a>
+                {% endif %}
+
+                <a class="btn-outline pd-cta" href="{{ url_for('main.contact') }}">
+                    <i class="fas fa-phone"></i> Contact Us
+                </a>
+
+                {# The Manual button, moved here from the site header - it belongs with
+                   the product it documents, not in the top nav. Only rendered when this
+                   product actually has a manual PDF attached (admin > Product Manuals). #}
+                {% if manual and manual.pdf %}
+                <a class="btn-outline pd-cta pd-manual-btn" href="{{ file_url(manual.pdf) }}" target="_blank" rel="noopener">
+                    <i class="fas fa-file-pdf"></i> Product Manual (PDF)
+                </a>
+                {% endif %}
+
+                <ul class="pd-assurance">
+                    <li><i class="fas fa-shield-halved"></i> Genuine product, supplier warranty</li>
+                    <li><i class="fas fa-truck-fast"></i> Delivery across Cambodia</li>
+                    <li><i class="fas fa-screwdriver-wrench"></i> Installation &amp; after-sales support</li>
+                </ul>
+            </aside>
         </div>
 
         {% if manual %}
-        <div class="dash-card" style="margin: 24px 0; padding: 24px;">
-            <h3 style="margin-bottom: 12px;"><i class="fas fa-book"></i> Product Manual</h3>
-            {% if manual.description %}<p style="color:var(--text-light);">{{ manual.description }}</p>{% endif %}
+        <section class="pd-manual-card">
+            <div class="pd-manual-icon"><i class="fas fa-book"></i></div>
+            <div class="pd-manual-body">
+                <h3>Product Manual</h3>
+                <p>{{ manual.description or 'Setup guide and instructions for ' ~ product.product_name ~ '.' }}</p>
+            </div>
             {% if manual.pdf %}
-            <a class="btn-hero" href="{{ file_url(manual.pdf) }}" target="_blank" style="margin-top:16px; display:inline-flex;">
-                <i class="fas fa-file-pdf"></i> View Manual PDF
+            <a class="btn-primary" href="{{ file_url(manual.pdf) }}" target="_blank" rel="noopener">
+                <i class="fas fa-file-pdf"></i> View Manual
             </a>
             {% endif %}
-        </div>
+        </section>
         {% endif %}
 
+        {% if related %}
+        <section class="pd-related">
+            <h2>More from {{ product.brand.brand_name if product.brand else 'our catalog' }}</h2>
+            <div class="pd-related-grid">
+                {% for r in related %}
+                <a class="pd-related-card" href="{{ url_for('catalog.product_detail', product_id=r.id) }}">
+                    <div class="pd-related-img"><img src="{{ img(r.product_image) }}" alt="{{ r.product_name }}" loading="lazy" /></div>
+                    <div class="pd-related-name">{{ r.product_name }}</div>
+                    <div class="pd-related-price">{{ price(r.price) }}</div>
+                </a>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        <a href="{{ url_for('catalog.products_catalog') }}" class="btn-outline pd-back">
+            <i class="fas fa-arrow-left"></i> Back to all products
+        </a>
+
     </div>
+</div>
+
+<!-- Full-screen image viewer, opened by the main image / "Click to enlarge". -->
+<div class="pd-lightbox" id="pdLightbox" role="dialog" aria-modal="true" aria-label="Product image viewer">
+    <button type="button" class="pd-lightbox-close" id="pdLightboxClose" aria-label="Close"><i class="fas fa-times"></i></button>
+    <button type="button" class="pd-lightbox-nav prev" id="pdLightboxPrev" aria-label="Previous image"><i class="fas fa-chevron-left"></i></button>
+    <img id="pdLightboxImage" src="" alt="{{ product.product_name }}" />
+    <button type="button" class="pd-lightbox-nav next" id="pdLightboxNext" aria-label="Next image"><i class="fas fa-chevron-right"></i></button>
+    <div class="pd-lightbox-count" id="pdLightboxCount"></div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
+<script>
+    const PD_GALLERY = {{ gallery|tojson }};
+    let pdIndex = 0;
+
+    function pdShow(index) {
+        if (index < 0) index = PD_GALLERY.length - 1;
+        if (index >= PD_GALLERY.length) index = 0;
+        pdIndex = index;
+
+        document.getElementById('pdMainImage').src = PD_GALLERY[pdIndex];
+        document.querySelectorAll('#pdThumbs .pd-thumb').forEach((thumb, i) => {
+            thumb.classList.toggle('active', i === pdIndex);
+            thumb.setAttribute('aria-selected', i === pdIndex ? 'true' : 'false');
+        });
+        if (document.getElementById('pdLightbox').classList.contains('active')) {
+            document.getElementById('pdLightboxImage').src = PD_GALLERY[pdIndex];
+            document.getElementById('pdLightboxCount').textContent = `${pdIndex + 1} / ${PD_GALLERY.length}`;
+        }
+    }
+
+    document.querySelectorAll('#pdThumbs .pd-thumb').forEach(thumb => {
+        // Hovering a thumbnail previews it, the way Amazon's gallery does; the click
+        // is still what "sticks" for anyone on touch or keyboard.
+        thumb.addEventListener('mouseenter', () => pdShow(Number(thumb.dataset.index)));
+        thumb.addEventListener('click', () => pdShow(Number(thumb.dataset.index)));
+    });
+
+    function pdOpenLightbox() {
+        const box = document.getElementById('pdLightbox');
+        box.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        document.getElementById('pdLightboxImage').src = PD_GALLERY[pdIndex];
+        document.getElementById('pdLightboxCount').textContent = `${pdIndex + 1} / ${PD_GALLERY.length}`;
+    }
+
+    function pdCloseLightbox() {
+        document.getElementById('pdLightbox').classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    document.getElementById('pdMainImage').addEventListener('click', pdOpenLightbox);
+    document.getElementById('pdZoomBtn').addEventListener('click', pdOpenLightbox);
+    document.getElementById('pdLightboxClose').addEventListener('click', pdCloseLightbox);
+    document.getElementById('pdLightboxPrev').addEventListener('click', () => pdShow(pdIndex - 1));
+    document.getElementById('pdLightboxNext').addEventListener('click', () => pdShow(pdIndex + 1));
+    document.getElementById('pdLightbox').addEventListener('click', function (e) {
+        // Only the backdrop closes - clicking the photo or a control shouldn't.
+        if (e.target === this) pdCloseLightbox();
+    });
+    document.addEventListener('keydown', e => {
+        if (!document.getElementById('pdLightbox').classList.contains('active')) return;
+        if (e.key === 'Escape') pdCloseLightbox();
+        if (e.key === 'ArrowLeft') pdShow(pdIndex - 1);
+        if (e.key === 'ArrowRight') pdShow(pdIndex + 1);
+    });
+</script>
+
 {% if can_quote() %}
 <script>
+    const pdQtyInput = document.getElementById('pdQty');
+
+    function pdReadQty() {
+        const qty = parseInt(pdQtyInput.value, 10);
+        return Number.isFinite(qty) && qty > 0 ? Math.min(qty, 100000) : 1;
+    }
+
+    document.getElementById('pdQtyMinus').addEventListener('click', () => {
+        pdQtyInput.value = Math.max(1, pdReadQty() - 1);
+    });
+    document.getElementById('pdQtyPlus').addEventListener('click', () => {
+        pdQtyInput.value = Math.min(100000, pdReadQty() + 1);
+    });
+    pdQtyInput.addEventListener('change', () => { pdQtyInput.value = pdReadQty(); });
+
     document.getElementById('detailAddToQuoteBtn').addEventListener('click', () => {
         QuoteCart.addItem({
             id: {{ product.id|tojson }},
@@ -88,7 +281,7 @@
             {# Shown under the line in the cart drawer; store-api re-expands the
                real freebies server-side when the order is placed. #}
             free_items: {{ product.free_items|tojson }},
-        });
+        }, pdReadQty());
         showToast('Added to cart successfully');
     });
 </script>

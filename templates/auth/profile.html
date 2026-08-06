@@ -89,13 +89,27 @@
 </div>
 
 <script>
-document.getElementById('togglePasswordSection')?.addEventListener('click', function () {
+function ebTogglePasswordSection(btn) {
     const section = document.getElementById('passwordSection');
     const isHidden = section.style.display === 'none';
     section.style.display = isHidden ? 'block' : 'none';
-    this.innerHTML = isHidden
+    btn.innerHTML = isHidden
         ? '<i class="fas fa-chevron-up"></i> Hide Password Form'
         : '<i class="fas fa-key"></i> Change Password';
+    return isHidden;
+}
+
+const ebPasswordToggleBtn = document.getElementById('togglePasswordSection');
+ebPasswordToggleBtn?.addEventListener('click', function () {
+    ebTogglePasswordSection(this);
 });
+
+// The account drawer's "Change password" link lands here as /profile#passwordSection.
+// The form starts hidden behind the toggle above, so arriving with that hash has to
+// open it (and scroll to it) - otherwise the link appears to do nothing.
+if (window.location.hash === '#passwordSection' && ebPasswordToggleBtn) {
+    ebTogglePasswordSection(ebPasswordToggleBtn);
+    document.getElementById('passwordSection').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
 </script>
 {% endblock %}

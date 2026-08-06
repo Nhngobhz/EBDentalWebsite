@@ -3,6 +3,7 @@ from urllib.parse import urlparse
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 from auth import account_type, current_account, is_staff, login_required
+from formatting import adapt_order, to_number
 from store_api import StoreAPIError, get_api_client
 
 auth_bp = Blueprint("auth", __name__)
@@ -269,6 +270,67 @@ def profile_edit():
     # Caps the birthday date-picker client-side; store-api rejects a future date
     # regardless, this just stops the user hitting that error in the first place.
     return render_template("auth/profile_edit.html", me=me, today=date.today().isoformat())
+
+
+@auth_bp.route("/profile/orders", methods=["GET"])
+@login_required
+def profile_orders():
+    """JSON feed for the account drawer's "Orders" tab (partials/account_drawer.html),
+    fetched the first time the tab is opened rather than on every page render.
+
+    Only summary fields are returned - the drawer lists orders, it doesn't reprint them,
+    so there's no reason to ship every line item's pricing to the browser. Ownership is
+    store-api's call, not ours: /orders/mine derives it from the bearer token, so this
+    route never passes an account id of its own."""
+    client = get_api_client()
+    try:
+        raw_orders = client.get("/orders/mine", params={"limit": 25})
+    except StoreAPIError as e:
+        # StoreAPIUnavailable carries no status_code - report it as a 503 rather than
+        # letting `None` blow up Flask's response builder.
+        return jsonify({"detail": e.detail}), e.status_code or 503
+
+    return jsonify([
+        {
+            "id": o["id"],
+            "order_number": o.get("order_number"),
+            "quote_code": o.get("quote_code"),
+            "created_at": o.get("created_at"),
+            "grand_total": to_number(o.get("grand_total")),
+            "status": o.get("status"),
+            "order_type": o.get("order_type"),
+            "payment_method": o.get("payment_method"),
+            "payment_status": o.get("payment_status"),
+            "clinic_name": o.get("clinic_name"),
+            # Component ($0 bundle-content) lines are spelled-out contents of another
+            # line, not things ordered separately - counting them would inflate the
+            # "N items" label on every order containing a promotion/set/freebie.
+            "item_count": sum(1 for i in o.get("items", []) if not i.get("parent_item_id")),
+        }
+        for o in raw_orders
+    ])
+
+
+@auth_bp.route("/profile/orders/<int:order_id>", methods=["GET"])
+@login_required
+def profile_order_detail(order_id):
+    """One of the caller's own orders in full, for the account drawer's order detail
+    view and its "Download PDF" button - the PDF is rebuilt in the browser from this
+    exact payload (QuoteCart.buildPrintTemplate), the same way the admin Orders page
+    re-prints one, so nothing is resubmitted and no PDF is stored server-side.
+
+    Ownership is store-api's call (/orders/mine/<id> 404s on somebody else's order);
+    this route never checks the id against the session itself."""
+    client = get_api_client()
+    try:
+        order = client.get(f"/orders/mine/{order_id}")
+    except StoreAPIError as e:
+        return jsonify({"detail": e.detail}), e.status_code or 503
+
+    # adapt_order coerces store-api's numeric-as-string money fields to real numbers -
+    # the print template does arithmetic on them (see main.js), so strings would
+    # silently concatenate.
+    return jsonify(adapt_order(order))
 
 
 @auth_bp.route("/profile/password", methods=["POST"])

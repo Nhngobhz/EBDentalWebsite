@@ -38,8 +38,9 @@
     {% include "partials/nav.html" %}
     {% include "partials/footer.html" %}
     {% endif %}
-    {% include "partials/product_modal.html" %}
+    {% include "partials/toast.html" %}
     {% include "partials/quote_drawer.html" %}
+    {% include "partials/account_drawer.html" %}
 
     <script>
         // Whether the current visitor is allowed to use the "Add to Quote" cart at
@@ -61,6 +62,8 @@
         // "/quote/0/payment-status" - main.js swaps the 0 for a real order id when
         // polling a KHQR order's payment state.
         const PAYMENT_STATUS_URL_TEMPLATE = {{ url_for('quote.payment_status', order_id=0)|tojson }};
+        // Feed behind the account drawer's Orders tab (see AccountDrawer in main.js).
+        const PROFILE_ORDERS_URL = {{ url_for('auth.profile_orders')|tojson }};
     </script>
     <!-- jsPDF/html2canvas are NOT loaded here anymore - QuoteCart._ensurePdfLibs()
          (main.js) injects them on demand the first time a PDF is actually exported,

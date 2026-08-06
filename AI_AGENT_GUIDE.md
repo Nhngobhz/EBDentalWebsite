@@ -110,6 +110,21 @@ follows.
   Before surfacing a new profile field, check whether `users`, `customers`, or
   both actually have it; adding a one-sided field unguarded renders an empty
   row for the other principal type.
+- The header avatar opens the **account slide-over**
+  (`partials/account_drawer.html`, `AccountDrawer` in `main.js`) rather than
+  navigating - `/profile` is still its `href`, so it degrades to a plain link
+  without JS. Its Orders tab fetches `/profile/orders`
+  (JSON, summary fields only) on **first open**, backed by store-api's
+  `GET /orders/mine`; the staff-only `GET /orders/` can't serve it because a
+  customer has no `price_listing`. Tapping an order fetches it in full from
+  `/profile/orders/<id>` (cached per page view) and shows its line items; its
+  **Download PDF** button re-runs `QuoteCart.buildPrintTemplate` + `exportPDF`
+  on that payload - the same two calls the admin Orders page's Print button
+  makes. Nothing is resubmitted and no PDF is stored: the document is rebuilt in
+  the browser every time, so a re-download always matches what's on record. Don't confuse it with the cart "drawer",
+  which is really a centered modal - this one actually slides from the edge and
+  animates on `transform`, so its hidden state must stay laid out
+  (`visibility`, not `display:none`).
 - The three decorators fail in three deliberately different ways:
   `login_required` (storefront pages) flashes and redirects to `/login`;
   `staff_required` (the `/admin/*` gate) **`abort(404)`s** so the admin
@@ -152,7 +167,11 @@ follows.
   `blueprints/admin/{products,brands,categories,manuals}.py`) and pass it
   to `post_form`/`post_json`'s sibling calls - store-api expects
   `multipart/form-data` for these, never JSON (see the other guide's
-  section 3).
+  section 3). The one endpoint that takes **several** files
+  (`POST /products/{id}/gallery`) needs a *list of tuples* instead of a
+  dict, since every part reuses the same field name:
+  `[("files", (filename, stream, mimetype)), ...]` - see
+  `_gallery_files_from_request()` in `blueprints/admin/products.py`.
 
 ## 3. The admin blueprint - the pattern every page follows
 
@@ -385,3 +404,17 @@ Exposed as Jinja globals in `app.py` (`img`, `file_url`, `price`,
    truthiness), but don't pass them to `|tojson` or code that needs a real
    `list` - fetch and adapt your own list in the route instead (which also
    shadows the global, skipping the sitewide fetch entirely).
+11. **Looking for the storefront product modal.** It's gone (2026-08-06).
+   A catalog card is now a plain `<a>` to `/products/<id>`
+   (`products/detail.html`), so there is no `PRODUCTS_DATA` blob on the
+   catalog page and no `openProductModal()` in `main.js` - the identically
+   named function in `admin/products.html` is the admin's own create/edit
+   modal and is unrelated. `partials/product_modal.html` was renamed
+   `partials/toast.html`, which is all that survived of it.
+   That page's image gallery (main picture + store-api's
+   `Product.images`) is assembled **in the route**, not the template:
+   `catalog.product_detail` resolves every URL through
+   `resolve_image_url` and passes one `gallery` list, because both the
+   `{% block content %}` markup and the `{% block extra_js %}` blob need
+   the same list and a top-level `{% set %}` shared across two blocks is
+   exactly the kind of Jinja scoping that quietly breaks.

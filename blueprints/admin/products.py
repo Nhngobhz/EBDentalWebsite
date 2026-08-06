@@ -13,6 +13,33 @@ def _file_from_request():
     return None
 
 
+def _gallery_files_from_request():
+    """The extra product-page photos, as the repeated-field list store-api's
+    POST /products/{id}/gallery expects (a list of tuples rather than a dict,
+    since every one of them is sent under the same field name)."""
+    return [
+        ("files", (f.filename, f.stream, f.mimetype))
+        for f in request.files.getlist("gallery")
+        if f and f.filename
+    ]
+
+
+def _upload_gallery(client, product_id):
+    files = _gallery_files_from_request()
+    if files:
+        client.post_form(f"/products/{product_id}/gallery", files=files)
+
+
+def _delete_removed_gallery_images(client, product_id):
+    """Gallery photos the admin X'd out in the modal. They arrive as hidden
+    inputs on the same form as everything else (a nested <form> per thumbnail
+    isn't valid HTML), so the removal happens here rather than through a
+    dedicated route."""
+    for image_id in request.form.getlist("remove_gallery_ids"):
+        if image_id.isdigit():
+            client.delete(f"/products/{product_id}/gallery/{image_id}")
+
+
 def _apply_discount(price, discount, discount_type):
     """The Price field the admin fills in is the original (pre-discount) price, so the
     discounted figure store-api charges has to be computed from it here.
@@ -87,6 +114,7 @@ def products_new():
         files = _file_from_request()
         if files:
             client.post_form(f"/products/{created['id']}/image", files=files)
+        _upload_gallery(client, created["id"])
     except StoreAPIError as e:
         flash(e.detail, "error")
         return redirect(url_for("admin.products"))
@@ -105,6 +133,8 @@ def products_edit(product_id):
         files = _file_from_request()
         if files:
             client.post_form(f"/products/{product_id}/image", files=files)
+        _delete_removed_gallery_images(client, product_id)
+        _upload_gallery(client, product_id)
     except StoreAPIError as e:
         flash(e.detail, "error")
         return redirect(url_for("admin.products"))

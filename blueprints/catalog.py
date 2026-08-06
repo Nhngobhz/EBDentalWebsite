@@ -2,7 +2,7 @@ from urllib.parse import urlencode
 
 from flask import Blueprint, abort, render_template, request, url_for
 
-from formatting import adapt_product, adapt_promotion, adapt_set
+from formatting import adapt_product, adapt_promotion, adapt_set, resolve_image_url
 from special_products import SPECIAL_PRODUCTS, get_special_product
 from store_api import StoreAPIError, get_api_client
 
@@ -74,7 +74,35 @@ def product_detail(product_id):
     manuals = client.get("/manuals/", params={"product_id": product_id, "limit": 1})
     manual = manuals[0] if manuals else None
 
-    return render_template("products/detail.html", product=product, manual=manual)
+    # The detail page's image gallery: the main picture first, then the extra photos
+    # (store-api's ProductImage rows, which never repeat the main one). Resolved to
+    # real URLs here rather than in the template, because the same list has to reach
+    # both the markup and the page's JS.
+    gallery = [resolve_image_url(product.get("product_image"))] + [
+        resolve_image_url(extra.get("image")) for extra in product.get("images") or []
+    ]
+
+    # "More from this brand" strip at the foot of the page. Best-effort: a failure
+    # here shouldn't take down the product page itself.
+    related = []
+    brand = product.get("brand")
+    if brand:
+        try:
+            related = [
+                adapt_product(p)
+                for p in client.get("/products/", params={"brand_id": brand["id"], "limit": 12})
+                if p["id"] != product_id
+            ][:6]
+        except StoreAPIError:
+            related = []
+
+    return render_template(
+        "products/detail.html",
+        product=product,
+        manual=manual,
+        gallery=gallery,
+        related=related,
+    )
 
 
 @catalog_bp.route("/manuals")

@@ -1,0 +1,105 @@
+{# Account slide-over — opened by the avatar/name in the header (and the bottom nav's
+   Account item on mobile) instead of navigating straight to /profile. Two tabs:
+   "Orders" (the signed-in account's own order history, fetched from
+   /profile/orders on first open — see AccountDrawer in main.js) and "Settings"
+   (account summary + the profile actions that used to only be reachable from the
+   profile page itself).
+
+   Unlike the cart drawer — which is really a centered modal — this one genuinely
+   slides in from the right edge; styles live under "ACCOUNT DRAWER" in base.css. #}
+{% if is_logged_in() %}
+<div class="account-drawer-overlay" id="accountDrawerOverlay"></div>
+<aside class="account-drawer" id="accountDrawer" role="dialog" aria-modal="true"
+       aria-label="Your account" aria-hidden="true">
+    <div class="account-drawer-header">
+        <img src="{{ img(current_account().image) or url_for('static', filename='images/eb-logo.png') }}"
+             alt="" class="account-drawer-avatar" />
+        <div class="account-drawer-identity">
+            <strong>{{ current_account().name }}</strong>
+            <span>{{ current_account().email }}</span>
+        </div>
+        <button type="button" class="quote-drawer-close" id="accountDrawerClose" aria-label="Close">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <div class="account-drawer-tabs" role="tablist">
+        <button type="button" class="account-tab active" role="tab" aria-selected="true"
+                data-account-tab="orders" id="accountTabOrders">
+            <i class="fas fa-receipt"></i> {{ "My Quotes" if is_staff() else "My Orders" }}
+        </button>
+        <button type="button" class="account-tab" role="tab" aria-selected="false"
+                data-account-tab="settings" id="accountTabSettings">
+            <i class="fas fa-gear"></i> Profile Settings
+        </button>
+    </div>
+
+    <div class="account-drawer-body">
+        {# Filled by AccountDrawer.loadOrders() on first open; the spinner below is what
+           shows until that first fetch resolves. Tapping a card swaps this panel for
+           the detail view below (same drawer, no navigation). #}
+        <div class="account-panel active" id="accountPanelOrders" role="tabpanel" aria-labelledby="accountTabOrders">
+            <div class="account-orders-loading" id="accountOrdersLoading">
+                <i class="fas fa-spinner fa-spin"></i> Loading…
+            </div>
+            <div id="accountOrdersList"></div>
+        </div>
+
+        {# Order detail — line items + totals + a re-generated PDF. The order is fetched
+           in full from /profile/orders/<id> the first time it's opened (the list only
+           carries summaries) and cached for the rest of the page view. #}
+        <div class="account-panel" id="accountPanelOrderDetail">
+            <button type="button" class="account-back-btn" id="accountOrderBackBtn">
+                <i class="fas fa-arrow-left"></i> Back to orders
+            </button>
+            <div id="accountOrderDetail"></div>
+        </div>
+
+        <div class="account-panel" id="accountPanelSettings" role="tabpanel" aria-labelledby="accountTabSettings">
+            <div class="account-detail-row">
+                <span>Account</span>
+                <strong>{{ "Staff" if is_staff() else "Customer" }}</strong>
+            </div>
+            <div class="account-detail-row">
+                <span>Name</span>
+                <strong>{{ current_account().name }}</strong>
+            </div>
+            <div class="account-detail-row">
+                <span>Email</span>
+                <strong>{{ current_account().email }}</strong>
+            </div>
+            {% if is_staff() and current_account().role_title %}
+            <div class="account-detail-row">
+                <span>Role</span>
+                <strong>{{ current_account().role_title }}</strong>
+            </div>
+            {% endif %}
+
+            <nav class="account-links">
+                <a href="{{ url_for('auth.profile') }}">
+                    <i class="fas fa-id-card"></i> <span>View full profile</span><i class="fas fa-chevron-right"></i>
+                </a>
+                <a href="{{ url_for('auth.profile_edit') }}">
+                    <i class="fas fa-pen"></i> <span>Edit profile</span><i class="fas fa-chevron-right"></i>
+                </a>
+                {# The password form itself lives on the profile page - #passwordSection
+                   makes it open on arrival rather than duplicating the form here. #}
+                <a href="{{ url_for('auth.profile') }}#passwordSection">
+                    <i class="fas fa-key"></i> <span>Change password</span><i class="fas fa-chevron-right"></i>
+                </a>
+                {% if is_staff() %}
+                <a href="{{ url_for('admin.dashboard') }}">
+                    <i class="fas fa-gauge"></i> <span>Admin dashboard</span><i class="fas fa-chevron-right"></i>
+                </a>
+                {% endif %}
+                {# Same localStorage cleanup the profile page's log-out link does - the
+                   cart is per-browser, so it must not survive into the next account. #}
+                <a href="{{ url_for('auth.logout') }}" class="danger"
+                   onclick="localStorage.removeItem('eb_quote_cart'); localStorage.removeItem('eb_quote_customer_info'); localStorage.removeItem('eb_quote_discount_type'); localStorage.removeItem('eb_quote_discount_value');">
+                    <i class="fas fa-right-from-bracket"></i> <span>Log out</span><i class="fas fa-chevron-right"></i>
+                </a>
+            </nav>
+        </div>
+    </div>
+</aside>
+{% endif %}
