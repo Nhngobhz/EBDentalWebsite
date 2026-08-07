@@ -7,8 +7,6 @@
     <div class="eb-contact-page">
         <div class="container">
 
-            {% include "partials/hero_slider.html" %}
-
             <div class="contact-hero">
                 <div class="hero-badge"><i class="fas fa-phone-alt"></i> Get in Touch</div>
                 <h1>Contact <span>EB Dental</span> Supply</h1>
@@ -30,6 +28,95 @@
                 </div>
             </div>
 
+            {#
+              Department QR codes. Drop the real images into
+              static/images/qr/ using exactly these filenames and they appear
+              automatically - until then each card shows a "QR coming soon" box:
+                technician-support.png  machine-sale.png
+                material-sale.png       slock-implant.png
+            #}
+            <div class="qr-section">
+                <div class="section-label"><i class="fas fa-qrcode"></i> Scan to Connect</div>
+                <h2><i class="fas fa-qrcode"></i> Department QR Codes</h2>
+                <div class="qr-grid-4">
+                    <div class="qr-card" data-qr-title="Technician Support">
+                        <div class="qr-placeholder">
+                            <img src="{{ url_for('static', filename='images/qr/technician-support.png') }}" alt="Technician Support QR code" />
+                            <span class="qr-soon"><i class="fas fa-qrcode"></i> QR coming soon</span>
+                        </div>
+                        <div class="qr-label">Technician Support</div>
+                        <div class="qr-sub">Technical Support Team</div>
+                        <span class="qr-badge"><i class="fas fa-wrench"></i> Support</span>
+                        <div class="qr-click-hint"><i class="fas fa-up-right-and-down-left-from-center"></i> Click to enlarge</div>
+                    </div>
+
+                    <div class="qr-card" data-qr-title="Machine Sale">
+                        <div class="qr-placeholder">
+                            <img src="{{ url_for('static', filename='images/qr/machine-sale.png') }}" alt="Machine Sale QR code" />
+                            <span class="qr-soon"><i class="fas fa-qrcode"></i> QR coming soon</span>
+                        </div>
+                        <div class="qr-label">Machine Sale</div>
+                        <div class="qr-sub">Sales Department - Machinery</div>
+                        <span class="qr-badge machinery"><i class="fas fa-gear"></i> Machinery</span>
+                        <div class="qr-click-hint"><i class="fas fa-up-right-and-down-left-from-center"></i> Click to enlarge</div>
+                    </div>
+
+                    <div class="qr-card" data-qr-title="Material Sale">
+                        <div class="qr-placeholder">
+                            <img src="{{ url_for('static', filename='images/qr/material-sale.png') }}" alt="Material Sale QR code" />
+                            <span class="qr-soon"><i class="fas fa-qrcode"></i> QR coming soon</span>
+                        </div>
+                        <div class="qr-label">Material Sale</div>
+                        <div class="qr-sub">Sales Department - Materials</div>
+                        <span class="qr-badge materials"><i class="fas fa-flask"></i> Materials</span>
+                        <div class="qr-click-hint"><i class="fas fa-up-right-and-down-left-from-center"></i> Click to enlarge</div>
+                    </div>
+
+                    <div class="qr-card" data-qr-title="Slock Implant">
+                        <div class="qr-placeholder">
+                            <img src="{{ url_for('static', filename='images/qr/slock-implant.png') }}" alt="Slock Implant QR code" />
+                            <span class="qr-soon"><i class="fas fa-qrcode"></i> QR coming soon</span>
+                        </div>
+                        <div class="qr-label">Slock Implant</div>
+                        <div class="qr-sub">Implant Department</div>
+                        <span class="qr-badge implants"><i class="fas fa-tooth"></i> Implants</span>
+                        <div class="qr-click-hint"><i class="fas fa-up-right-and-down-left-from-center"></i> Click to enlarge</div>
+                    </div>
+                </div>
+            </div>
+
+            {# TODO: replace the "#" hrefs below with the real Facebook page URLs. #}
+            <div class="social-section">
+                <div class="section-label"><i class="fas fa-share-nodes"></i> Follow Us</div>
+                <h2><i class="fab fa-facebook"></i> Social Media</h2>
+                <div class="social-grid">
+                    <a class="social-card" href="#" target="_blank" rel="noopener noreferrer">
+                        <div class="social-icon"><i class="fab fa-facebook-f"></i></div>
+                        <div class="social-info">
+                            <h4>Machinery</h4>
+                            <p>Facebook Page</p>
+                        </div>
+                        <i class="fas fa-arrow-right social-arrow"></i>
+                    </a>
+                    <a class="social-card" href="#" target="_blank" rel="noopener noreferrer">
+                        <div class="social-icon material"><i class="fab fa-facebook-f"></i></div>
+                        <div class="social-info">
+                            <h4>Material</h4>
+                            <p>Facebook Page</p>
+                        </div>
+                        <i class="fas fa-arrow-right social-arrow"></i>
+                    </a>
+                    <a class="social-card" href="#" target="_blank" rel="noopener noreferrer">
+                        <div class="social-icon slock"><i class="fab fa-facebook-f"></i></div>
+                        <div class="social-info">
+                            <h4>Slock Implant Cambodia</h4>
+                            <p>Facebook Page</p>
+                        </div>
+                        <i class="fas fa-arrow-right social-arrow"></i>
+                    </a>
+                </div>
+            </div>
+
             <div class="contact-info-bar">
                 <div class="info-item"><i class="fas fa-phone"></i><div class="text"><h4>Phone</h4><p>098 882 953</p></div></div>
                 <div class="info-item"><i class="fas fa-envelope"></i><div class="text"><h4>Email</h4><p>info@ebdental.com</p></div></div>
@@ -42,4 +129,51 @@
         </div>
     </div>
 </div>
+
+{# Reuses the product-gallery lightbox styling (.pd-lightbox) - image only, no nav. #}
+<div class="pd-lightbox" id="qrLightbox" role="dialog" aria-modal="true" aria-label="QR code viewer">
+    <button type="button" class="pd-lightbox-close" id="qrLightboxClose" aria-label="Close"><i class="fas fa-times"></i></button>
+    <img id="qrLightboxImage" src="" alt="" />
+    <div class="pd-lightbox-count" id="qrLightboxCaption"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    // A QR image that has not been uploaded yet 404s - drop the <img> so the
+    // "QR coming soon" placeholder behind it becomes visible.
+    document.querySelectorAll('.qr-card .qr-placeholder img').forEach(function (img) {
+        img.addEventListener('error', function () { img.remove(); });
+        if (img.complete && img.naturalWidth === 0) img.remove();
+    });
+
+    var box = document.getElementById('qrLightbox');
+    var boxImage = document.getElementById('qrLightboxImage');
+    var boxCaption = document.getElementById('qrLightboxCaption');
+
+    function close() {
+        box.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    document.querySelectorAll('.qr-card').forEach(function (card) {
+        card.addEventListener('click', function () {
+            var img = card.querySelector('.qr-placeholder img');
+            if (!img) return;  // nothing uploaded yet
+            boxImage.src = img.src;
+            boxImage.alt = img.alt;
+            boxCaption.textContent = card.getAttribute('data-qr-title') || '';
+            box.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+    });
+
+    document.getElementById('qrLightboxClose').addEventListener('click', close);
+    box.addEventListener('click', function (e) { if (e.target === box) close(); });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && box.classList.contains('active')) close();
+    });
+})();
+</script>
 {% endblock %}
