@@ -193,61 +193,11 @@
 {% endblock %}
 
 {% block extra_js %}
+{# Gallery behaviour is shared with the promotion/set page - see
+   static/js/product-gallery.js. #}
+<script src="{{ url_for('static', filename='js/product-gallery.js') }}"></script>
 <script>
-    const PD_GALLERY = {{ gallery|tojson }};
-    let pdIndex = 0;
-
-    function pdShow(index) {
-        if (index < 0) index = PD_GALLERY.length - 1;
-        if (index >= PD_GALLERY.length) index = 0;
-        pdIndex = index;
-
-        document.getElementById('pdMainImage').src = PD_GALLERY[pdIndex];
-        document.querySelectorAll('#pdThumbs .pd-thumb').forEach((thumb, i) => {
-            thumb.classList.toggle('active', i === pdIndex);
-            thumb.setAttribute('aria-selected', i === pdIndex ? 'true' : 'false');
-        });
-        if (document.getElementById('pdLightbox').classList.contains('active')) {
-            document.getElementById('pdLightboxImage').src = PD_GALLERY[pdIndex];
-            document.getElementById('pdLightboxCount').textContent = `${pdIndex + 1} / ${PD_GALLERY.length}`;
-        }
-    }
-
-    document.querySelectorAll('#pdThumbs .pd-thumb').forEach(thumb => {
-        // Hovering a thumbnail previews it, the way Amazon's gallery does; the click
-        // is still what "sticks" for anyone on touch or keyboard.
-        thumb.addEventListener('mouseenter', () => pdShow(Number(thumb.dataset.index)));
-        thumb.addEventListener('click', () => pdShow(Number(thumb.dataset.index)));
-    });
-
-    function pdOpenLightbox() {
-        const box = document.getElementById('pdLightbox');
-        box.classList.add('active');
-        document.body.style.overflow = 'hidden';
-        document.getElementById('pdLightboxImage').src = PD_GALLERY[pdIndex];
-        document.getElementById('pdLightboxCount').textContent = `${pdIndex + 1} / ${PD_GALLERY.length}`;
-    }
-
-    function pdCloseLightbox() {
-        document.getElementById('pdLightbox').classList.remove('active');
-        document.body.style.overflow = '';
-    }
-
-    document.getElementById('pdMainImage').addEventListener('click', pdOpenLightbox);
-    document.getElementById('pdZoomBtn').addEventListener('click', pdOpenLightbox);
-    document.getElementById('pdLightboxClose').addEventListener('click', pdCloseLightbox);
-    document.getElementById('pdLightboxPrev').addEventListener('click', () => pdShow(pdIndex - 1));
-    document.getElementById('pdLightboxNext').addEventListener('click', () => pdShow(pdIndex + 1));
-    document.getElementById('pdLightbox').addEventListener('click', function (e) {
-        // Only the backdrop closes - clicking the photo or a control shouldn't.
-        if (e.target === this) pdCloseLightbox();
-    });
-    document.addEventListener('keydown', e => {
-        if (!document.getElementById('pdLightbox').classList.contains('active')) return;
-        if (e.key === 'Escape') pdCloseLightbox();
-        if (e.key === 'ArrowLeft') pdShow(pdIndex - 1);
-        if (e.key === 'ArrowRight') pdShow(pdIndex + 1);
-    });
+    PdGallery.init({{ gallery|tojson }});
 </script>
 
 {% if can_quote() %}

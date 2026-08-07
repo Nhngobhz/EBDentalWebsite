@@ -18,7 +18,10 @@
                     {% if active_promotions %}
                     {% set colors = ['offer-orange', 'offer-blue', 'offer-green', 'offer-purple'] %}
                     {% for promo in active_promotions %}
-                    <a class="offer-card {{ colors[loop.index0 % colors|length] }}" href="{{ url_for('catalog.promotions_page') }}"
+                    {# Straight to that deal's own page - the card already shows
+                       which promotion it is, so the list page is a detour. #}
+                    <a class="offer-card {{ colors[loop.index0 % colors|length] }}"
+                       href="{{ url_for('catalog.promotion_detail', promotion_id=promo.id) }}"
                        style="background-image: url('{{ img(promo.promotion_image) }}');">
                     </a>
                     {% endfor %}

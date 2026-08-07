@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/products.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/loader.css') }}">
     {% block extra_css %}{% endblock %}
     <style>
         /* Ensures min-height:100vh below actually reaches the true viewport
@@ -78,6 +79,8 @@
     </style>
 </head>
 <body style="padding-bottom:0;">
+
+    {% include "partials/loader.html" %}
 
     {% include "partials/flash_messages.html" %}
 

@@ -1583,6 +1583,51 @@
     margin: 28px 0 8px;
 }
 
+/* ---- promotion / set page (products/bundle_detail.html) ----
+   Reuses everything above; these are the few bits a bundle has that a product
+   doesn't. Orange rather than the product page's teal, matching the Promotions
+   page's accent. */
+.pd-bundle-kind {
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #f97316;
+}
+.pd-bundle-list {
+    margin-top: 4px;
+}
+.pd-bundle-list li {
+    font-size: 0.82rem;
+    color: var(--text-soft);
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--border);
+}
+.pd-bundle-list li:last-child {
+    border-bottom: none;
+}
+.pd-bundle-code {
+    font-size: 0.68rem;
+    color: var(--text-light);
+    background: var(--bg);
+    border-radius: 5px;
+    padding: 1px 6px;
+}
+.pd-bundle-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 0.72rem;
+    line-height: 1.5;
+    color: var(--text-light);
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-top: 12px;
+}
+.pd-bundle-note i {
+    color: var(--accent);
+    margin-top: 2px;
+}
+
 /* ---- lightbox ---- */
 .pd-lightbox {
     position: fixed;
@@ -2970,10 +3015,16 @@
     display: grid;
     /* auto-fit (not auto-fill): collapses empty column tracks so a lone card
        stretches to fill the row instead of staying pinned to the min width
-       with empty space beside it. */
+       with empty space beside it. A promotion is the page's headline act and
+       is meant to be big. */
     grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
     gap: 24px;
 }
+/* Height is a floor, not a cap: cards in the same grid row stretch to match each
+   other automatically, and the image below scales with the card's width, so a
+   wide card gets a genuinely big picture instead of a small one marooned in it.
+   The body's reserved preview block keeps every card's "View Deal" on the same
+   baseline regardless of how much the deal contains. */
 .eb-promotion-page .promo-card {
     background: var(--surface);
     border-radius: var(--radius);
@@ -2981,16 +3032,29 @@
     overflow: hidden;
     transition: var(--transition);
     box-shadow: var(--shadow);
+    /* the card is an <a> to the deal's own page */
+    display: flex;
+    flex-direction: column;
+    min-height: 430px;
+    text-decoration: none;
+    color: inherit;
 }
 .eb-promotion-page .promo-card:hover {
     transform: translateY(-6px);
     box-shadow: var(--shadow-lg);
     border-color: #f97316;
 }
+/* 16:9 so the picture grows with the card, but capped: uncapped, a card
+   stretched across a full row gave the image a 690px-tall box that swallowed the
+   entire body. The floor keeps a narrow card's image from getting stamp-sized.
+   object-fit: contain letterboxes rather than cropping the artwork. */
 .eb-promotion-page .promo-card .promo-image-wrap {
     background: var(--bg);
     padding: 0;
     aspect-ratio: 16 / 9;
+    min-height: 200px;
+    max-height: 420px;
+    flex: none;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -3024,6 +3088,10 @@
 }
 .eb-promotion-page .promo-card .promo-body {
     padding: 14px 16px 16px;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 .eb-promotion-page .promo-card .promo-body .promo-brand-name {
     font-size: 0.65rem;
@@ -3033,12 +3101,19 @@
     color: #f97316;
     margin-bottom: 2px;
 }
+/* Clamped to two lines so a long deal name can't push the price and contents
+   out of a fixed-height card. */
 .eb-promotion-page .promo-card .promo-body h3 {
     font-size: 0.9rem;
     font-weight: 700;
     color: var(--text);
     line-height: 1.3;
     margin-bottom: 4px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 2.6em;
 }
 /* The catalog's .product-price rules are scoped to .product-card, which the
    promo card isn't - without these the old price rendered as plain text
@@ -3055,14 +3130,40 @@
     text-decoration: line-through;
     margin-left: 8px;
 }
-.eb-promotion-page .promo-card .promo-body .promo-buy-btn {
-    width: 100%;
-    justify-content: center;
+/* The contents preview gets a reserved block whether or not the bundle has any
+   contents, so every card's "View Deal" line sits on the same baseline. */
+.bundle-preview {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+.bundle-preview .bundle-contents {
+    margin-top: 6px;
+}
+/* One line per member, ellipsed - same reasoning as the set card's list: a long
+   product name would otherwise wrap and push the preview past a fixed height. */
+.bundle-preview .bundle-contents li {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.bundle-preview .bundle-contents li i {
+    margin-right: 6px;
+}
+.eb-promotion-page .promo-card .view-detail,
+.eb-promotion-page .set-card .view-detail {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     margin-top: 10px;
-    text-decoration: none;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--accent);
+}
+.eb-promotion-page .promo-card:hover .view-detail,
+.eb-promotion-page .set-card:hover .view-detail {
+    gap: 10px;
 }
 .eb-promotion-page .empty-promos {
     grid-column: 1/-1;
@@ -3109,10 +3210,16 @@
 }
 .eb-promotion-page .set-grid {
     display: grid;
-    /* auto-fit, same reasoning as .promo-grid above. */
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 20px;
+    /* One set per row, full width. A set is a wide object - image, name, price,
+       contents and an optional second photo - and side-by-side columns forced
+       all of that into a narrow card. */
+    grid-template-columns: 1fr;
+    gap: 16px;
 }
+/* Fixed height on purpose: a set with no contents and no detail image occupies
+   exactly the same box as one with six of each, so the column reads as a clean
+   stack rather than a ragged one. Everything inside is clamped to fit, and the
+   card hides its own overflow as a backstop. */
 .eb-promotion-page .set-card {
     background: var(--surface);
     border-radius: var(--radius);
@@ -3120,23 +3227,35 @@
     overflow: hidden;
     transition: var(--transition);
     box-shadow: var(--shadow);
-    display: flex;
-    gap: 12px;
-    padding: 12px;
+    display: grid;
+    grid-template-columns: 190px minmax(0, 1fr);
+    align-items: stretch;
+    gap: 18px;
+    padding: 16px;
+    height: 250px;
+    text-decoration: none;
+    color: inherit;
 }
 .eb-promotion-page .set-card:hover {
     transform: translateY(-4px);
     box-shadow: var(--shadow-lg);
     border-color: #f97316;
 }
-.eb-promotion-page .set-card .set-image {
-    width: 140px;
-    height: 140px;
-    flex: 0 0 auto;
-    border-radius: 12px;
-    object-fit: cover;
+.eb-promotion-page .set-card .set-image-wrap {
     background: var(--bg);
     border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.eb-promotion-page .set-card .set-image {
+    width: 100%;
+    height: 100%;
+    /* contain, not cover: a set photo is usually a group shot of the bundle,
+       and cropping it to fill a fixed box cuts pieces of the deal out. */
+    object-fit: contain;
     transition: transform 0.4s cubic-bezier(.16, 1, .3, 1);
 }
 .eb-promotion-page .set-card:hover .set-image {
@@ -3144,50 +3263,49 @@
 }
 .eb-promotion-page .set-card .set-body {
     min-width: 0;
-    flex: 1;
     display: flex;
     flex-direction: column;
 }
-/* Name/description (+ optional detail image) on the left, price pushed to the
-   right edge of the card - the buy button below spans the full width. */
+/* Name on the left, price pinned to the right of the text column. */
 .eb-promotion-page .set-card .set-headline {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
-    flex: 1;
-}
-.eb-promotion-page .set-card .set-headline-text {
-    min-width: 0;
-    flex: 1;
 }
 .eb-promotion-page .set-card .set-body h3 {
-    font-size: 0.95rem;
+    font-size: 1rem;
     font-weight: 700;
     color: var(--text);
     line-height: 1.3;
-    margin-bottom: 2px;
-}
-.eb-promotion-page .set-card .set-body .set-desc {
-    font-size: 0.75rem;
-    color: var(--text-light);
+    min-width: 0;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    margin-bottom: 4px;
 }
-/* Optional second image (Set.detail_image) - only rendered when the set has
-   one, so nothing shifts for sets without it. */
-.eb-promotion-page .set-card .set-detail-image {
-    margin-top: 6px;
-    max-width: 100%;
-    width: auto;
-    height: 52px;
-    border-radius: 8px;
-    object-fit: cover;
-    border: 1px solid var(--border);
-    background: var(--bg);
+.eb-promotion-page .set-card .set-body .set-desc {
+    font-size: 0.78rem;
+    color: var(--text-light);
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-top: 4px;
+}
+/* One line per member, ellipsed - a long product name ("Lenovo Ideapad (Core i3
+   Gen 13th, 8GB/128GB)") wraps to three lines in a narrow card and would push
+   the preview past the card's fixed height. Block rather than flex so
+   text-overflow actually applies; the check icon just sits inline. */
+.eb-promotion-page .set-card .bundle-contents li {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.eb-promotion-page .set-card .bundle-contents li i {
+    margin-right: 6px;
 }
 .eb-promotion-page .set-card .set-price {
     flex: 0 0 auto;
@@ -3205,190 +3323,62 @@
     text-decoration: line-through;
     margin-left: 0;
 }
-.eb-promotion-page .set-card .set-body .set-buy-btn {
-    width: 100%;
-    justify-content: center;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 8px;
-    text-decoration: none;
-    font-size: 0.8rem;
-    padding: 8px;
+/* Optional second image (Set.detail_image) - a small thumbnail sitting under the
+   description, in the text column. Height-only so it keeps its own proportions;
+   the card's fixed height already accounts for the space whether or not a set
+   has one, so nothing shifts between rows. */
+.eb-promotion-page .set-card .set-detail-image {
+    height: 54px;
+    width: auto;
+    max-width: 100%;
+    /* flex-start, or the default `stretch` of the flex column blows the img out
+       to the full body width and letterboxes the artwork inside a wide box. */
+    align-self: flex-start;
+    flex: none;
+    margin-top: 6px;
+    border-radius: 8px;
+    object-fit: contain;
+    border: 1px solid var(--border);
+    background: var(--bg);
+}
+@media (max-width: 900px) {
+    .eb-promotion-page .set-card {
+        grid-template-columns: 160px minmax(0, 1fr);
+        height: 232px;
+    }
 }
 @media (max-width: 600px) {
-    .eb-promotion-page .set-grid {
-        grid-template-columns: 1fr;
+    .eb-promotion-page .set-card {
+        grid-template-columns: 108px minmax(0, 1fr);
+        gap: 12px;
+        padding: 12px;
+        height: 210px;
     }
-    .eb-promotion-page .set-card .set-image {
-        width: 96px;
-        height: 96px;
+    /* The second photo is decorative - drop it before the row gets cramped.
+       It's still on the set's own page. */
+    .eb-promotion-page .set-card .set-detail-image {
+        display: none;
     }
     /* Price drops under the name rather than squeezing the title into a
        couple of characters once the card gets this narrow. */
     .eb-promotion-page .set-card .set-headline {
         flex-direction: column;
-        gap: 6px;
+        gap: 2px;
+    }
+    .eb-promotion-page .set-card .set-body h3 {
+        font-size: 0.9rem;
     }
     .eb-promotion-page .set-card .set-price {
         text-align: left;
+        font-size: 0.95rem;
     }
     .eb-promotion-page .set-card .set-price .old {
         display: inline;
         margin-left: 8px;
     }
-}
-
-/* Promotion Modal */
-.promotion-modal {
-    position: fixed;
-    inset: 0;
-    z-index: 999999;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    background: var(--modal-overlay);
-    backdrop-filter: blur(8px);
-    animation: fadeIn 0.3s ease;
-    padding: 20px;
-}
-.promotion-modal.active {
-    display: flex;
-}
-.promotion-modal .modal-content {
-    background: var(--surface);
-    border-radius: 20px;
-    max-width: 700px;
-    width: 100%;
-    max-height: 90vh;
-    overflow-y: auto;
-    padding: 28px 32px 32px;
-    position: relative;
-    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
-    animation: modalSlide 0.35s ease;
-}
-.promotion-modal .modal-close {
-    position: absolute;
-    top: 14px;
-    right: 18px;
-    background: var(--bg);
-    border: none;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    font-size: 1.2rem;
-    color: var(--text-soft);
-    cursor: pointer;
-    transition: var(--transition);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 5;
-    font-family: inherit;
-}
-.promotion-modal .modal-close:hover {
-    background: #fee2e2;
-    color: var(--danger);
-    transform: rotate(90deg);
-}
-.promotion-modal .modal-image-wrap {
-    background: var(--bg);
-    border-radius: 14px;
-    overflow: hidden;
-    margin-bottom: 18px;
-    aspect-ratio: 16/9;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.promotion-modal .modal-image-wrap img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-}
-.promotion-modal .modal-brand {
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: #f97316;
-    margin-bottom: 2px;
-}
-.promotion-modal .modal-title {
-    font-size: 1.3rem;
-    font-weight: 800;
-    color: var(--text);
-    margin-bottom: 6px;
-}
-.promotion-modal .modal-desc {
-    font-size: 0.9rem;
-    color: var(--text-soft);
-    line-height: 1.7;
-    margin-bottom: 12px;
-}
-.promotion-modal .modal-price {
-    font-size: 1.5rem;
-    font-weight: 800;
-    color: var(--text);
-}
-.promotion-modal .modal-price .old {
-    font-size: 1rem;
-    font-weight: 400;
-    color: var(--text-light);
-    text-decoration: line-through;
-    margin-left: 10px;
-}
-.promotion-modal .modal-duration {
-    font-size: 0.85rem;
-    color: var(--text-light);
-    margin-top: 4px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-.promotion-modal .modal-duration i {
-    color: #f97316;
-}
-.promotion-modal .modal-actions {
-    margin-top: 18px;
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-.promotion-modal .modal-actions .btn-primary {
-    background: #f97316;
-    border: none;
-    padding: 10px 28px;
-    border-radius: 99px;
-    color: white;
-    font-weight: 700;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: var(--transition);
-    font-family: inherit;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-}
-.promotion-modal .modal-actions .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(249, 115, 22, 0.3);
-}
-.promotion-modal .modal-actions .btn-outline {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    padding: 10px 24px;
-    border-radius: 99px;
-    font-weight: 600;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: var(--transition);
-    font-family: inherit;
-    color: var(--text-soft);
-}
-.promotion-modal .modal-actions .btn-outline:hover {
-    border-color: var(--text-soft);
-    background: var(--bg);
+    .eb-promotion-page .set-card .set-desc {
+        -webkit-line-clamp: 1;
+    }
 }
 
 
@@ -3525,15 +3515,21 @@
     text-decoration: none;
 }
 
+/* Sized by height so the two section logos (machinery-logo / home-49) sit at the
+   same optical weight. home-49 is a much wider wordmark, hence the max-width +
+   object-fit cap: it shrinks to fit instead of pushing the nav off the header. */
 .header-logo-img {
     height: 40px;
     width: auto;
+    max-width: 210px;
+    object-fit: contain;
     display: block;
 }
 
 @media (max-width: 480px) {
     .header-logo-img {
         height: 30px;
+        max-width: 150px;
     }
 }
 /* ------------------------------------------------------------
@@ -3569,13 +3565,14 @@
     font-weight: 700;
     color: var(--text);
 }
-/* Trailing "…" when a bundle holds more products than the card previews (see
+/* "+N more" when a bundle holds more products than the card previews (see
    BUNDLE_PREVIEW_LIMIT in main/promotions.html). Indented to line up with the
    item text above it rather than the check icons, so it reads as the list
    continuing rather than as another item. */
 .bundle-contents .bundle-more {
     padding-left: 14px;
-    letter-spacing: 1px;
+    font-weight: 600;
+    color: var(--accent);
     cursor: default;
 }
 /* Free-gift list on a product (detail page + modal) - same list, with a

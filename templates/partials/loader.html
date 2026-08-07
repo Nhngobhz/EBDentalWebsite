@@ -1,0 +1,103 @@
+{# Site-wide loading overlay.
+
+   Covers the page while it's still loading and again while the browser is
+   navigating away, so a slow store-api fetch never leaves the visitor staring at
+   a blank/frozen page. The mark is the EB "spinning tooth" logo drawn inline as
+   SVG rather than as a .gif: it stays crisp at any size, weighs ~1KB, picks up
+   the theme colours, and can be stilled for prefers-reduced-motion. To use a real
+   animated file instead, swap the <svg> below for
+   <img src="{{ url_for('static', filename='images/loading.gif') }}" alt="" class="eb-loader__mark">
+   and nothing else needs to change. Styles live in css/loader.css. #}
+<div class="eb-loader" id="ebLoader" role="status" aria-live="polite" aria-label="Loading">
+    <svg class="eb-loader__mark" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+        <!-- The two chasing arcs. Only this group spins. -->
+        <g class="eb-loader__arcs" fill="none" stroke="var(--eb-loader-accent)" stroke-width="11" stroke-linecap="round">
+            <path d="M16.29,85.24 A85,85 0 0 1 173.61,57.50" />
+            <path d="M183.71,114.76 A85,85 0 0 1 26.39,142.50" />
+            <!-- Arrowheads, sitting on each arc's leading end and turned to its tangent. -->
+            <polygon points="0,-10 16,0 0,10" fill="var(--eb-loader-accent)" stroke="none"
+                     transform="translate(173.61,57.50) rotate(60)" />
+            <polygon points="0,-10 16,0 0,10" fill="var(--eb-loader-accent)" stroke="none"
+                     transform="translate(26.39,142.50) rotate(240)" />
+        </g>
+        <!-- Static ring + tooth. -->
+        <circle cx="100" cy="100" r="58" fill="none" stroke="var(--eb-loader-ink)" stroke-width="10" />
+        <path class="eb-loader__tooth"
+              d="M100,60 C86,50 66,52 61,70 C56,88 63,104 67,120 C70,133 71,144 78,144
+                 C85,144 86,132 90,118 C93,107 96,104 100,104 C104,104 107,107 110,118
+                 C114,132 115,144 122,144 C129,144 130,133 133,120 C137,104 144,88 139,70
+                 C134,52 114,50 100,60 Z"
+              fill="var(--eb-loader-tooth)" stroke="var(--eb-loader-accent)" stroke-width="9"
+              stroke-linejoin="round" stroke-linecap="round" />
+    </svg>
+</div>
+<script>
+    /* Kept inline and ahead of main.js so the overlay is wired up before anything
+       else can throw and strand the visitor behind it. */
+    (function () {
+        var el = document.getElementById('ebLoader');
+        if (!el) return;
+        var pendingTimer = null;
+        var failsafeTimer = null;
+
+        function hide() {
+            clearTimeout(pendingTimer);
+            clearTimeout(failsafeTimer);
+            el.classList.remove('is-active');
+        }
+        function show() {
+            el.classList.add('is-active');
+            // Whatever we're waiting on, never let the overlay hold the page hostage -
+            // a navigation the browser silently abandons (a link that turned out to be
+            // a download, a cancelled request) would otherwise strand the visitor.
+            clearTimeout(failsafeTimer);
+            failsafeTimer = setTimeout(hide, 8000);
+        }
+
+        // Raise it straight away - this partial sits at the top of <body>, so the
+        // overlay is up before the rest of the page paints - and drop it once
+        // everything the page needs has actually arrived.
+        if (document.readyState === 'complete') {
+            hide();
+        } else {
+            show();
+            window.addEventListener('load', hide);
+        }
+
+        // Coming back via Back/Forward serves the page from the bfcache with whatever
+        // DOM state it had on the way out - which may be "loader showing".
+        window.addEventListener('pageshow', hide);
+
+        // Navigating away. Delayed so a snappy page never flashes the overlay; if the
+        // new document arrives first, this document is gone before the timer fires.
+        function showSoon() {
+            clearTimeout(pendingTimer);
+            pendingTimer = setTimeout(show, 250);
+        }
+
+        // Both listeners run in the bubble phase, after the page's own handlers, so
+        // e.defaultPrevented tells us whether this was a real navigation or something
+        // the app intercepted (the account drawer link, the AJAX quote submit, ...).
+        document.addEventListener('click', function (e) {
+            var a = e.target.closest && e.target.closest('a');
+            if (!a || e.defaultPrevented) return;
+            if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            if (a.target && a.target !== '_self') return;
+            if (a.hasAttribute('download')) return;
+            var href = a.getAttribute('href') || '';
+            // In-page anchors, javascript: links and mailto:/tel: don't load a document.
+            if (!href || href.charAt(0) === '#' || /^(javascript|mailto|tel):/i.test(href)) return;
+            if (a.origin && a.origin !== window.location.origin) return;
+            // Same URL with only a different hash - the browser just scrolls.
+            if (a.href.split('#')[0] === window.location.href.split('#')[0]) return;
+            showSoon();
+        });
+
+        document.addEventListener('submit', function (e) {
+            var form = e.target;
+            if (e.defaultPrevented || !form || form.hasAttribute('data-no-loader')) return;
+            if (form.target && form.target !== '_self') return;
+            showSoon();
+        });
+    })();
+</script>

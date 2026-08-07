@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{# One page for both a Promotion and a Set - they're the same thing to a shopper
+   (a named bundle of products at a fixed price) and differ only in whether the
+   deal is time-boxed. `kind` is "promotion" or "set"; `bundle`, `name`,
+   `gallery` and `contents` are normalized by catalog._bundle_detail so nothing
+   below has to branch on which table the row came from.
+
+   Deliberately reuses the product page's .pd-* markup and CSS, so a bundle looks
+   and behaves exactly like a product once you click into it. #}
+
+{% set is_promo = kind == 'promotion' %}
+{% set accent_label = 'Promotion' if is_promo else 'Set' %}
+{% set saving = (bundle.old_price - bundle.price) if (bundle.old_price and bundle.price and not bundle.old_price is string and not bundle.price is string and bundle.old_price > bundle.price) else None %}
+
+{% block title %}{{ name }}{% endblock %}
+
+{% block content %}
+<div id="productPage">
+    <div class="container">
+
+        <nav class="pd-breadcrumb" aria-label="Breadcrumb">
+            <a href="{{ url_for('main.home') }}">Home</a>
+            <i class="fas fa-chevron-right"></i>
+            <a href="{{ url_for('catalog.promotions_page') }}">Promotions</a>
+            <i class="fas fa-chevron-right"></i>
+            <span class="current">{{ name }}</span>
+        </nav>
+
+        <div class="pd-layout">
+
+            <!-- ---------- Gallery ---------- -->
+            <div class="pd-gallery">
+                <div class="pd-thumbs" id="pdThumbs" role="tablist" aria-label="Images">
+                    {% for src in gallery %}
+                    <button type="button" class="pd-thumb {{ 'active' if loop.first }}" data-index="{{ loop.index0 }}"
+                            role="tab" aria-selected="{{ 'true' if loop.first else 'false' }}"
+                            aria-label="Image {{ loop.index }} of {{ gallery|length }}">
+                        <img src="{{ src }}" alt="" loading="lazy" />
+                    </button>
+                    {% endfor %}
+                </div>
+
+                <div class="pd-stage">
+                    <img id="pdMainImage" src="{{ gallery[0] }}" alt="{{ name }}" />
+                    <div class="product-badge hot">{{ '🔥 Promo' if is_promo else '📦 Set' }}</div>
+                    <button type="button" class="pd-zoom-hint" id="pdZoomBtn">
+                        <i class="fas fa-search-plus"></i> Click to enlarge
+                    </button>
+                </div>
+            </div>
+
+            <!-- ---------- Description column ---------- -->
+            <div class="pd-info">
+                <span class="pd-brand pd-bundle-kind">{{ accent_label }}</span>
+                <h1 class="pd-title">{{ name }}</h1>
+
+                <div class="pd-meta">
+                    <span><i class="fas fa-layer-group"></i> {{ contents|length }} product{{ '' if contents|length == 1 else 's' }} included</span>
+                    {% if is_promo and bundle.end_date %}
+                    <span><i class="fas fa-hourglass-half"></i> Offer ends {{ format_date(bundle.end_date) }}</span>
+                    {% elif not is_promo %}
+                    <span><i class="fas fa-infinity"></i> Always on sale</span>
+                    {% endif %}
+                </div>
+
+                <div class="pd-price-row">
+                    <span class="pd-price">{{ price(bundle.price) }}</span>
+                    {% if bundle.old_price %}
+                    <span class="pd-was">{{ price(bundle.old_price) }}</span>
+                    {% if saving %}<span class="pd-save">Save {{ price(saving) }}</span>{% endif %}
+                    {% endif %}
+                </div>
+
+                {% if bundle.description %}
+                <div class="pd-section-title">About this {{ accent_label|lower }}</div>
+                <p class="pd-desc">{{ bundle.description }}</p>
+                {% endif %}
+
+                {# Every member product, uncapped - the cards on the Promotions page
+                   only preview the first few, and this page is where the full
+                   contents belong. #}
+                <div class="pd-section-title">What's included</div>
+                {% if contents %}
+                <ul class="bundle-contents pd-bundle-list">
+                    {% for item in contents %}
+                    <li>
+                        <i class="fas fa-check"></i>
+                        {{ item.product_name }}
+                        {% if item.product_code %}<span class="pd-bundle-code">{{ item.product_code }}</span>{% endif %}
+                        {% if item.qty > 1 %}<span class="bundle-qty">×{{ item.qty }}</span>{% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                <p class="pd-bundle-note">
+                    <i class="fas fa-circle-info"></i>
+                    Everything above is included in the {{ accent_label|lower }} price - each piece is listed on your
+                    quote at $0.00 under this line.
+                </p>
+                {% else %}
+                <p class="pd-desc">Contact us for the full contents of this {{ accent_label|lower }}.</p>
+                {% endif %}
+
+                {% if is_promo and bundle.start_date %}
+                <div class="pd-section-title">Offer period</div>
+                <table class="pd-spec-table">
+                    <tbody>
+                        <tr><th>Starts</th><td>{{ format_date(bundle.start_date) }}</td></tr>
+                        <tr><th>Ends</th><td>{{ format_date(bundle.end_date) }}</td></tr>
+                    </tbody>
+                </table>
+                {% endif %}
+            </div>
+
+            <!-- ---------- Buy box ---------- -->
+            <aside class="pd-buybox">
+                <div class="pd-buybox-price">{{ price(bundle.price) }}</div>
+                {% if bundle.old_price %}
+                <div class="pd-buybox-was">Was <s>{{ price(bundle.old_price) }}</s></div>
+                {% endif %}
+
+                <div class="pd-stock"><i class="fas fa-circle-check"></i> Available to order</div>
+
+                {% if can_quote() %}
+                <label class="pd-qty-label" for="pdQty">Quantity</label>
+                <div class="pd-qty">
+                    <button type="button" id="pdQtyMinus" aria-label="Decrease quantity"><i class="fas fa-minus"></i></button>
+                    <input type="number" id="pdQty" value="1" min="1" max="100000" inputmode="numeric" aria-label="Quantity">
+                    <button type="button" id="pdQtyPlus" aria-label="Increase quantity"><i class="fas fa-plus"></i></button>
+                </div>
+                <button type="button" class="btn-primary pd-cta" id="bundleAddToCartBtn">
+                    <i class="fas fa-shopping-cart"></i> Add to Cart
+                </button>
+                {% else %}
+                <a class="btn-primary pd-cta" href="{{ url_for('main.contact') if is_logged_in() else url_for('auth.login') }}">
+                    <i class="fas fa-lock"></i> {{ 'Contact us for pricing' if is_logged_in() else 'Log in to see prices' }}
+                </a>
+                {% endif %}
+
+                <a class="btn-outline pd-cta" href="{{ url_for('main.contact') }}">
+                    <i class="fas fa-phone"></i> Contact Us
+                </a>
+
+                <ul class="pd-assurance">
+                    <li><i class="fas fa-box-open"></i> {{ contents|length }} product{{ '' if contents|length == 1 else 's' }} in one price</li>
+                    <li><i class="fas fa-truck-fast"></i> Delivery across Cambodia</li>
+                    <li><i class="fas fa-screwdriver-wrench"></i> Installation &amp; after-sales support</li>
+                </ul>
+            </aside>
+        </div>
+
+        <a href="{{ url_for('catalog.promotions_page') }}" class="btn-outline pd-back">
+            <i class="fas fa-arrow-left"></i> Back to promotions
+        </a>
+
+    </div>
+</div>
+
+<!-- Full-screen image viewer, opened by the main image / "Click to enlarge". -->
+<div class="pd-lightbox" id="pdLightbox" role="dialog" aria-modal="true" aria-label="Image viewer">
+    <button type="button" class="pd-lightbox-close" id="pdLightboxClose" aria-label="Close"><i class="fas fa-times"></i></button>
+    <button type="button" class="pd-lightbox-nav prev" id="pdLightboxPrev" aria-label="Previous image"><i class="fas fa-chevron-left"></i></button>
+    <img id="pdLightboxImage" src="" alt="{{ name }}" />
+    <button type="button" class="pd-lightbox-nav next" id="pdLightboxNext" aria-label="Next image"><i class="fas fa-chevron-right"></i></button>
+    <div class="pd-lightbox-count" id="pdLightboxCount"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/product-gallery.js') }}"></script>
+<script>
+    PdGallery.init({{ gallery|tojson }});
+</script>
+
+{% if can_quote() %}
+<script>
+    const pdQtyInput = document.getElementById('pdQty');
+
+    function pdReadQty() {
+        const qty = parseInt(pdQtyInput.value, 10);
+        return Number.isFinite(qty) && qty > 0 ? Math.min(qty, 100000) : 1;
+    }
+
+    document.getElementById('pdQtyMinus').addEventListener('click', () => {
+        pdQtyInput.value = Math.max(1, pdReadQty() - 1);
+    });
+    document.getElementById('pdQtyPlus').addEventListener('click', () => {
+        pdQtyInput.value = Math.min(100000, pdReadQty() + 1);
+    });
+    pdQtyInput.addEventListener('change', () => { pdQtyInput.value = pdReadQty(); });
+
+    document.getElementById('bundleAddToCartBtn').addEventListener('click', () => {
+        {# Same two cart methods the Promotions page used to call from its cards;
+           `contents` is passed as `items` so the drawer can list what's inside
+           before the order exists (store-api re-expands it authoritatively). #}
+        const payload = {
+            id: {{ bundle.id|tojson }},
+            price: {{ bundle.price|tojson }},
+            old_price: {{ bundle.old_price|tojson }},
+            image: {{ gallery[0]|tojson }},
+            items: {{ contents|tojson }},
+        };
+        {% if is_promo %}
+        QuoteCart.addPromotion({ ...payload, promotion_name: {{ name|tojson }} }, pdReadQty());
+        {% else %}
+        QuoteCart.addSet({ ...payload, set_name: {{ name|tojson }} }, pdReadQty());
+        {% endif %}
+        showToast('Added to cart successfully');
+    });
+</script>
+{% endif %}
+{% endblock %}

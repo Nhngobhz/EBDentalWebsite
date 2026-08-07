@@ -390,14 +390,16 @@ const QuoteCart = {
     // A Promotion (homepage/promotions-page marketing deal) is bought the same way as
     // a product - see promo.id, which lives in a separate table from Product.id and
     // can collide with it, hence 'kind' to disambiguate cart lookups.
-    addPromotion(promo) {
+    addPromotion(promo, qty = 1) {
         if (typeof CAN_QUOTE !== 'undefined' && !CAN_QUOTE) return;
         if (typeof promo.price !== 'number') return;
+
+        qty = Math.max(1, Math.floor(Number(qty) || 1));
 
         const items = this.getItems();
         const existing = items.find(i => i.id === promo.id && i.kind === 'promotion');
         if (existing) {
-            existing.qty += 1;
+            existing.qty += qty;
         } else {
             const oldPrice = typeof promo.old_price === 'number' ? promo.old_price : promo.price;
             // Reproduces old_price as a cash "discount" (see routers/orders.py's
@@ -415,7 +417,7 @@ const QuoteCart = {
                 discount: discount,
                 discountType: 'cash',
                 image: promo.image || '',
-                qty: 1,
+                qty,
                 // The products the deal is made of - listed under it at $0.00.
                 components: normalizeBundleComponents(promo.items),
             });
@@ -427,14 +429,16 @@ const QuoteCart = {
     // A Set (Promotions-page bundle deal) is bought the same way a Promotion is - see
     // set.id, which lives in a separate table from Product.id/Promotion.id and can
     // collide with either, hence 'kind' to disambiguate cart lookups.
-    addSet(set) {
+    addSet(set, qty = 1) {
         if (typeof CAN_QUOTE !== 'undefined' && !CAN_QUOTE) return;
         if (typeof set.price !== 'number') return;
+
+        qty = Math.max(1, Math.floor(Number(qty) || 1));
 
         const items = this.getItems();
         const existing = items.find(i => i.id === set.id && i.kind === 'set');
         if (existing) {
-            existing.qty += 1;
+            existing.qty += qty;
         } else {
             const oldPrice = typeof set.old_price === 'number' ? set.old_price : set.price;
             const discount = oldPrice > set.price ? oldPrice - set.price : 0;
@@ -449,7 +453,7 @@ const QuoteCart = {
                 discount: discount,
                 discountType: 'cash',
                 image: set.image || '',
-                qty: 1,
+                qty,
                 components: normalizeBundleComponents(set.items),
             });
         }

@@ -1,0 +1,79 @@
+/* ------------------------------------------------------------
+   Site-wide loading overlay - markup in partials/loader.html.
+   ------------------------------------------------------------ */
+:root {
+    --eb-loader-accent: #29c1de;
+    --eb-loader-ink: #16293f;
+    --eb-loader-tooth: #f5fafb;
+    --eb-loader-veil: rgba(255, 255, 255, 0.94);
+}
+
+.eb-loader {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--eb-loader-veil);
+    backdrop-filter: blur(2px);
+    /* Hidden unless .is-active. The overlay is only ever switched on from
+       loader.html's script, so a browser with JS off (or one that hit an error
+       before that script ran) is never covered by an overlay nothing can dismiss. */
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.25s ease, visibility 0s linear 0.25s;
+}
+
+.eb-loader.is-active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition-delay: 0s;
+}
+
+.eb-loader__mark {
+    width: 120px;
+    height: 120px;
+    display: block;
+}
+
+.eb-loader__arcs {
+    transform-box: view-box;
+    transform-origin: 50% 50%;
+    animation: eb-loader-spin 1.4s linear infinite;
+}
+
+.eb-loader__tooth {
+    transform-box: view-box;
+    transform-origin: 50% 50%;
+    animation: eb-loader-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes eb-loader-spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes eb-loader-pulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(0.92); }
+}
+
+@media (max-width: 480px) {
+    .eb-loader__mark {
+        width: 88px;
+        height: 88px;
+    }
+}
+
+/* Spinning and pulsing are decoration; the overlay itself still does its job. */
+@media (prefers-reduced-motion: reduce) {
+    .eb-loader__arcs,
+    .eb-loader__tooth {
+        animation: none;
+    }
+    .eb-loader {
+        transition-duration: 0s;
+    }
+}

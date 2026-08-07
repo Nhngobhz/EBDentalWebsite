@@ -4,8 +4,9 @@
 
 {% block content %}
 {# How many member products a promo/set card previews before trailing off into
-   "…". Cards sit in a grid, so an unbounded list makes one card tower over its
-   neighbours; the full contents are always on the cart line and the quote. #}
+   "…". Cards are a fixed height so the grid stays even, and the full contents
+   are on the deal's own page (products/bundle_detail.html), the cart line and
+   the printed quote. #}
 {% set BUNDLE_PREVIEW_LIMIT = 3 %}
 <div id="productPage">
     <div class="eb-promotion-page">
@@ -25,8 +26,11 @@
                 </div>
                 {% endif %}
 
+                {# Whole card is a link to the deal's page, same as a product card
+                   on the catalog - the Add to Cart button lives in that page's buy
+                   box now (a <button> can't legally sit inside an <a> anyway). #}
                 {% for promo in promotions %}
-                <div class="promo-card">
+                <a class="promo-card" href="{{ url_for('catalog.promotion_detail', promotion_id=promo.id) }}">
                     <div class="promo-image-wrap">
                         <img class="promo-image"
                              src="{{ img(promo.promotion_image) }}"
@@ -41,30 +45,23 @@
                         </div>
                         {# A promotion is a collection of products - spell out what's
                            inside so the deal is legible before it's in the cart.
-                           Capped at BUNDLE_PREVIEW_LIMIT so one big bundle can't
-                           stretch its card past its neighbours; the cart drawer and
-                           the printed quote still list every item. #}
-                        {% if promo['items'] %}
-                        <ul class="bundle-contents">
-                            {% for item in promo['items'][:BUNDLE_PREVIEW_LIMIT] %}
-                            <li><i class="fas fa-check"></i> {{ item.product_name }}{% if item.qty > 1 %} <span class="bundle-qty">×{{ item.qty }}</span>{% endif %}</li>
-                            {% endfor %}
-                            {% if promo['items']|length > BUNDLE_PREVIEW_LIMIT %}
-                            <li class="bundle-more" title="{{ promo['items'][BUNDLE_PREVIEW_LIMIT:]|map(attribute='product_name')|join(', ') }}">…</li>
+                           Capped at BUNDLE_PREVIEW_LIMIT; the deal's own page lists
+                           every item. #}
+                        <div class="bundle-preview">
+                            {% if promo['items'] %}
+                            <ul class="bundle-contents">
+                                {% for item in promo['items'][:BUNDLE_PREVIEW_LIMIT] %}
+                                <li><i class="fas fa-check"></i> {{ item.product_name }}{% if item.qty > 1 %} <span class="bundle-qty">×{{ item.qty }}</span>{% endif %}</li>
+                                {% endfor %}
+                                {% if promo['items']|length > BUNDLE_PREVIEW_LIMIT %}
+                                <li class="bundle-more">+{{ promo['items']|length - BUNDLE_PREVIEW_LIMIT }} more</li>
+                                {% endif %}
+                            </ul>
                             {% endif %}
-                        </ul>
-                        {% endif %}
-                        {% if can_quote() %}
-                        <button type="button" class="btn-primary promo-buy-btn" id="promoAddBtn-{{ promo.id }}">
-                            <i class="fas fa-shopping-cart"></i> Add to Cart
-                        </button>
-                        {% else %}
-                        <a class="btn-primary promo-buy-btn" href="{{ url_for('main.contact') if is_logged_in() else url_for('auth.login') }}">
-                            <i class="fas fa-lock"></i> {{ 'Contact us for pricing' if is_logged_in() else 'Log in to buy' }}
-                        </a>
-                        {% endif %}
+                        </div>
+                        <span class="view-detail">View Deal <i class="fas fa-arrow-right"></i></span>
                     </div>
-                </div>
+                </a>
                 {% endfor %}
             </div>
 
@@ -73,6 +70,9 @@
                 <p>Bundle deals, always on sale.</p>
             </div>
 
+            {# One set per row, each card a fixed height: a set with no contents and
+               no detail image should sit in exactly the same box as one with six
+               of each, so the column doesn't look ragged. #}
             <div class="set-grid">
                 {% if sets|length == 0 %}
                 <div class="empty-promos">
@@ -83,90 +83,52 @@
                 {% endif %}
 
                 {% for set_ in sets %}
-                <div class="set-card">
-                    <img class="set-image"
-                         src="{{ img(set_.set_image) }}"
-                         alt="{{ set_.set_name }}" loading="lazy" />
+                <a class="set-card" href="{{ url_for('catalog.set_detail', set_id=set_.id) }}">
+                    <div class="set-image-wrap">
+                        <img class="set-image"
+                             src="{{ img(set_.set_image) }}"
+                             alt="{{ set_.set_name }}" loading="lazy" />
+                    </div>
+
                     <div class="set-body">
                         <div class="set-headline">
-                            <div class="set-headline-text">
-                                <h3>{{ set_.set_name }}</h3>
-                                {% if set_.description %}<p class="set-desc">{{ set_.description }}</p>{% endif %}
-                                {% if set_.detail_image %}
-                                <img class="set-detail-image"
-                                     src="{{ img(set_.detail_image) }}"
-                                     alt="" loading="lazy" />
-                                {% endif %}
-                                {# What's actually in the bundle - same treatment,
-                                   and same preview cap, as the promo cards above. #}
-                                {% if set_['items'] %}
-                                <ul class="bundle-contents">
-                                    {% for item in set_['items'][:BUNDLE_PREVIEW_LIMIT] %}
-                                    <li><i class="fas fa-check"></i> {{ item.product_name }}{% if item.qty > 1 %} <span class="bundle-qty">×{{ item.qty }}</span>{% endif %}</li>
-                                    {% endfor %}
-                                    {% if set_['items']|length > BUNDLE_PREVIEW_LIMIT %}
-                                    <li class="bundle-more" title="{{ set_['items'][BUNDLE_PREVIEW_LIMIT:]|map(attribute='product_name')|join(', ') }}">…</li>
-                                    {% endif %}
-                                </ul>
-                                {% endif %}
-                            </div>
+                            <h3>{{ set_.set_name }}</h3>
                             <div class="product-price set-price">
                                 {{ price(set_.price) }}
                                 {% if set_.old_price %}<span class="old">{{ price(set_.old_price) }}</span>{% endif %}
                             </div>
                         </div>
-                        {% if can_quote() %}
-                        <button type="button" class="btn-primary set-buy-btn" id="setAddBtn-{{ set_.id }}">
-                            <i class="fas fa-shopping-cart"></i> Add to Cart
-                        </button>
-                        {% else %}
-                        <a class="btn-primary set-buy-btn" href="{{ url_for('main.contact') if is_logged_in() else url_for('auth.login') }}">
-                            <i class="fas fa-lock"></i> {{ 'Contact us for pricing' if is_logged_in() else 'Log in to buy' }}
-                        </a>
+
+                        {% if set_.description %}<p class="set-desc">{{ set_.description }}</p>{% endif %}
+
+                        {# Optional second image (Set.detail_image), sitting under the
+                           description in the text column. Rendered only when the set
+                           has one - an empty placeholder can't be collapsed with
+                           :empty, since Jinja leaves whitespace text nodes inside. #}
+                        {% if set_.detail_image %}
+                        <img class="set-detail-image" src="{{ img(set_.detail_image) }}" alt="" loading="lazy" />
                         {% endif %}
+
+                        <div class="bundle-preview">
+                            {% if set_['items'] %}
+                            <ul class="bundle-contents">
+                                {% for item in set_['items'][:BUNDLE_PREVIEW_LIMIT] %}
+                                <li><i class="fas fa-check"></i> {{ item.product_name }}{% if item.qty > 1 %} <span class="bundle-qty">×{{ item.qty }}</span>{% endif %}</li>
+                                {% endfor %}
+                                {% if set_['items']|length > BUNDLE_PREVIEW_LIMIT %}
+                                <li class="bundle-more">+{{ set_['items']|length - BUNDLE_PREVIEW_LIMIT }} more</li>
+                                {% endif %}
+                            </ul>
+                            {% endif %}
+                        </div>
+
+                        <span class="view-detail">View Set <i class="fas fa-arrow-right"></i></span>
                     </div>
-                </div>
+                </a>
                 {% endfor %}
             </div>
 
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-{% if can_quote() %}
-<script>
-    {% for promo in promotions %}
-    document.getElementById('promoAddBtn-{{ promo.id }}')?.addEventListener('click', () => {
-        QuoteCart.addPromotion({
-            id: {{ promo.id|tojson }},
-            promotion_name: {{ promo.promotion_name|tojson }},
-            price: {{ promo.price|tojson }},
-            old_price: {{ promo.old_price|tojson }},
-            image: {{ img(promo.promotion_image)|tojson }},
-            {# Carried into the cart line so the drawer can list what's included
-               before the order exists; store-api re-expands it authoritatively
-               at purchase time (create_order), never trusting this copy. #}
-            items: {{ promo['items']|tojson }},
-        });
-        showToast('Added to cart successfully');
-    });
-    {% endfor %}
-
-    {% for set_ in sets %}
-    document.getElementById('setAddBtn-{{ set_.id }}')?.addEventListener('click', () => {
-        QuoteCart.addSet({
-            id: {{ set_.id|tojson }},
-            set_name: {{ set_.set_name|tojson }},
-            price: {{ set_.price|tojson }},
-            old_price: {{ set_.old_price|tojson }},
-            image: {{ img(set_.set_image)|tojson }},
-            items: {{ set_['items']|tojson }},
-        });
-        showToast('Added to cart successfully');
-    });
-    {% endfor %}
-</script>
-{% endif %}
 {% endblock %}

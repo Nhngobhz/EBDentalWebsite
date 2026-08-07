@@ -9,7 +9,7 @@ import os
 from datetime import timedelta
 
 from dotenv import load_dotenv
-from flask import Flask, flash, g, redirect, render_template, session, url_for
+from flask import Flask, flash, g, redirect, render_template, request, session, url_for
 from werkzeug.local import LocalProxy
 
 load_dotenv()
@@ -109,6 +109,19 @@ def create_app():
             return getattr(g, cache_key)
 
         return LocalProxy(resolve)
+
+    # Which half of the site the visitor is in. The landing page splits into
+    # Machinery and Materials; from then on the header logo mirrors that choice -
+    # it shows that side's mark and links back to that side's home page, rather
+    # than dumping everyone back on the landing screen.
+    MATERIALS_ENDPOINTS = {"main.materials"}
+
+    @app.context_processor
+    def inject_site_section():
+        def site_section():
+            return "materials" if request.endpoint in MATERIALS_ENDPOINTS else "machinery"
+
+        return {"site_section": site_section}
 
     @app.context_processor
     def inject_catalog_globals():

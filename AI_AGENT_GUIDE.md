@@ -418,3 +418,17 @@ Exposed as Jinja globals in `app.py` (`img`, `file_url`, `price`,
    `{% block content %}` markup and the `{% block extra_js %}` blob need
    the same list and a top-level `{% set %}` shared across two blocks is
    exactly the kind of Jinja scoping that quietly breaks.
+12. **Adding a second copy of the gallery/lightbox JS.** There is one
+   (`static/js/product-gallery.js`, `PdGallery.init([urls])`), shared by
+   `products/detail.html` and `products/bundle_detail.html`. A page only
+   has to render the same `.pd-gallery` markup - `#pdThumbs` buttons
+   carrying `data-index`, `#pdMainImage`, `#pdZoomBtn`, `#pdLightbox*` -
+   and call `init` with the same list the thumbnails came from.
+13. **Writing a third bundle page.** A `Promotion` and a `Set` share one
+   template (`products/bundle_detail.html`) and one route helper
+   (`catalog._bundle_detail`), which normalizes either row into
+   `bundle`/`name`/`gallery`/`contents` plus a `kind` of `"promotion"` or
+   `"set"`. They differ only in which columns hold the name/image and
+   whether the deal has dates; keep it that way rather than forking the
+   page. Note `contents` is passed separately precisely so the template
+   never has to write `bundle.items` (see mistake 8).

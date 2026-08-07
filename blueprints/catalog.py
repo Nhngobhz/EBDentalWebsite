@@ -121,6 +121,66 @@ def promotions_page():
     sets = [adapt_set(s) for s in raw_sets]
     return render_template("main/promotions.html", promotions=promotions, sets=sets)
 
+
+def _bundle_detail(kind, path, adapt, name_field, image_field, extra_images=()):
+    """Shared body of the promotion and set detail pages.
+
+    A Promotion and a Set are the same thing to a shopper - a named bundle at a
+    fixed price, containing products - and differ only in which columns hold the
+    name/image and whether the deal has an end date. So both are normalized into
+    one `bundle` dict here and rendered by one template, rather than keeping two
+    near-identical pages in sync forever.
+    """
+    client = get_api_client()
+    try:
+        raw = client.get(path)
+    except StoreAPIError as e:
+        if e.status_code == 404:
+            abort(404)
+        raise
+    item = adapt(raw)
+
+    # Gallery, same shape as the product page's: main picture first, then any
+    # secondary image the entity happens to have (only Set has one today).
+    gallery = [resolve_image_url(item.get(image_field))]
+    gallery += [
+        resolve_image_url(item[field])
+        for field in extra_images
+        if item.get(field)
+    ]
+
+    return render_template(
+        "products/bundle_detail.html",
+        kind=kind,
+        bundle=item,
+        name=item.get(name_field),
+        gallery=gallery,
+        contents=item.get("items") or [],
+    )
+
+
+@catalog_bp.route("/promotions/<int:promotion_id>")
+def promotion_detail(promotion_id):
+    return _bundle_detail(
+        "promotion",
+        f"/promotions/{promotion_id}",
+        adapt_promotion,
+        "promotion_name",
+        "promotion_image",
+    )
+
+
+@catalog_bp.route("/sets/<int:set_id>")
+def set_detail(set_id):
+    return _bundle_detail(
+        "set",
+        f"/sets/{set_id}",
+        adapt_set,
+        "set_name",
+        "set_image",
+        extra_images=("detail_image",),
+    )
+
 @catalog_bp.route("/products/special/<slug>")
 def special_product(slug):
     """Manufacturer-spotlight product page - fully static, no store-api call.

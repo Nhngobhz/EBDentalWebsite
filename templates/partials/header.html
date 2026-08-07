@@ -1,6 +1,12 @@
 <header class="eb-header" id="ebHeader">
-    <a href="{{ url_for('main.landing') }}" class="logo">
-    <img src="{{ url_for('static', filename='images/machinery-logo.png') }}" alt="EB Dental Supply" class="header-logo-img" />
+    {# The logo belongs to whichever half of the site you're in (see site_section()
+       in app.py): the machinery mark on machinery pages, HOME 49 on materials
+       pages - and each links back to its own section's home page. #}
+    {% set in_materials = site_section() == 'materials' %}
+    <a href="{{ url_for('main.materials') if in_materials else url_for('main.home') }}" class="logo"
+       title="{{ 'Materials' if in_materials else 'Machinery' }}">
+    <img src="{{ url_for('static', filename='images/home-49.png' if in_materials else 'images/machinery-logo.png') }}"
+         alt="{{ 'HOME 49' if in_materials else 'EB Dental Supply' }}" class="header-logo-img" />
     </a>
     <nav class="eb-nav-center" id="ebNav">
         <a href="{{ url_for('main.home') }}" class="{{ 'active' if request.endpoint == 'main.home' }}">Home</a>

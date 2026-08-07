@@ -20,9 +20,13 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/products.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/loader.css') }}">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
+
+    {# First thing in the body so the overlay is up before the page paints. #}
+    {% include "partials/loader.html" %}
 
     {% include "partials/flash_messages.html" %}
     {% if request.endpoint != "main.landing" %}
