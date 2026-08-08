@@ -739,13 +739,18 @@ const QuoteCart = {
     // clinic name is markup, and it would execute in a staff member's session the
     // moment they hit Print on the admin Orders page.
     buildPrintTemplate(order) {
-        // A paid KHQR order prints as a Receipt; everything else (staff quote,
-        // customer cash quote, unpaid order) stays a Quotation. Mirrored by
+        // Anything with a payment on record prints as a Receipt - a confirmed KHQR
+        // payment, or a quote staff marked paid after taking the money at the counter.
+        // Everything still awaiting payment stays a Quotation. Deliberately keyed on
+        // payment_status alone, NOT on payment_method/order_type: a paid quote is a
+        // completed sale and the customer is owed a receipt for it. Mirrored by
         // store-api's fallback PDF (services/invoice_pdf.py).
-        const isReceipt = order.payment_method === 'khqr' && order.payment_status === 'paid';
+        const isReceipt = order.payment_status === 'paid';
         const docTitle = isReceipt ? 'Receipt' : 'Quotation';
         const validityNote = isReceipt
-            ? 'Paid via KHQR. Thank you for your purchase.'
+            ? (order.payment_method === 'khqr'
+                ? 'Paid via KHQR. Thank you for your purchase.'
+                : 'Paid in full. Thank you for your purchase.')
             : 'Quotation valid for <b>30 days</b> from the date issued.';
 
         const specialDiscountLabel = order.discount_type === 'cash'
@@ -1735,7 +1740,8 @@ const AccountDrawer = {
     // snapshots and the clinic/address came from a checkout form, i.e. free text.
     renderOrderDetail(order) {
         const body = document.getElementById('accountOrderDetail');
-        const isReceipt = order.payment_method === 'khqr' && order.payment_status === 'paid';
+        // Same single-field rule as buildPrintTemplate() - see the comment there.
+        const isReceipt = order.payment_status === 'paid';
         // Sub-Total/Discount are derived the same way the printed quote and the admin
         // modal derive them - from each line's snapshotted list_price vs the unit_price
         // actually charged - so all three always agree.
@@ -1775,7 +1781,7 @@ const AccountDrawer = {
             <div class="account-detail-row"><span>Phone</span><strong>${ebEscapeHtml(order.phone || '—')}</strong></div>
             <div class="account-detail-row"><span>Address</span><strong>${ebEscapeHtml(order.address || '—')}</strong></div>
             <div class="account-detail-row"><span>Status</span><strong>${ebEscapeHtml(order.status || '—')}</strong></div>
-            ${order.payment_method ? `<div class="account-detail-row"><span>Payment</span><strong>${order.payment_method === 'khqr' ? 'KHQR' : 'Cash'}${order.payment_status ? ` · ${ebEscapeHtml(order.payment_status)}` : ''}</strong></div>` : ''}
+            ${(order.payment_method || order.payment_status) ? `<div class="account-detail-row"><span>Payment</span><strong>${order.payment_method === 'khqr' ? 'KHQR' : order.payment_method === 'cash' ? 'Cash' : 'Paid at counter'}${order.payment_status ? ` · ${ebEscapeHtml(order.payment_status)}` : ''}</strong></div>` : ''}
 
             <div class="account-items">${rows}</div>
 
@@ -1802,8 +1808,9 @@ const AccountDrawer = {
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating…';
         try {
             QuoteCart.buildPrintTemplate(order);
-            const isReceipt = order.payment_method === 'khqr' && order.payment_status === 'paid';
-            await QuoteCart.exportPDF(order.quote_code, isReceipt ? 'Receipt' : 'Quotation');
+            await QuoteCart.exportPDF(
+                order.quote_code, order.payment_status === 'paid' ? 'Receipt' : 'Quotation'
+            );
         } catch (err) {
             await ebAlert('Sorry, the PDF could not be generated. Please try again.', { tone: 'error' });
         } finally {

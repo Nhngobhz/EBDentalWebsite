@@ -276,14 +276,35 @@ anything quote-related.
   lazy-loaded qrcode.js, same CDN pattern as jsPDF), and polls
   `/quote/<id>/payment-status` (relayed to store-api) every 3s. **The
   receipt PDF is only ever generated in `_finishPaidOrder()`, after the
-  poll reports "paid"** - `buildPrintTemplate()` titles the document
-  "Receipt" instead of "Quotation" when
-  `payment_method == 'khqr' && payment_status == 'paid'`, and
-  `exportPDF(suffix, docName)` takes the filename word as its second arg.
-  The admin Orders page separates the two with Type tabs/badges and has a
-  "Mark as Paid" fallback (`admin.orders_mark_paid` ->
-  `PUT /orders/{id} {"payment_status": "paid"}`) for setups without a
-  Bakong API token.
+  poll reports "paid"** - and `exportPDF(suffix, docName)` takes the
+  filename word as its second arg.
+- **Receipt vs. Quotation is `payment_status === 'paid'`, nothing else
+  (changed 2026-08-08)**. It used to also require `payment_method === 'khqr'`,
+  which meant a quote staff had taken cash for could never print as a
+  receipt. The single-field rule lives in four places that must agree:
+  `QuoteCart.buildPrintTemplate()`, `AccountDrawer.renderOrderDetail()` /
+  `downloadOrderPDF()`, `printOrder()` in `admin/orders.html`, and
+  store-api's `services/invoice_pdf.py`. `payment_method` now only picks
+  the wording of the paid note ("Paid via KHQR" vs "Paid in full").
+- **The admin Orders page is where staff run an order (reworked
+  2026-08-08)**, `templates/admin/orders.html` + `blueprints/admin/orders.py`.
+  Type tabs/badges separate quotes from orders, and each row's modal offers:
+  **Edit** (a full editor - clinic details, terms, discount, and an items grid
+  with a product picker over the catalogue embedded in the page; posts to
+  `admin.orders_edit` → `PUT /orders/{id}`, sending only ids + quantities,
+  then reloads because the server re-prices everything), **Payment QR**
+  (`admin.orders_khqr` → `POST /orders/{id}/khqr`, draws the KHQR with the
+  same lazy-loaded qrcode.js and polls `admin.orders_payment_status` every
+  3s), and **Mark as Paid** (`admin.orders_mark_paid`, now valid on **any**
+  order - counter cash, bank transfer, or a KHQR payment auto-detection
+  missed).
+- **A paid order is frozen, and the UI must not pretend otherwise.**
+  store-api `409`s every `PUT`/`DELETE` on a paid row, so the page hides
+  Edit, Delete, Update Status, Payment QR and Mark as Paid for it
+  (`applyOrderLock()` in the modal, a "Locked" chip in the table) and leaves
+  only Print. If you add a new order-mutating control, gate it on
+  `isPaid(order)` too - the server will refuse it regardless, but a button
+  that only ever errors is worse than no button.
 - **Sub-Total/Discount/Special Discount/Grand Total, in both the cart
   drawer and the printed PDF**: Sub-Total is the undiscounted combined list
   price, Discount is the money each product's own (admin-set) discount
