@@ -119,14 +119,57 @@ def materials():
     return render_template("main/materials_coming_soon.html")
 
 
+BRAND_MARQUEE_ROWS = 5
+# A row's track is rendered twice and slides exactly one copy's width, so one copy
+# has to be wider than the marquee itself or the loop shows a gap where it wraps.
+# Tile pitch is the 140px tile + its 14px margin (css/products.css); 1400px clears
+# the About page's 1200px container with room to spare.
+_BRAND_TILE_PITCH_PX = 154
+_BRAND_ROW_MIN_HALF_PX = 1400
+
+
+def _brand_marquee_row(logos, tiles_per_half):
+    """One marquee row's full track: `logos` repeated up to `tiles_per_half` tiles,
+    then that whole half repeated once more for the loop.
+
+    Only the first appearance of each logo is left visible to assistive tech. A row
+    of five brands padded out to twenty tiles would otherwise have a screen reader
+    read the same five names four times over to describe what is, to anyone who can
+    see it, decoration."""
+    repeat = max(1, -(-tiles_per_half // len(logos)))
+    half = logos * repeat
+
+    tiles = []
+    seen = set()
+    for copy in (0, 1):
+        for logo in half:
+            decorative = copy == 1 or logo["image"] in seen
+            seen.add(logo["image"])
+            tiles.append({**logo, "decorative": decorative})
+    return tiles
+
+
+def brand_marquee_rows():
+    """The About page's logo wall, as a list of rows.
+
+    Logos are dealt round-robin rather than sliced into contiguous blocks: the file
+    list is alphabetical, so slicing would stack every "C" brand into one row and
+    leave another looking like a different alphabet."""
+    logos = brand_showcase_logos()
+    if not logos:
+        return []
+
+    row_count = min(BRAND_MARQUEE_ROWS, len(logos))
+    tiles_per_half = max(1, -(-_BRAND_ROW_MIN_HALF_PX // _BRAND_TILE_PITCH_PX))
+    return [
+        _brand_marquee_row(logos[i::row_count], tiles_per_half)
+        for i in range(row_count)
+    ]
+
+
 @main_bp.route("/about")
 def about():
-    # The marquee needs a track made of two identical halves to loop seamlessly
-    # (see about.html), and a half narrower than the screen would leave a visible
-    # gap - so a short brand list is repeated until each half is wide enough.
-    logos = brand_showcase_logos()
-    repeat = max(1, -(-8 // len(logos))) if logos else 1
-    return render_template("main/about.html", brand_logos=logos * repeat)
+    return render_template("main/about.html", brand_logo_rows=brand_marquee_rows())
 
 
 @main_bp.route("/contact")

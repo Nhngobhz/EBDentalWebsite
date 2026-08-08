@@ -2551,10 +2551,12 @@
 }
 
 /* ---- Brand marquee ------------------------------------------------------
-   The track holds the brand list twice and slides exactly one copy's width
-   (-50%), so the second copy arrives where the first began. Item spacing is
-   margin-right rather than a track `gap`, or the loop would jump by half a
-   gap on every cycle. Hover (and focus, for keyboard users) pauses it. */
+   A five-row wall. Each row's track holds that row's logos twice and slides
+   exactly one copy's width (-50%), so the second copy arrives where the first
+   began - blueprints/main.py pads a row out until one copy is wider than the
+   marquee, or the wrap would show a gap. Item spacing is margin-right rather
+   than a track `gap`, or the loop would jump by half a gap on every cycle.
+   Hover (and focus, for keyboard users) pauses the whole wall. */
 .eb-about-page .brand-showcase {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -2585,26 +2587,64 @@
 .eb-about-page .brand-marquee {
     position: relative;
     overflow: hidden;
-    /* Fade both edges so logos slide in and out instead of being cut off. */
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    /* Fade both edges so logos slide in and out instead of being cut off. One mask
+       over the whole stack, so all five rows fade on the same line. */
     -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
     mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+.eb-about-page .brand-marquee__row {
+    overflow: hidden;
 }
 .eb-about-page .brand-marquee__track {
     display: flex;
     align-items: center;
     width: max-content;
-    animation: eb-brand-marquee 48s linear infinite;
+    animation: eb-brand-marquee 52s linear infinite;
 }
-.eb-about-page .brand-marquee:hover .brand-marquee__track,
+/* What keeps five rows from reading as one sliding block: alternating direction,
+   durations that don't share obvious factors, and a negative delay per row so each
+   starts part-way through its own cycle instead of every tile lining up into a grid
+   on load. Rows past the fifth (should the row count ever go up) inherit the
+   defaults above rather than breaking. */
+.eb-about-page .brand-marquee__row:nth-child(2) .brand-marquee__track {
+    animation-duration: 67s;
+    animation-delay: -23s;
+    animation-direction: reverse;
+}
+.eb-about-page .brand-marquee__row:nth-child(3) .brand-marquee__track {
+    animation-duration: 44s;
+    animation-delay: -14s;
+}
+.eb-about-page .brand-marquee__row:nth-child(4) .brand-marquee__track {
+    animation-duration: 73s;
+    animation-delay: -31s;
+    animation-direction: reverse;
+}
+.eb-about-page .brand-marquee__row:nth-child(5) .brand-marquee__track {
+    animation-duration: 59s;
+    animation-delay: -6s;
+}
+.eb-about-page .brand-marquee__row:nth-child(1) .brand-marquee__track {
+    animation-delay: -37s;
+}
+/* Deliberately NOT paused on hover - the wall keeps drifting whatever the pointer is
+   doing. Keyboard focus still stops it: a couple of these tiles are real links to a
+   filtered product list, and tabbing to a target that's sliding out from under you
+   isn't a usable control. A pointer user can just wait for the logo to come round. */
 .eb-about-page .brand-marquee:focus-within .brand-marquee__track {
     animation-play-state: paused;
 }
 .eb-about-page .brand-marquee__item {
     flex: 0 0 auto;
-    width: 150px;
-    height: 90px;
-    margin-right: 18px;
-    padding: 14px;
+    /* Kept in step with _BRAND_TILE_PITCH_PX in blueprints/main.py (140 + 14),
+       which is what decides how many tiles a row needs to loop without a gap. */
+    width: 140px;
+    height: 82px;
+    margin-right: 14px;
+    padding: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2623,15 +2663,9 @@
     width: auto;
     height: auto;
     object-fit: contain;
-    /* Logos are printed for white paper; muted until hovered so the strip reads
-       as one row rather than 25 competing colours. */
-    filter: grayscale(1);
-    opacity: 0.75;
-    transition: var(--transition);
-}
-.eb-about-page .brand-marquee__item:hover img {
-    filter: none;
-    opacity: 1;
+    /* Full colour, always. These were greyscale-until-hover so the strip read as one
+       surface, but on a five-row wall the colour IS the texture - and half the point
+       of a partner wall is that the marks are recognisable at a glance. */
 }
 /* Brand logos are artwork drawn for white paper - dark marks on a dark tile all but
    disappear, so in dark mode the tiles keep a light backdrop instead of inverting. */
@@ -2639,17 +2673,15 @@
     background: rgba(255, 255, 255, 0.9);
     border-color: rgba(255, 255, 255, 0.14);
 }
-[data-theme="dark"] .eb-about-page .brand-marquee__item img {
-    opacity: 0.85;
-}
 @keyframes eb-brand-marquee {
     from { transform: translateX(0); }
     to   { transform: translateX(-50%); }
 }
-/* No motion: drop the animation and let the strip be swiped/scrolled instead,
-   so every logo is still reachable. */
+/* No motion: drop the animation and let each row be swiped/scrolled instead, so
+   every logo is still reachable. Scrolling has to move to the rows themselves -
+   they're what's overflowing now, not the wall around them. */
 @media (prefers-reduced-motion: reduce) {
-    .eb-about-page .brand-marquee {
+    .eb-about-page .brand-marquee__row {
         overflow-x: auto;
     }
     .eb-about-page .brand-marquee__track {
@@ -2741,6 +2773,11 @@
     .eb-about-page .about-stat .label {
         font-size: 0.68rem;
         line-height: 1.3;
+    }
+    /* Five rows is a lot of page on a phone - tighten the wall rather than let it
+       push everything below it off the fold. */
+    .eb-about-page .brand-marquee {
+        gap: 10px;
     }
     .eb-about-page .brand-marquee__item {
         width: 120px;

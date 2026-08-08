@@ -25,7 +25,7 @@ from blueprints.admin import admin_bp
 from blueprints.auth_routes import auth_bp
 from blueprints.catalog import catalog_bp
 from blueprints.main import main_bp
-from blueprints.quote import quote_bp
+from blueprints.quote import CUSTOMER_INSTALL_TERM, CUSTOMER_PAYMENT_TERM, quote_bp
 
 # Set APP_ENV=production in the deployment's .env. It's what switches on the
 # HTTPS-only session cookie and switches off the Werkzeug debugger below - both of
@@ -196,6 +196,11 @@ def create_app():
     app.jinja_env.globals["file_url"] = resolve_file_url
     app.jinja_env.globals["price"] = format_price
     app.jinja_env.globals["format_date"] = format_date
+    # The cart drawer shows these to customers as read-only text; blueprints/quote.py
+    # substitutes the same values server-side. One definition, so what's displayed and
+    # what's recorded can't disagree.
+    app.jinja_env.globals["CUSTOMER_PAYMENT_TERM"] = CUSTOMER_PAYMENT_TERM
+    app.jinja_env.globals["CUSTOMER_INSTALL_TERM"] = CUSTOMER_INSTALL_TERM
 
     register_auth_context(app)
 

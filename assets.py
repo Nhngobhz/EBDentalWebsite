@@ -133,9 +133,13 @@ def register(app):
     editing a stylesheet shows up on the next refresh instead of needing a restart."""
     build(app.static_folder)
 
-    if app.debug:
-        @app.before_request
-        def _rebuild_bundles():
+    @app.before_request
+    def _rebuild_bundles():
+        # app.debug is read here rather than around the decorator on purpose:
+        # app.run(debug=...) sets it *after* create_app() has returned, so a check
+        # at registration time always sees False and the hook is never installed -
+        # which leaves every CSS/JS edit invisible until the next process restart.
+        if app.debug:
             build(app.static_folder)
 
     @app.context_processor

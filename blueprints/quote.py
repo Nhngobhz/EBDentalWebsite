@@ -6,6 +6,17 @@ from store_api import StoreAPIError, get_api_client
 
 quote_bp = Blueprint("quote", __name__, url_prefix="/quote")
 
+# EB's own terms of sale, applied to every customer-placed order.
+#
+# Staff still type these per quote - they're negotiating them. A customer isn't:
+# these are the terms being offered *to* them, so the cart drawer shows them as
+# read-only text (partials/quote_drawer.html) and submit() below substitutes them
+# rather than trusting the request, which is what stops a hand-crafted POST from
+# printing its own payment terms on an EB quotation. Registered as Jinja globals in
+# app.py so the drawer and this module can't drift apart.
+CUSTOMER_PAYMENT_TERM = "COD"
+CUSTOMER_INSTALL_TERM = "Free within Phnom Penh"
+
 
 @quote_bp.route("/submit", methods=["POST"])
 def submit():
@@ -37,6 +48,17 @@ def submit():
     if is_customer() and payment_method not in ("cash", "khqr"):
         return jsonify({"detail": "Please choose a payment method (Cash or KHQR)."}), 400
 
+    # Payment/installation terms are EB's to state, so a customer's order gets the
+    # standing ones no matter what the request said. Staff are quoting per deal and
+    # keep typing their own. Contact person stays client-supplied either way - that
+    # one genuinely is the buyer's own detail.
+    if is_customer():
+        payment_term = CUSTOMER_PAYMENT_TERM
+        install_term = CUSTOMER_INSTALL_TERM
+    else:
+        payment_term = body.get("payment_term") or None
+        install_term = body.get("install_term") or None
+
     # salesperson/quoted_by_name are NOT sent - store-api derives them server-side from
     # whoever is actually calling (see routers/orders.py::create_order), never trusted
     # from the client.
@@ -45,8 +67,8 @@ def submit():
         "contact_person": body.get("contact_person") or None,
         "phone": phone,
         "address": address,
-        "payment_term": body.get("payment_term") or None,
-        "install_term": body.get("install_term") or None,
+        "payment_term": payment_term,
+        "install_term": install_term,
         "payment_method": payment_method if is_customer() else None,
         "discount_type": body.get("discount_type") or "percent",
         "discount_value": body.get("discount_value") or 0,

@@ -18,7 +18,12 @@
              EB Dental quotation form (clinic, contact, terms, staff). -->
         <div class="quote-info-form" id="quoteInfoForm">
             <div class="quote-info-toggle" id="quoteInfoToggle">
-                <span><i class="fas fa-file-invoice"></i> Quote Info</span>
+                {# Staff are building a quotation for someone else; a VIP customer is
+                   placing their own order. Same block, named for what the person
+                   looking at it is actually doing. (A customer without
+                   access_permission can't add anything to the cart in the first
+                   place, so every customer who reaches this is a VIP one.) #}
+                <span><i class="fas fa-file-invoice"></i> {{ 'Order Details' if is_customer() else 'Quote Info' }}</span>
                 <i class="fas fa-chevron-down toggle-caret"></i>
             </div>
             <div class="quote-info-fields" id="quoteInfoFields">
@@ -51,12 +56,28 @@
                         </select>
                     </label>
                     {% endif %}
+                    {% if is_customer() %}
+                    {# EB's terms, not the buyer's - a customer reads them, they don't
+                       set them. This isn't only cosmetic: blueprints/quote.py discards
+                       whatever payment_term/install_term a customer's request carries
+                       and sends these exact values, so a hand-crafted POST can't write
+                       its own terms onto the printed quote either. #}
+                    <div class="quote-info-static">
+                        <span>Payment Term</span>
+                        <strong>{{ CUSTOMER_PAYMENT_TERM }}</strong>
+                    </div>
+                    <div class="quote-info-static">
+                        <span>Installation Term</span>
+                        <strong>{{ CUSTOMER_INSTALL_TERM }}</strong>
+                    </div>
+                    {% else %}
                     <label>Payment Term
                         <input type="text" id="qiPaymentTerm" placeholder="COD" oninput="QuoteCart.saveInfoField('paymentTerm', this.value)">
                     </label>
                     <label>Installation Term
                         <input type="text" id="qiInstallTerm" placeholder="Free within Phnom Penh" oninput="QuoteCart.saveInfoField('installTerm', this.value)">
                     </label>
+                    {% endif %}
                 </div>
             </div>
             <!-- C. Code / Salesperson / User are no longer typed in here - they're always
@@ -70,6 +91,19 @@
     </div>
 
     <div class="quote-drawer-footer">
+        {# What delivery will cost, said before the customer commits rather than after.
+           Customers only - staff know the terms and are quoting them, not being told
+           them. Hidden along with the rest of this footer when the cart is empty. #}
+        {% if is_customer() %}
+        <div class="quote-delivery-note">
+            <i class="fas fa-truck"></i>
+            <span>
+                <strong>Delivery is free anywhere in Phnom Penh</strong>, whatever you order.
+                Outside Phnom Penh, <strong>Sets are still delivered free</strong>; other items
+                are charged at the delivery service's own rate.
+            </span>
+        </div>
+        {% endif %}
         <!-- Sub-Total/Discount are a plain read-only breakdown of each product's own
              already-applied discount (Sub-Total = undiscounted combined price, Discount =
              the money that per-product discount saved). Special Discount is the separate

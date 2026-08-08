@@ -94,40 +94,47 @@
                 </div>
             </section>
 
-            {% if brand_logos %}
-            {# Right-to-left logo marquee, fed by brand_showcase_logos() in
-               blueprints/main.py. The list is rendered TWICE inside the track: the
-               animation slides it exactly -50%, i.e. the width of one full copy, so the
-               second copy lands where the first started and the loop is seamless. Keep
-               the two halves identical, and keep the spacing as margin-right on each
-               item (a `gap` on the track would leave the loop half a gap short). The
-               second half is aria-hidden so screen readers and Tab see each brand once.
-               Styles: css/products.css. #}
+            {% if brand_logo_rows %}
+            {# Five-row wall of scrolling logos, fed by brand_marquee_rows() in
+               blueprints/main.py - that's where the logos are dealt across the rows
+               and each row is padded out to a full-width copy.
+
+               Every row's track holds its logos TWICE: the animation slides it exactly
+               -50%, i.e. the width of one full copy, so the second copy lands where the
+               first started and the loop is seamless. Keep the two halves identical,
+               and keep the spacing as margin-right on each item (a `gap` on the track
+               would leave the loop half a gap short). Rows scroll in alternating
+               directions at different speeds - see css/products.css, which also decides
+               how many rows get their own timing. `decorative` marks every tile after a
+               logo's first appearance, so screen readers and Tab meet each brand once
+               rather than once per repeat. #}
             <section class="brand-showcase reveal">
                 <div class="section-label"><i class="fas fa-handshake"></i> Trusted Partners</div>
                 <h2>Brands We Carry</h2>
                 <p class="brand-showcase__lead">The manufacturers behind the products on our shelves.</p>
 
                 <div class="brand-marquee">
-                    <div class="brand-marquee__track">
-                        {% for copy in [false, true] %}
-                        {% for logo in brand_logos %}
-                        {% if logo.url and not copy %}
-                        <a class="brand-marquee__item" href="{{ logo.url }}" title="{{ logo.name }}">
-                            <img src="{{ logo.image }}" alt="{{ logo.name }}" loading="lazy" />
-                        </a>
-                        {% elif logo.url %}
-                        <a class="brand-marquee__item" href="{{ logo.url }}" aria-hidden="true" tabindex="-1">
-                            <img src="{{ logo.image }}" alt="" loading="lazy" />
-                        </a>
-                        {% else %}
-                        <span class="brand-marquee__item" {% if copy %}aria-hidden="true"{% endif %}>
-                            <img src="{{ logo.image }}" alt="{{ '' if copy else logo.name }}" loading="lazy" />
-                        </span>
-                        {% endif %}
-                        {% endfor %}
-                        {% endfor %}
+                    {% for row in brand_logo_rows %}
+                    <div class="brand-marquee__row">
+                        <div class="brand-marquee__track">
+                            {% for logo in row %}
+                            {% if logo.url and not logo.decorative %}
+                            <a class="brand-marquee__item" href="{{ logo.url }}" title="{{ logo.name }}">
+                                <img src="{{ logo.image }}" alt="{{ logo.name }}" loading="lazy" />
+                            </a>
+                            {% elif logo.url %}
+                            <a class="brand-marquee__item" href="{{ logo.url }}" aria-hidden="true" tabindex="-1">
+                                <img src="{{ logo.image }}" alt="" loading="lazy" />
+                            </a>
+                            {% else %}
+                            <span class="brand-marquee__item" {% if logo.decorative %}aria-hidden="true"{% endif %}>
+                                <img src="{{ logo.image }}" alt="{{ '' if logo.decorative else logo.name }}" loading="lazy" />
+                            </span>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
                     </div>
+                    {% endfor %}
                 </div>
             </section>
             {% endif %}

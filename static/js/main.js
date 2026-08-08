@@ -656,10 +656,17 @@ const QuoteCart = {
         const discountValueInput = document.getElementById('quoteDiscountValue');
         if (discountValueInput) discountValueInput.value = this.getDiscountValue();
 
+        const items = this.getItems();
+        // An empty cart has nothing to quote, so the drawer shows only the empty
+        // message: .is-empty hides the Quote Info form above it and the totals /
+        // Confirm Purchase footer below (see base.css). Those were asking for clinic
+        // details and offering to submit an order with no lines in it -
+        // confirmPurchase() already refuses that, so the button was never live.
+        document.getElementById('quoteDrawer')?.classList.toggle('is-empty', items.length === 0);
+
         const itemsEl = document.getElementById('quoteDrawerItems');
         if (!itemsEl) return;
 
-        const items = this.getItems();
         if (items.length === 0) {
             itemsEl.innerHTML = `
                 <div class="quote-drawer-empty">

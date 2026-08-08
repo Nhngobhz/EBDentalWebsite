@@ -261,3 +261,50 @@
         max-width: 150px;
     }
 }
+
+/* ---- Tablet / small-laptop header -------------------------------------------
+   Between the phone layout (where the bottom nav takes over at 600px) and a roomy
+   desktop, the header holds more than the row has room for, and every part of it
+   is flex-shrink:0 - so instead of compressing it pushed the whole page sideways.
+   Worst for staff, who carry an extra dashboard button on top of everything a
+   customer has, but a signed-in customer overflowed here too.
+
+   The fix is to shed what's redundant rather than what's needed: the avatar still
+   identifies the account without its name spelled out beside it, and the flag still
+   says which language is selected without "EN" next to it. The band stops at 481px
+   so it can never fight the phone rules above, which set their own tighter sizes. */
+@media (min-width: 481px) and (max-width: 1024px) {
+    .eb-header {
+        padding: 10px 14px;
+    }
+    .header-logo-img {
+        height: 34px;
+        max-width: 170px;
+    }
+    .eb-header .eb-nav-center {
+        padding: 3px 4px;
+        gap: 2px;
+        /* The guarantee, not the optimisation: min-width:0 is what actually lets a
+           flex item shrink past its own content, and the pill then scrolls instead
+           of forcing the header wider than the screen. Everything above is what
+           keeps it from having to. */
+        min-width: 0;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    .eb-header .eb-nav-center::-webkit-scrollbar {
+        display: none;
+    }
+    .eb-header .eb-nav-center a,
+    .eb-header .eb-nav-center button {
+        padding: 6px 10px;
+        font-size: 0.76rem;
+    }
+    .eb-header .header-right {
+        gap: 10px;
+    }
+    .header-account-label,
+    .lang-dropdown-btn span {
+        display: none;
+    }
+}

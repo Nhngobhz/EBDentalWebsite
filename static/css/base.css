@@ -536,14 +536,73 @@ img {
     background: var(--surface);
 }
 
+/* Terms a customer reads rather than fills in (see partials/quote_drawer.html).
+   Deliberately not a disabled <input>: a greyed-out box still reads as "something
+   you were supposed to type", which is the opposite of what these are. Same label
+   type and rhythm as the fields beside them so the column still lines up. */
+.quote-info-static {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-light);
+}
+.quote-info-static strong {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text);
+    padding: 7px 0;
+}
+
+/* ---- Delivery terms note (customer carts) ---- */
+.quote-delivery-note {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-bottom: 14px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: var(--text-soft);
+}
+.quote-delivery-note i {
+    color: var(--accent);
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+.quote-delivery-note strong {
+    color: var(--text);
+    font-weight: 700;
+}
+
 /* ---- Line items ---- */
 .quote-drawer-items {
     padding: 14px 0;
 }
+/* Empty cart: the message is the whole drawer. QuoteCart.render() (main.js) puts
+   .is-empty on the drawer whenever there are no lines, which drops the Quote Info
+   form and the totals/Confirm Purchase footer - a clinic-details form and a
+   $0.00 grand total are noise when there is nothing to quote. */
+.quote-drawer.is-empty .quote-info-form,
+.quote-drawer.is-empty .quote-drawer-footer {
+    display: none;
+}
+
 .quote-drawer-empty {
     text-align: center;
     padding: 60px 20px;
     color: var(--text-light);
+}
+/* Centred in the drawer rather than sitting under the header, now that it's the
+   only thing in there. */
+.quote-drawer.is-empty .quote-drawer-body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 .quote-drawer-empty i {
     font-size: 2.5rem;
