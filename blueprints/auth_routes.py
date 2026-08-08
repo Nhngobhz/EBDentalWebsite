@@ -81,10 +81,16 @@ def _establish_session(result):
     return url_for("main.home")
 
 
+# Sign In and Register are one template rendered at both URLs - `mode` picks which
+# panel opens. See templates/auth/auth.html: once it's loaded, switching tabs is a
+# class change rather than a second page load.
+AUTH_TEMPLATE = "auth/auth.html"
+
+
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "GET":
-        return render_template("auth/login.html")
+        return render_template(AUTH_TEMPLATE, mode="login")
 
     email = request.form.get("email", "").strip()
     password = request.form.get("password", "")
@@ -93,7 +99,7 @@ def login():
         if wants_json:
             return jsonify({"success": False, "reason": "invalid", "detail": "Please enter both email and password."}), 400
         flash("Please enter both email and password.", "error")
-        return render_template("auth/login.html"), 400
+        return render_template(AUTH_TEMPLATE, mode="login"), 400
 
     client = get_api_client()
     try:
@@ -101,12 +107,11 @@ def login():
     except StoreAPIError as e:
         if wants_json:
             # Distinguishes "account exists but hasn't confirmed their email yet" (which
-            # the login page's JS turns into a polling loading screen - see
-            # templates/auth/login.html) from any other login failure.
+            # the page's JS reports differently) from any other login failure.
             reason = "unverified" if "confirm your email" in e.detail.lower() else "invalid"
             return jsonify({"success": False, "reason": reason, "detail": e.detail}), (e.status_code or 400)
         flash(e.detail, "error")
-        return render_template("auth/login.html"), (e.status_code or 400)
+        return render_template(AUTH_TEMPLATE, mode="login"), (e.status_code or 400)
 
     redirect_url = _establish_session(result)
     if wants_json:
@@ -162,7 +167,7 @@ def forgot_password():
 @auth_bp.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "GET":
-        return render_template("auth/register.html")
+        return render_template(AUTH_TEMPLATE, mode="register")
 
     name = request.form.get("name", "").strip()
     email = request.form.get("email", "").strip()
@@ -175,7 +180,7 @@ def register():
         if wants_json:
             return jsonify({"success": False, "detail": "Name, email, and password are required."}), 400
         flash("Name, email, and password are required.", "error")
-        return render_template("auth/register.html"), 400
+        return render_template(AUTH_TEMPLATE, mode="register"), 400
 
     payload = {
         "customer_name": name,
@@ -191,11 +196,11 @@ def register():
         if wants_json:
             return jsonify({"success": False, "detail": e.detail}), (e.status_code or 400)
         flash(e.detail, "error")
-        return render_template("auth/register.html"), (e.status_code or 400)
+        return render_template(AUTH_TEMPLATE, mode="register"), (e.status_code or 400)
 
-    # JSON callers (register.html's fetch-based submit) move straight into the
+    # JSON callers (the register form's fetch-based submit) move straight into the
     # waiting-for-confirmation screen using the credentials just submitted - see
-    # templates/auth/register.html - instead of redirecting to /login and making the
+    # templates/auth/auth.html - instead of redirecting to /login and making the
     # user retype what they just entered.
     if wants_json:
         return jsonify({"success": True})

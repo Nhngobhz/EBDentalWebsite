@@ -85,7 +85,7 @@ follows.
   that when store-api demands more than just "is staff".
 - **"Continue with Google"** (added 2026-08-05) is a second way into the
   same session, not a second session model. `partials/google_signin.html`
-  (included by both `auth/login.html` and `auth/register.html`, and
+  (included once by `auth/auth.html`, shared by both its tabs, and
   rendering **nothing** unless `GOOGLE_CLIENT_ID` is configured) lets
   Google Identity Services render its own button; the ID token it produces
   is POSTed to `auth.google_login` (`/auth/google`), which forwards it to

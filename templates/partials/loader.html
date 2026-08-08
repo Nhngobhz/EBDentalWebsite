@@ -55,12 +55,23 @@
         }
 
         // Raise it straight away - this partial sits at the top of <body>, so the
-        // overlay is up before the rest of the page paints - and drop it once
-        // everything the page needs has actually arrived.
-        if (document.readyState === 'complete') {
+        // overlay is up before the rest of the page paints - and drop it as soon as
+        // the page is actually readable.
+        //
+        // That means DOMContentLoaded, not 'load'. 'load' waits for every image,
+        // webfont and third-party script on the page (Font Awesome's webfonts, the
+        // Google Sign-In client, remote flag icons), none of which the visitor is
+        // waiting on - the markup and stylesheets are already in by then, so the
+        // overlay was sitting on top of a finished page. The rAF just lets that
+        // finished page paint once before the veil comes off.
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
             hide();
         } else {
             show();
+            document.addEventListener('DOMContentLoaded', function () {
+                requestAnimationFrame(hide);
+            });
+            // Belt and braces: if anything above misfires, 'load' still clears it.
             window.addEventListener('load', hide);
         }
 

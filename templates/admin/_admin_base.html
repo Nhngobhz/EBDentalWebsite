@@ -11,15 +11,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 
-    <!-- Admin pages don't need home/auth/responsive-marketing CSS, but loading
-         the full set is harmless and keeps this in sync with base.html easily -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/products.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/loader.css') }}">
+    <!-- Admin pages don't need home/auth/landing CSS. The rest is the "admin.css"
+         bundle in assets.py - same files in the same order as the six <link> tags
+         that used to be here, concatenated into one request. -->
+    <link rel="stylesheet" href="{{ url_for('static', filename=css_bundle('admin.css')) }}">
     {% block extra_css %}{% endblock %}
+    <link rel="preload" as="script" href="{{ url_for('static', filename='js/main.js') }}">
     <style>
         /* Ensures min-height:100vh below actually reaches the true viewport
            bottom regardless of how short the page content is. */

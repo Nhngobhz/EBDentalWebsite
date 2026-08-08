@@ -4,33 +4,149 @@
 
 {% block content %}
 <div id="productPage">
-    <div class="container">
-        {% include "partials/hero_slider.html" %}
-        <div class="product-about-page">
-            <section class="eb-about-section">
-                <h2 class="section-title">About EB Dental Supply</h2>
-                <p>For over 40 years, EB Dental Supply has been a trusted partner for dental professionals across Cambodia and the region. We provide high-quality instruments, equipment, and consumables from the world's leading brands, ensuring that practitioners have access to the best tools for patient care.</p>
+    <div class="eb-about-page">
+        <div class="container">
 
-                <div class="stats-grid">
-                    <div class="stat-item"><div class="number">40+</div><div class="label">Years of Excellence</div></div>
-                    <div class="stat-item"><div class="number">100+</div><div class="label">Trusted Brands</div></div>
-                    <div class="stat-item"><div class="number">5000+</div><div class="label">Happy Clinicians</div></div>
-                </div>
-
-                <div style="margin-top:30px;">
-                    <h3 style="font-size:1.2rem; font-weight:700; color:var(--text); margin-bottom:10px;">Our Mission</h3>
-                    <p style="color:var(--text-soft); line-height:1.8;">To empower dental professionals with innovative, reliable, and high-quality products that enhance patient care and practice efficiency.</p>
-
-                    <h3 style="font-size:1.2rem; font-weight:700; color:var(--text); margin-top:20px; margin-bottom:10px;">Our Vision</h3>
-                    <p style="color:var(--text-soft); line-height:1.8;">To be the leading dental supply partner in the region, recognized for our commitment to quality, integrity, and customer satisfaction.</p>
-                </div>
-
-                <div style="margin-top:32px;">
-                    <a class="btn-hero" href="{{ url_for('catalog.products_catalog') }}">
-                        <i class="fas fa-arrow-right"></i> Browse Our Products
+            <section class="about-hero reveal">
+                <div class="hero-badge"><i class="fas fa-tooth"></i> Partner in Dentistry since 1985</div>
+                <h1>Four decades of <span>dental excellence</span> in Cambodia</h1>
+                <p>EB Dental Supply equips clinics, laboratories and dental professionals across the country with instruments, equipment and consumables from the world's leading manufacturers.</p>
+                <div class="about-hero-actions">
+                    <a class="about-btn primary" href="{{ url_for('catalog.products_catalog') }}">
+                        <i class="fas fa-boxes-stacked"></i> Browse Our Products
+                    </a>
+                    <a class="about-btn ghost" href="{{ url_for('main.contact') }}">
+                        <i class="fas fa-phone"></i> Talk to Our Team
                     </a>
                 </div>
             </section>
+
+            <section class="about-stats reveal-stagger">
+                <div class="about-stat" style="--i: 0;">
+                    <div class="about-stat__icon"><i class="fas fa-award"></i></div>
+                    <div class="number">40+</div>
+                    <div class="label">Years of Excellence</div>
+                </div>
+                <div class="about-stat" style="--i: 1;">
+                    <div class="about-stat__icon"><i class="fas fa-certificate"></i></div>
+                    <div class="number">100+</div>
+                    <div class="label">Trusted Brands</div>
+                </div>
+                <div class="about-stat" style="--i: 2;">
+                    <div class="about-stat__icon"><i class="fas fa-user-doctor"></i></div>
+                    <div class="number">5000+</div>
+                    <div class="label">Happy Clinicians</div>
+                </div>
+            </section>
+
+            <section class="about-split">
+                <div class="about-card about-story reveal">
+                    <div class="section-label"><i class="fas fa-book-open"></i> Our Story</div>
+                    <h2>A name dental professionals have trusted since 1985</h2>
+                    <p>For over 40 years, EB Dental Supply has been a trusted partner for dental professionals across Cambodia and the region. We provide high-quality instruments, equipment, and consumables from the world's leading brands, ensuring that practitioners have access to the best tools for patient care.</p>
+                    <p>From our home at Orussey Market in Phnom Penh, we support everything from a single hand instrument to a full clinic fit-out — backed by a team that knows the products it sells and stands behind them long after delivery.</p>
+                </div>
+
+                {# The four teams a visitor can actually reach - same split as the
+                   department QR codes on the contact page. #}
+                <div class="about-card about-departments reveal" style="--i: 1;">
+                    <div class="section-label"><i class="fas fa-sitemap"></i> What We Do</div>
+                    <ul class="dept-list">
+                        <li>
+                            <span class="dept-icon machinery"><i class="fas fa-gear"></i></span>
+                            <div><h4>Machinery</h4><p>Chairs, motors, imaging and lab equipment.</p></div>
+                        </li>
+                        <li>
+                            <span class="dept-icon materials"><i class="fas fa-flask"></i></span>
+                            <div><h4>Materials</h4><p>Consumables and restorative materials for daily practice.</p></div>
+                        </li>
+                        <li>
+                            <span class="dept-icon implants"><i class="fas fa-tooth"></i></span>
+                            <div><h4>Implants</h4><p>Slock implant systems and surgical components.</p></div>
+                        </li>
+                        <li>
+                            <span class="dept-icon support"><i class="fas fa-wrench"></i></span>
+                            <div><h4>Technical Support</h4><p>Installation, servicing and repairs by our own technicians.</p></div>
+                        </li>
+                    </ul>
+                </div>
+            </section>
+
+            <section class="about-pillars reveal-stagger">
+                <div class="about-card pillar" style="--i: 0;">
+                    <div class="pillar-icon"><i class="fas fa-bullseye"></i></div>
+                    <h3>Our Mission</h3>
+                    <p>To empower dental professionals with innovative, reliable, and high-quality products that enhance patient care and practice efficiency.</p>
+                </div>
+                <div class="about-card pillar" style="--i: 1;">
+                    <div class="pillar-icon"><i class="fas fa-eye"></i></div>
+                    <h3>Our Vision</h3>
+                    <p>To be the leading dental supply partner in the region, recognized for our commitment to quality, integrity, and customer satisfaction.</p>
+                </div>
+                <div class="about-card pillar" style="--i: 2;">
+                    <div class="pillar-icon"><i class="fas fa-heart"></i></div>
+                    <h3>Our Values</h3>
+                    <ul class="value-list">
+                        <li><i class="fas fa-check"></i> Quality you can rely on</li>
+                        <li><i class="fas fa-check"></i> Honest, straightforward service</li>
+                        <li><i class="fas fa-check"></i> Support that outlasts the sale</li>
+                    </ul>
+                </div>
+            </section>
+
+            {% if brand_logos %}
+            {# Right-to-left logo marquee, fed by brand_showcase_logos() in
+               blueprints/main.py. The list is rendered TWICE inside the track: the
+               animation slides it exactly -50%, i.e. the width of one full copy, so the
+               second copy lands where the first started and the loop is seamless. Keep
+               the two halves identical, and keep the spacing as margin-right on each
+               item (a `gap` on the track would leave the loop half a gap short). The
+               second half is aria-hidden so screen readers and Tab see each brand once.
+               Styles: css/products.css. #}
+            <section class="brand-showcase reveal">
+                <div class="section-label"><i class="fas fa-handshake"></i> Trusted Partners</div>
+                <h2>Brands We Carry</h2>
+                <p class="brand-showcase__lead">The manufacturers behind the products on our shelves.</p>
+
+                <div class="brand-marquee">
+                    <div class="brand-marquee__track">
+                        {% for copy in [false, true] %}
+                        {% for logo in brand_logos %}
+                        {% if logo.url and not copy %}
+                        <a class="brand-marquee__item" href="{{ logo.url }}" title="{{ logo.name }}">
+                            <img src="{{ logo.image }}" alt="{{ logo.name }}" loading="lazy" />
+                        </a>
+                        {% elif logo.url %}
+                        <a class="brand-marquee__item" href="{{ logo.url }}" aria-hidden="true" tabindex="-1">
+                            <img src="{{ logo.image }}" alt="" loading="lazy" />
+                        </a>
+                        {% else %}
+                        <span class="brand-marquee__item" {% if copy %}aria-hidden="true"{% endif %}>
+                            <img src="{{ logo.image }}" alt="{{ '' if copy else logo.name }}" loading="lazy" />
+                        </span>
+                        {% endif %}
+                        {% endfor %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+            {% endif %}
+
+            <section class="about-cta reveal">
+                <div>
+                    <h2>Looking for something specific?</h2>
+                    <p>Browse the full catalogue, or tell us what your practice needs and we'll quote it.</p>
+                </div>
+                <div class="about-cta__actions">
+                    <a class="about-btn primary" href="{{ url_for('catalog.products_catalog') }}">
+                        <i class="fas fa-arrow-right"></i> Browse Our Products
+                    </a>
+                    <a class="about-btn ghost" href="{{ url_for('main.contact') }}">
+                        <i class="fas fa-location-dot"></i> Visit Our Shop
+                    </a>
+                </div>
+            </section>
+
         </div>
     </div>
 </div>

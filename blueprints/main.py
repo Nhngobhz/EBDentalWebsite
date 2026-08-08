@@ -1,9 +1,100 @@
-from flask import Blueprint, render_template
+import os
+import re
 
+from flask import Blueprint, current_app, render_template, url_for
+
+from formatting import resolve_image_url
 from special_products import SPECIAL_PRODUCTS
-from store_api import get_api_client
+from store_api import StoreAPIError, get_api_client
 
 main_bp = Blueprint("main", __name__)
+
+# Logo files the About page's brand marquee falls back to for brands the
+# catalogue doesn't know (or knows without an image). Drop a new file in
+# static/images/brands/ and it shows up on the next request - no code change.
+BRAND_LOGO_DIR = "images/brands"
+BRAND_LOGO_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".svg")
+_brand_logo_cache = None
+
+
+def _brand_key(name):
+    """Loose match between a catalogue brand name and a logo filename:
+    "Woodpecker" / "woodpecker-logo.png" / "WOODPECKER" all collapse to
+    "woodpecker"."""
+    key = re.sub(r"[^a-z0-9]", "", (name or "").lower())
+    return key[:-4] if key.endswith("logo") else key
+
+
+def _brand_logo_files():
+    """[(display name, static url)] for every logo in static/images/brands.
+    Memoized outside debug - the folder only changes when someone uploads a file."""
+    global _brand_logo_cache
+    if _brand_logo_cache is not None and not current_app.debug:
+        return _brand_logo_cache
+
+    folder = os.path.join(current_app.static_folder, "images", "brands")
+    try:
+        filenames = sorted(os.listdir(folder), key=str.lower)
+    except OSError:
+        filenames = []
+
+    logos = []
+    for filename in filenames:
+        stem, ext = os.path.splitext(filename)
+        if ext.lower() not in BRAND_LOGO_EXTS:
+            continue
+        label = re.sub(r"[-_]+", " ", stem).strip()
+        label = re.sub(r"\s*logo$", "", label, flags=re.IGNORECASE)
+        # Acronym filenames (CX, MCTBIO) are already the brand's own casing;
+        # only lowercase ones need titling.
+        if label.islower():
+            label = label.title()
+        logos.append((label, url_for("static", filename=f"{BRAND_LOGO_DIR}/{filename}")))
+
+    _brand_logo_cache = logos
+    return logos
+
+
+def brand_showcase_logos():
+    """Every brand logo the About page marquee shows: the catalogue's own brands
+    first (each linking to its filtered product list), then any logo file that has
+    no catalogue brand of the same name. A catalogue brand with no uploaded image
+    borrows the matching file if there is one, and is skipped otherwise - a "no
+    image" placeholder in a wall of logos just looks broken."""
+    try:
+        brands = get_api_client().get("/brands/", params={"limit": 200})
+    except StoreAPIError:
+        brands = []
+
+    files_by_key = {_brand_key(label): url for label, url in _brand_logo_files()}
+    catalog_url = url_for("catalog.products_catalog")
+
+    logos = []
+    seen = set()
+    for brand in brands:
+        key = _brand_key(brand.get("brand_name"))
+        seen.add(key)
+        image = (
+            resolve_image_url(brand["brand_image"])
+            if brand.get("brand_image")
+            else files_by_key.get(key)
+        )
+        if not image:
+            continue
+        logos.append(
+            {
+                "name": brand.get("brand_name") or "",
+                "image": image,
+                "url": f"{catalog_url}?brand={brand['id']}",
+            }
+        )
+
+    for label, image in _brand_logo_files():
+        if _brand_key(label) in seen:
+            continue
+        logos.append({"name": label, "image": image, "url": None})
+
+    return logos
 
 
 @main_bp.route("/")
@@ -30,7 +121,12 @@ def materials():
 
 @main_bp.route("/about")
 def about():
-    return render_template("main/about.html")
+    # The marquee needs a track made of two identical halves to loop seamlessly
+    # (see about.html), and a half narrower than the screen would leave a visible
+    # gap - so a short brand list is repeated until each half is wide enough.
+    logos = brand_showcase_logos()
+    repeat = max(1, -(-8 // len(logos))) if logos else 1
+    return render_template("main/about.html", brand_logos=logos * repeat)
 
 
 @main_bp.route("/contact")

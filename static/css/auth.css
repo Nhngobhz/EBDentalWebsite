@@ -198,6 +198,28 @@
     border-bottom: 1px solid #f3f4f6;
 }
 
+/* Sign In and Register are one document (templates/auth/auth.html): switching
+   between them swaps which panel carries .active, so there is no navigation, no
+   white flash, and nothing to re-download. The panels are display:none rather
+   than visibility-hidden so the card collapses to the height of whichever form is
+   showing. */
+.login-box .tab-content {
+    display: none;
+}
+.login-box .tab-content.active {
+    display: block;
+    animation: eb-auth-panel-in 0.18s ease;
+}
+@keyframes eb-auth-panel-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .login-box .tab-content.active {
+        animation: none;
+    }
+}
+
 .login-box .tab-buttons {
     display: flex;
     gap: 4px;
