@@ -5,16 +5,19 @@ Replaces preview_app.py (deleted - see its former docstring: "Delete this file o
 templates + routes are merged with the real backend"). No local data/ folder anymore -
 every page fetches live from store-api.
 """
+import gzip
 import os
+import time
 from datetime import timedelta
 
 from dotenv import load_dotenv
-from flask import Flask, flash, g, redirect, render_template, session, url_for
+from flask import Flask, flash, g, redirect, render_template, request, session, url_for
 from werkzeug.local import LocalProxy
 
 load_dotenv()
 
-from auth import is_staff, register_auth_context
+import assets
+from auth import can_view_prices, is_staff, register_auth_context
 from formatting import adapt_product, adapt_promotion, format_date, format_price, resolve_file_url, resolve_image_url
 from store_api import StoreAPIError, StoreAPIUnavailable, get_api_client
 
@@ -22,12 +25,109 @@ from blueprints.admin import admin_bp
 from blueprints.auth_routes import auth_bp
 from blueprints.catalog import catalog_bp
 from blueprints.main import main_bp
-from blueprints.quote import quote_bp
+from blueprints.quote import CUSTOMER_INSTALL_TERM, CUSTOMER_PAYMENT_TERM, quote_bp
 
 # Set APP_ENV=production in the deployment's .env. It's what switches on the
 # HTTPS-only session cookie and switches off the Werkzeug debugger below - both of
 # which would break/annoy local development if they keyed off nothing at all.
 IS_PRODUCTION = os.environ.get("APP_ENV", "development").strip().lower() == "production"
+
+
+# ---------------------------------------------------------------------------
+# Response compression
+# ---------------------------------------------------------------------------
+# Nothing in front of this app was gzipping, so every visitor was pulling the
+# stylesheets, main.js and the HTML at full size - about 300KB of our own assets
+# on a cold page, against roughly 50KB compressed. If a reverse proxy (nginx,
+# Cloudflare, ...) is added in front later it will set Content-Encoding itself and
+# _compress_response leaves those responses alone, so there's no double work.
+COMPRESSIBLE_MIMETYPES = {
+    "text/html",
+    "text/css",
+    "text/plain",
+    "text/xml",
+    "application/javascript",
+    "text/javascript",
+    "application/json",
+    "image/svg+xml",
+}
+# Below roughly a TCP segment, compressing costs a CPU round and saves nothing
+# that isn't lost again to the gzip header.
+COMPRESS_MIN_BYTES = 800
+COMPRESS_LEVEL = 6
+
+# Static files are immutable for a given ETag (they're fingerprinted with
+# ?v=<mtime>), so their compressed bytes are worth keeping rather than
+# regenerating per request. Bounded because it holds whole file bodies.
+_gzip_cache = {}
+_GZIP_CACHE_MAX_ENTRIES = 64
+
+
+def _compress_response(response):
+    if "gzip" not in request.headers.get("Accept-Encoding", "").lower():
+        return response
+    if response.mimetype not in COMPRESSIBLE_MIMETYPES:
+        return response
+    # Vary matters as soon as anything caches this: the same URL now has a
+    # gzipped and an identity representation, and a shared cache handing the
+    # wrong one to the wrong client produces garbage.
+    response.headers.setdefault("Vary", "Accept-Encoding")
+    # The error pages render the whole site shell, so they're worth compressing too.
+    # The exclusions are the ones where it would be wrong rather than merely
+    # pointless: a 206 is a byte range out of the middle of a file, and gzipping it
+    # would hand back compressed bytes under a Content-Range describing the
+    # uncompressed ones; 204/304 have no body at all.
+    if response.status_code < 200 or response.status_code in (204, 206, 304):
+        return response
+    if "Content-Encoding" in response.headers:
+        return response
+
+    cache_key = response.headers.get("ETag")
+    cached = _gzip_cache.get(cache_key) if cache_key else None
+    if cached is None:
+        # send_file hands back a file wrapper in passthrough mode; reading the body
+        # out of it (which is what compressing requires) needs that switched off.
+        response.direct_passthrough = False
+        data = response.get_data()
+        if len(data) < COMPRESS_MIN_BYTES:
+            return response
+        cached = gzip.compress(data, COMPRESS_LEVEL)
+        if cache_key and len(cached) <= 1_000_000:
+            if len(_gzip_cache) >= _GZIP_CACHE_MAX_ENTRIES:
+                _gzip_cache.clear()
+            _gzip_cache[cache_key] = cached
+
+    response.set_data(cached)
+    response.headers["Content-Encoding"] = "gzip"
+    response.headers["Content-Length"] = len(cached)
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Sitewide catalog cache
+# ---------------------------------------------------------------------------
+# The footer's brand list and the promo banner are on every public page, and each
+# was a blocking round trip to store-api before the HTML could be sent - which is
+# most of what a page like /login spent its time on. They're both slow-moving
+# lists, so a short shared TTL removes that cost without anyone noticing the lag.
+SITEWIDE_CACHE_TTL = 60  # seconds
+
+_sitewide_cache = {}
+
+
+def _cached_sitewide(key, produce):
+    """Memoize `produce()` across requests for SITEWIDE_CACHE_TTL seconds.
+
+    A miss is never stored on failure - the exception propagates out of produce()
+    before anything is written - so a store-api blip isn't cached as an empty list
+    for the next minute."""
+    now = time.monotonic()
+    hit = _sitewide_cache.get(key)
+    if hit is not None and hit[0] > now:
+        return hit[1]
+    value = produce()
+    _sitewide_cache[key] = (now + SITEWIDE_CACHE_TTL, value)
+    return value
 
 
 
@@ -87,28 +187,65 @@ def create_app():
             _static_version_cache[filename] = version
         values["v"] = version
 
+    # Concatenates static/css + static/js into static/dist/ bundles and exposes
+    # css_bundle()/js_bundle() to the templates. Runs before the first request so
+    # the ?v=<mtime> fingerprinting above sees the freshly built files.
+    assets.register(app)
+
     app.jinja_env.globals["img"] = resolve_image_url
     app.jinja_env.globals["file_url"] = resolve_file_url
     app.jinja_env.globals["price"] = format_price
     app.jinja_env.globals["format_date"] = format_date
+    # The cart drawer shows these to customers as read-only text; blueprints/quote.py
+    # substitutes the same values server-side. One definition, so what's displayed and
+    # what's recorded can't disagree.
+    app.jinja_env.globals["CUSTOMER_PAYMENT_TERM"] = CUSTOMER_PAYMENT_TERM
+    app.jinja_env.globals["CUSTOMER_INSTALL_TERM"] = CUSTOMER_INSTALL_TERM
 
     register_auth_context(app)
 
-    def _lazy_catalog_global(cache_key, fetch):
+    def _lazy_catalog_global(cache_key, fetch, shared_scope=None):
         """A store-api fetch that only actually fires if the rendered template touches
         the variable, and at most once per request (memoized on `g`). Routes that pass
         their own value (e.g. catalog passes `products`) shadow the proxy entirely, so
-        those pages never pay for the sitewide fetch on top of their own."""
+        those pages never pay for the sitewide fetch on top of their own.
+
+        `shared_scope`, when given, is a callable naming a cache scope, and the result
+        is additionally reused *across* requests within that scope for
+        SITEWIDE_CACHE_TTL seconds. Only safe for data that genuinely doesn't vary
+        inside the scope - which is why the scope exists at all: /brands/ is public and
+        identical for everyone, but store-api masks promotion prices per viewer (see
+        _serialize_promotion), so promotions are scoped on price visibility and a
+        signed-out visitor can never be served a signed-in visitor's prices."""
 
         def resolve():
             if cache_key not in g:
                 try:
-                    setattr(g, cache_key, fetch(get_api_client()))
+                    if shared_scope is None:
+                        value = fetch(get_api_client())
+                    else:
+                        value = _cached_sitewide(
+                            (cache_key, shared_scope()), lambda: fetch(get_api_client())
+                        )
                 except StoreAPIError:
-                    setattr(g, cache_key, [])
+                    value = []
+                setattr(g, cache_key, value)
             return getattr(g, cache_key)
 
         return LocalProxy(resolve)
+
+    # Which half of the site the visitor is in. The landing page splits into
+    # Machinery and Materials; from then on the header logo mirrors that choice -
+    # it shows that side's mark and links back to that side's home page, rather
+    # than dumping everyone back on the landing screen.
+    MATERIALS_ENDPOINTS = {"main.materials"}
+
+    @app.context_processor
+    def inject_site_section():
+        def site_section():
+            return "materials" if request.endpoint in MATERIALS_ENDPOINTS else "machinery"
+
+        return {"site_section": site_section}
 
     @app.context_processor
     def inject_catalog_globals():
@@ -119,7 +256,11 @@ def create_app():
         fetches just brands + active promotions, instead of all five lists."""
         return {
             "brands": _lazy_catalog_global(
-                "_cp_brands", lambda c: c.get("/brands/", params={"limit": 200})
+                "_cp_brands",
+                lambda c: c.get("/brands/", params={"limit": 200}),
+                # GET /brands/ takes no auth and returns the same rows to everyone,
+                # so one cached copy serves the whole site.
+                shared_scope=lambda: "all",
             ),
             "products": _lazy_catalog_global(
                 "_cp_products",
@@ -137,6 +278,10 @@ def create_app():
                     adapt_promotion(p)
                     for p in c.get("/promotions/", params={"active_only": True, "limit": 50})
                 ],
+                # Two copies at most: one with real prices, one with them masked.
+                # Which one a request gets is decided by the same rule store-api
+                # applies (can_view_prices mirrors its get_price_visibility).
+                shared_scope=lambda: "priced" if can_view_prices() else "masked",
             ),
         }
 
@@ -161,6 +306,10 @@ def create_app():
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
         return response
+
+    @app.after_request
+    def compress_response(response):
+        return _compress_response(response)
 
     @app.errorhandler(403)
     def handle_forbidden(_e):

@@ -5,12 +5,14 @@
         {% set promo = active_promotions[0] %}
         {% set promo_img = img(promo.promotion_image) %}
 
-        <a class="slide no-overlay" href="{{ url_for('catalog.promotions_page') }}"
+        {# The slide IS this promotion's artwork, so it opens that deal's page
+           rather than the list it happens to be first in. #}
+        <a class="slide no-overlay" href="{{ url_for('catalog.promotion_detail', promotion_id=promo.id) }}"
           style="background-image: url('{{ promo_img }}'); cursor: pointer;">
             <div class="slide-content">
-                
-                
-                <span class="btn-hero"><i class="fas fa-fire"></i> View All Promotions</span>
+
+
+                <span class="btn-hero"><i class="fas fa-fire"></i> View This Deal</span>
             </div>
         </a>
         {% endif %}

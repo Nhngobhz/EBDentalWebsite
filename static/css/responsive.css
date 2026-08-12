@@ -418,8 +418,17 @@
     }
 }
 @media (max-width: 480px) {
-    .header-account-name {
+    /* Only the name is dropped, not the whole control: it's the account drawer's
+       trigger now, so the avatar has to stay tappable on a phone. */
+    .header-account-label {
         display: none;
+    }
+
+    /* Negative margin keeps the header layout identical while giving the
+       avatar-only trigger a finger-sized hit area. */
+    .header-account-name {
+        padding: 8px;
+        margin: -8px;
     }
 
     .eb-header .header-right {

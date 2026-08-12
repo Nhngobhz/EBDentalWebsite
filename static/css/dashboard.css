@@ -625,6 +625,176 @@ a.sidebar-brand:hover {
     color: var(--text-light);
 }
 
+/* ---- Orders page: paid = locked ----
+   An order stops being editable the moment payment is recorded (store-api returns 409
+   for any write to it), so the row's Edit/Delete controls are replaced by this chip and
+   the view modal explains why. */
+.order-locked-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 99px;
+    background: rgba(22, 163, 74, 0.12);
+    color: #15803d;
+    font-size: 0.65rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+[data-theme="dark"] .order-locked-chip { color: #4ade80; }
+.order-locked-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(22, 163, 74, 0.28);
+    background: rgba(22, 163, 74, 0.08);
+    color: var(--text);
+    font-size: 0.72rem;
+    line-height: 1.55;
+}
+
+/* ---- Orders page: edit modal ---- */
+.order-edit-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px 16px;
+    margin-bottom: 18px;
+}
+.order-edit-grid .filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.order-edit-grid label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-light);
+}
+.order-edit-grid input,
+.order-edit-grid select {
+    padding: 8px 11px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.8rem;
+    outline: none;
+    transition: var(--transition);
+    min-width: 0;
+}
+.order-edit-grid input:focus,
+.order-edit-grid select:focus {
+    border-color: var(--accent-light);
+    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.08);
+}
+.order-edit-items-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+.order-edit-items-head h5 { margin: 0; font-size: 0.9rem; }
+/* Search results hang directly under the search box - capped so a broad query can't
+   push the items grid off screen. */
+.order-edit-picker {
+    max-height: 240px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 10px;
+    background: var(--surface);
+}
+.order-edit-picker-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    padding: 9px 13px;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    background: none;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.78rem;
+    text-align: left;
+    cursor: pointer;
+    transition: var(--transition);
+}
+.order-edit-picker-row:last-child { border-bottom: none; }
+.order-edit-picker-row:hover { background: var(--bg); }
+.order-edit-picker-empty {
+    padding: 12px 13px;
+    font-size: 0.75rem;
+    color: var(--text-light);
+}
+/* "promotion"/"set" beside a bundle line, and the product code in the picker. */
+.order-edit-kind {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: var(--text-light);
+}
+/* A line whose product has since been deleted from the catalogue - it can't be
+   re-priced, so it has to be removed before the order can be saved. */
+.order-edit-orphan { background: rgba(239, 68, 68, 0.06); }
+.order-edit-orphan-note {
+    font-size: 0.65rem;
+    color: #b91c1c;
+    margin-top: 3px;
+}
+[data-theme="dark"] .order-edit-orphan-note { color: #fca5a5; }
+.order-edit-error {
+    padding: 9px 13px;
+    margin-bottom: 12px;
+    border-radius: 9px;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.08);
+    color: #b91c1c;
+    font-size: 0.75rem;
+}
+[data-theme="dark"] .order-edit-error { color: #fca5a5; }
+
+/* ---- Orders page: staff payment QR ---- */
+.order-qr-amount {
+    font-size: 1.9rem;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.2;
+}
+/* White plate behind the code: qrcode.js draws black-on-transparent, which is
+   unscannable once the dashboard is in dark mode. */
+.order-qr-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 220px;
+    padding: 14px;
+    border-radius: 14px;
+    background: #ffffff;
+    border: 1px solid var(--border);
+}
+.order-qr-status {
+    margin-top: 12px;
+    font-size: 0.76rem;
+    color: var(--text-light);
+    line-height: 1.5;
+}
+
 /* ---- Discount type toggle (%/$) - product discount fields in admin/products.html ---- */
 .discount-type-toggle {
     display: flex;
@@ -946,4 +1116,55 @@ a.sidebar-brand:hover {
 .bundle-add-btn {
     align-self: flex-start;
     margin-top: 2px;
+}
+
+/* -------------------------------------------------------------
+   GALLERY THUMBS — the product modal's "More Photos" strip, showing
+   the extra pictures already saved against a product. The X marks one
+   for removal on save (see renderProductGallery in admin/products.html).
+------------------------------------------------------------- */
+.gallery-thumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.gallery-thumbs:empty {
+    display: none;
+}
+.gallery-thumb {
+    position: relative;
+    width: 64px;
+    height: 64px;
+}
+.gallery-thumb img {
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    background: var(--surface);
+}
+.gallery-thumb-remove {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-light);
+    font-size: 0.6rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+.gallery-thumb-remove:hover {
+    color: #fff;
+    background: var(--danger);
+    border-color: var(--danger);
 }

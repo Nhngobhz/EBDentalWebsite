@@ -1,0 +1,310 @@
+/* ============================================================
+   SHELL — page chrome that every route renders: the sticky
+   header (partials/header.html) and the toast used by
+   showToast() in main.js.
+
+   These rules used to live in products.css. They were pulled out
+   so that pages which render the shell but none of the catalog —
+   sign-in/register above all — don't have to download 105KB of
+   product/catalog CSS to style a header. Order relative to the
+   rest of products.css is preserved by assets.py's bundles.
+   ============================================================ */
+
+.eb-header {
+    background: var(--header-bg);
+    backdrop-filter: blur(12px);
+    padding: 12px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+.eb-header .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text);
+    font-size: 1.3rem;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+.eb-header .logo .logo-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #06b6d4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.1rem;
+}
+.eb-header .logo .logo-text {
+    color: var(--text);
+}
+.eb-header .logo .logo-text span {
+    color: #06b6d4;
+}
+
+.eb-header .eb-nav-center {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--bg);
+    padding: 4px 6px;
+    border-radius: 40px;
+    border: 1px solid var(--border);
+}
+.eb-header .eb-nav-center button,
+.eb-header .eb-nav-center a {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-soft);
+    transition: var(--transition);
+    cursor: pointer;
+    padding: 6px 14px;
+    border-radius: 30px;
+    font-family: inherit;
+    background: none;
+    border: none;
+    text-decoration: none;
+    display: inline-block;
+}
+.eb-header .eb-nav-center button:hover,
+.eb-header .eb-nav-center a:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.6);
+}
+.eb-header .eb-nav-center button.active,
+.eb-header .eb-nav-center a.active {
+    color: white;
+    background: var(--primary);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+}
+.eb-header .eb-nav-center .back-btn {
+    background: #06b6d4;
+    color: white;
+    padding: 6px 16px;
+    border-radius: 30px;
+    font-weight: 700;
+    box-shadow: 0 4px 16px rgba(8, 145, 178, 0.2);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.eb-header .eb-nav-center .back-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(8, 145, 178, 0.3);
+    background: var(--accent-light);
+    color: white;
+}
+.eb-header .header-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: var(--text-soft);
+    flex-shrink: 0;
+}
+.eb-header .header-right .flag {
+    width: 28px;
+    height: 20px;
+    border-radius: 4px;
+    object-fit: cover;
+    border: 1px solid var(--border);
+}
+.eb-header .header-right .icon-btn {
+    cursor: pointer;
+    transition: var(--transition);
+    padding: 4px;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    color: var(--text-soft);
+}
+.eb-header .header-right .icon-btn:hover {
+    color: var(--text);
+    background: var(--bg);
+}
+.eb-header .header-right .profile-btn {
+    position: relative;
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+    font-size: 0.9rem;
+    color: var(--text-soft);
+    overflow: hidden;
+}
+.eb-header .header-right .profile-btn:hover {
+    border-color: var(--accent-light);
+    color: var(--accent);
+}
+.eb-header .header-right .profile-btn.logged-in {
+    border-color: var(--success);
+    background: rgba(16, 185, 129, 0.08);
+    color: var(--success);
+}
+.eb-header .header-right .profile-btn .badge-dot {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--success);
+    border: 2px solid white;
+}
+.eb-header .header-right .profile-btn img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.eb-header .eb-nav-center .promotion-btn {
+    background: #f97316;
+    color: white;
+    padding: 6px 16px;
+    border-radius: 30px;
+    font-weight: 700;
+    box-shadow: 0 4px 16px rgba(249, 115, 22, 0.25);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.eb-header .eb-nav-center .promotion-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(249, 115, 22, 0.35);
+    background: #f97316;
+    color: white;
+}
+
+@media (max-width: 600px) {
+    .eb-header .eb-nav-center {
+        display: none !important;
+    }
+}
+@media (max-width: 480px) {
+    .eb-header .logo {
+        font-size: 0.95rem;
+    }
+    .eb-header .logo .logo-icon {
+        width: 28px;
+        height: 28px;
+        font-size: 0.9rem;
+    }
+    .eb-header {
+        padding: 8px 12px;
+    }
+    .eb-header .header-right .icon-btn {
+        font-size: 0.9rem;
+    }
+    .eb-header .header-right .flag {
+        width: 22px;
+        height: 16px;
+    }
+    .eb-header .header-right .profile-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 0.75rem;
+    }
+}
+
+/* "Added to cart successfully" toast - see showToast() in main.js */
+.eb-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 32px;
+    transform: translate(-50%, 20px);
+    background: var(--text);
+    color: var(--surface);
+    padding: 12px 24px;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    z-index: 3000;
+}
+.eb-toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+.eb-header .logo {
+    text-decoration: none;
+}
+
+/* Sized by height so the two section logos (machinery-logo / home-49) sit at the
+   same optical weight. home-49 is a much wider wordmark, hence the max-width +
+   object-fit cap: it shrinks to fit instead of pushing the nav off the header. */
+.header-logo-img {
+    height: 40px;
+    width: auto;
+    max-width: 210px;
+    object-fit: contain;
+    display: block;
+}
+
+@media (max-width: 480px) {
+    .header-logo-img {
+        height: 30px;
+        max-width: 150px;
+    }
+}
+
+/* ---- Tablet / small-laptop header -------------------------------------------
+   Between the phone layout (where the bottom nav takes over at 600px) and a roomy
+   desktop, the header holds more than the row has room for, and every part of it
+   is flex-shrink:0 - so instead of compressing it pushed the whole page sideways.
+   Worst for staff, who carry an extra dashboard button on top of everything a
+   customer has, but a signed-in customer overflowed here too.
+
+   The fix is to shed what's redundant rather than what's needed: the avatar still
+   identifies the account without its name spelled out beside it, and the flag still
+   says which language is selected without "EN" next to it. The band stops at 481px
+   so it can never fight the phone rules above, which set their own tighter sizes. */
+@media (min-width: 481px) and (max-width: 1024px) {
+    .eb-header {
+        padding: 10px 14px;
+    }
+    .header-logo-img {
+        height: 34px;
+        max-width: 170px;
+    }
+    .eb-header .eb-nav-center {
+        padding: 3px 4px;
+        gap: 2px;
+        /* The guarantee, not the optimisation: min-width:0 is what actually lets a
+           flex item shrink past its own content, and the pill then scrolls instead
+           of forcing the header wider than the screen. Everything above is what
+           keeps it from having to. */
+        min-width: 0;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    .eb-header .eb-nav-center::-webkit-scrollbar {
+        display: none;
+    }
+    .eb-header .eb-nav-center a,
+    .eb-header .eb-nav-center button {
+        padding: 6px 10px;
+        font-size: 0.76rem;
+    }
+    .eb-header .header-right {
+        gap: 10px;
+    }
+    .header-account-label,
+    .lang-dropdown-btn span {
+        display: none;
+    }
+}

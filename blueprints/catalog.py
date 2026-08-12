@@ -2,7 +2,7 @@ from urllib.parse import urlencode
 
 from flask import Blueprint, abort, render_template, request, url_for
 
-from formatting import adapt_product, adapt_promotion, adapt_set
+from formatting import adapt_product, adapt_promotion, adapt_set, resolve_image_url
 from special_products import SPECIAL_PRODUCTS, get_special_product
 from store_api import StoreAPIError, get_api_client
 
@@ -74,7 +74,35 @@ def product_detail(product_id):
     manuals = client.get("/manuals/", params={"product_id": product_id, "limit": 1})
     manual = manuals[0] if manuals else None
 
-    return render_template("products/detail.html", product=product, manual=manual)
+    # The detail page's image gallery: the main picture first, then the extra photos
+    # (store-api's ProductImage rows, which never repeat the main one). Resolved to
+    # real URLs here rather than in the template, because the same list has to reach
+    # both the markup and the page's JS.
+    gallery = [resolve_image_url(product.get("product_image"))] + [
+        resolve_image_url(extra.get("image")) for extra in product.get("images") or []
+    ]
+
+    # "More from this brand" strip at the foot of the page. Best-effort: a failure
+    # here shouldn't take down the product page itself.
+    related = []
+    brand = product.get("brand")
+    if brand:
+        try:
+            related = [
+                adapt_product(p)
+                for p in client.get("/products/", params={"brand_id": brand["id"], "limit": 12})
+                if p["id"] != product_id
+            ][:6]
+        except StoreAPIError:
+            related = []
+
+    return render_template(
+        "products/detail.html",
+        product=product,
+        manual=manual,
+        gallery=gallery,
+        related=related,
+    )
 
 
 @catalog_bp.route("/manuals")
@@ -92,6 +120,66 @@ def promotions_page():
     raw_sets = client.get("/sets/", params={"limit": 200})
     sets = [adapt_set(s) for s in raw_sets]
     return render_template("main/promotions.html", promotions=promotions, sets=sets)
+
+
+def _bundle_detail(kind, path, adapt, name_field, image_field, extra_images=()):
+    """Shared body of the promotion and set detail pages.
+
+    A Promotion and a Set are the same thing to a shopper - a named bundle at a
+    fixed price, containing products - and differ only in which columns hold the
+    name/image and whether the deal has an end date. So both are normalized into
+    one `bundle` dict here and rendered by one template, rather than keeping two
+    near-identical pages in sync forever.
+    """
+    client = get_api_client()
+    try:
+        raw = client.get(path)
+    except StoreAPIError as e:
+        if e.status_code == 404:
+            abort(404)
+        raise
+    item = adapt(raw)
+
+    # Gallery, same shape as the product page's: main picture first, then any
+    # secondary image the entity happens to have (only Set has one today).
+    gallery = [resolve_image_url(item.get(image_field))]
+    gallery += [
+        resolve_image_url(item[field])
+        for field in extra_images
+        if item.get(field)
+    ]
+
+    return render_template(
+        "products/bundle_detail.html",
+        kind=kind,
+        bundle=item,
+        name=item.get(name_field),
+        gallery=gallery,
+        contents=item.get("items") or [],
+    )
+
+
+@catalog_bp.route("/promotions/<int:promotion_id>")
+def promotion_detail(promotion_id):
+    return _bundle_detail(
+        "promotion",
+        f"/promotions/{promotion_id}",
+        adapt_promotion,
+        "promotion_name",
+        "promotion_image",
+    )
+
+
+@catalog_bp.route("/sets/<int:set_id>")
+def set_detail(set_id):
+    return _bundle_detail(
+        "set",
+        f"/sets/{set_id}",
+        adapt_set,
+        "set_name",
+        "set_image",
+        extra_images=("detail_image",),
+    )
 
 @catalog_bp.route("/products/special/<slug>")
 def special_product(slug):

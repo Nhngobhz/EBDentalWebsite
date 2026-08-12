@@ -5,7 +5,63 @@
 
 {% block admin_content %}
 <div class="page-title"><i class="fas fa-shopping-cart"></i> Orders</div>
-<p class="page-sub">Orders and quotes finalized through the storefront's Cart. Staff carts and customer Cash checkouts are stored as <strong>quotes</strong>; only KHQR checkouts are real orders (paid or awaiting payment). Every price shown here was computed server-side at the moment the row was created.</p>
+<p class="page-sub">Orders and quotes finalized through the storefront's Cart. Staff carts and customer Cash checkouts are stored as <strong>quotes</strong>; a customer paying by KHQR becomes a real order <strong>only once the payment is confirmed</strong>. Every price shown here was computed server-side at the moment the row was created.</p>
+
+{% if checkouts %}
+<!-- Money that may be in flight. A customer paying by QR has no order until the payment
+     is confirmed, so if automatic confirmation fails (provider unreachable, expired
+     token, a QR the bank settles on its own rail) this card is the ONLY place the
+     attempt is visible. Rows disappear on their own the moment confirmation succeeds -
+     anything lingering here wants a human to check the bank statement against the
+     reference and press Confirm, which writes the order. -->
+<div class="dash-card" style="margin-bottom:18px; border-left:3px solid #f59e0b;">
+    <div class="card-header">
+        <h5><i class="fas fa-hourglass-half" style="color:#f59e0b;"></i> Awaiting payment ({{ checkouts|length }})</h5>
+    </div>
+    <div class="card-body" style="padding:0; overflow-x:auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Reference</th>
+                    <th>Customer</th>
+                    <th>Clinic</th>
+                    <th>Items</th>
+                    <th>Amount</th>
+                    <th>Started</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in checkouts %}
+                <tr>
+                    <td><code>{{ c.reference }}</code></td>
+                    <td>{{ c.customer_name or '-' }}</td>
+                    <td>{{ c.clinic_name }}<div style="font-size:0.78rem; color:#64748b;">{{ c.phone }}</div></td>
+                    <td style="font-size:0.82rem;">
+                        {% for item in c['items'] %}{{ item.product_name }} &times;{{ item.qty }}{% if not loop.last %}<br>{% endif %}{% endfor %}
+                    </td>
+                    <td><strong>${{ '%.2f'|format(c.grand_total|float) }}</strong></td>
+                    <td style="font-size:0.82rem;">
+                        {{ c.created_at[:16]|replace('T', ' ') }}
+                        {% if c.is_expired %}<div style="color:#b45309;">QR expired</div>{% endif %}
+                    </td>
+                    <td style="text-align:right;">
+                        <!-- data-confirm routes through ebConfirm (see main.js) rather than
+                             the native dialog: this writes a real order off a staff
+                             assertion that money arrived, so it must not be a stray click. -->
+                        <form method="POST" action="{{ url_for('admin.checkouts_confirm', checkout_id=c.id) }}" style="display:inline;"
+                              data-confirm="Confirm that ${{ '%.2f'|format(c.grand_total|float) }} for reference {{ c.reference }} has arrived? This creates the order."
+                              data-confirm-tone="warning" data-confirm-label="Confirm payment">
+                            <button type="submit" class="btn-dash sm primary"><i class="fas fa-check"></i> Payment received</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
 
 <div class="dash-card">
     <div class="card-header">
@@ -95,12 +151,10 @@
                     <td>{{ o['items']|length }}</td>
                     <td>{{ price(o.grand_total) }}</td>
                     <td style="white-space:nowrap; font-size:0.7rem;">
-                        {% if o.payment_method == 'khqr' %}
-                            {% if o.payment_status == 'paid' %}
-                            <span style="color:#16a34a; font-weight:600;"><i class="fas fa-circle-check"></i> KHQR paid</span>
-                            {% else %}
-                            <span style="color:#d97706; font-weight:600;"><i class="fas fa-clock"></i> KHQR unpaid</span>
-                            {% endif %}
+                        {% if o.payment_status == 'paid' %}
+                        <span style="color:#16a34a; font-weight:600;"><i class="fas fa-circle-check"></i> Paid{% if o.payment_method == 'khqr' %} (KHQR){% endif %}</span>
+                        {% elif o.payment_method == 'khqr' %}
+                        <span style="color:#d97706; font-weight:600;"><i class="fas fa-clock"></i> KHQR unpaid</span>
                         {% elif o.payment_method == 'cash' %}
                             Cash
                         {% else %}
@@ -111,11 +165,20 @@
                         <span class="status-badge status-{{ o.status }}">{{ o.status }}</span>
                     </td>
                     <td style="font-size:0.7rem; white-space:nowrap;">{{ format_date(o.created_at) }}</td>
+                    <!-- Edit/Delete disappear once the row is paid: a receipt has been
+                         issued against those exact figures, so the order is frozen.
+                         store-api refuses both regardless (409) - this just stops staff
+                         from clicking into a dead end. -->
                     <td style="white-space:nowrap;">
                         <button type="button" class="btn-dash primary sm" onclick="openOrderModal({{ o.id }})" title="View"><i class="fas fa-eye"></i></button>
+                        {% if o.payment_status == 'paid' %}
+                        <span class="order-locked-chip" title="This order has been paid - it can no longer be edited or deleted."><i class="fas fa-lock"></i> Locked</span>
+                        {% else %}
+                        <button type="button" class="btn-dash sm" onclick="openOrderEditModal({{ o.id }})" title="Edit"><i class="fas fa-pen"></i></button>
                         <form method="post" action="{{ url_for('admin.orders_delete', order_id=o.id) }}" style="display:inline;" data-confirm="Delete this order permanently?">
                             <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
                         </form>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
@@ -195,8 +258,16 @@
             <div class="quote-summary-row quote-grand-total-row"><span>Grand Total</span><span id="orderGrandTotal"></span></div>
         </div>
 
-        <div style="display:flex; gap:8px;">
-            <form id="orderStatusForm" method="post" style="display:flex; gap:8px; flex:1;">
+        <!-- Everything except Print is hidden once the order is paid - see
+             applyOrderLock(). A paid row is a closed financial record. -->
+        <!-- Kept (permanently hidden) rather than deleted: applyOrderLock still
+             addresses it, and the paid-order freeze this warned about could come back.
+             See _reject_if_paid in store-api. -->
+        <div class="order-locked-note" id="orderLockedNote" style="display:none;">
+            <i class="fas fa-lock"></i> This order has been paid.
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <form id="orderStatusForm" method="post" style="display:flex; gap:8px; flex:1; min-width:240px;">
                 <select name="status" id="orderStatusSelect" style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
                     <option value="pending">Pending</option>
                     <option value="confirmed">Confirmed</option>
@@ -205,14 +276,118 @@
                 </select>
                 <button type="submit" class="btn-dash primary"><i class="fas fa-save"></i> Update Status</button>
             </form>
-            <!-- Manual KHQR confirmation fallback (no Bakong API token configured, or
-                 the customer paid but auto-detection missed it). Only rendered for
-                 unpaid KHQR orders - see openOrderModal(). -->
-            <form id="orderMarkPaidForm" method="post" style="display:none;" data-confirm="Confirm that this KHQR payment has been received? The customer's receipt is issued from this.">
-                <button type="submit" class="btn-dash primary" style="background:#16a34a;"><i class="fas fa-circle-check"></i> Mark as Paid</button>
+            <button type="button" class="btn-dash" id="orderEditBtn" onclick="openOrderEditModal(currentOrderId)"><i class="fas fa-pen"></i> Edit</button>
+            <!-- Hands the customer a QR to scan for this exact order (counter sale or
+                 phone order). Also re-opens the QR already issued for it. -->
+            <button type="button" class="btn-dash" id="orderQrBtn" onclick="openOrderQrModal(currentOrderId)"><i class="fas fa-qrcode"></i> Payment QR</button>
+            <!-- Records payment taken any way at all - cash at the counter, a bank
+                 transfer, or a KHQR payment automatic checking missed. This is what
+                 turns the printed document into a Receipt. -->
+            <!-- data-confirm defaults to a red "Delete" button (see the submit handler
+                 in main.js) - wrong verb and wrong colour for recording a payment.
+                 Labelled "Complete" rather than "Mark as Paid" (2026-08-11): staff press
+                 it when the order has been delivered AND settled, so the word describes
+                 the whole transaction rather than only the money. It still sets
+                 payment_status="paid" - that is what turns the printed document into a
+                 Receipt - and the order stays editable afterwards. -->
+            <form id="orderMarkPaidForm" method="post" data-confirm="Mark this order complete? This records the payment as received, which is what issues the receipt." data-confirm-label="Complete" data-confirm-tone="success">
+                <button type="submit" class="btn-dash primary" style="background:#16a34a;"><i class="fas fa-circle-check"></i> Complete</button>
             </form>
             <button type="button" class="btn-dash" id="orderPrintBtn" onclick="printOrder(currentOrderId)"><i class="fas fa-print"></i> Print</button>
         </div>
+    </div>
+</div>
+
+<!-- Edit Order Modal -->
+<!-- Reachable whatever the payment state (the paid-order freeze was lifted on
+     2026-08-11). Nothing here sends a price: the items
+     grid collects product/promotion/set ids and quantities, and store-api re-looks-up
+     every price and recomputes the totals when it saves (see admin.orders_edit). -->
+<div class="dash-modal-overlay" id="orderEditOverlay">
+    <div class="dash-modal-box" style="max-width:820px;">
+        <button type="button" class="dash-modal-close" onclick="closeOrderEditModal()"><i class="fas fa-times"></i></button>
+        <h3 class="dash-modal-title" id="orderEditTitle">Edit Order</h3>
+        <p class="page-sub" style="margin-top:-6px;">Change the clinic details, terms and items. Prices are always taken from the catalogue as it stands right now, so saving re-prices every line and recalculates the totals.</p>
+
+        <div class="order-edit-grid">
+            <div class="filter-field"><label for="editClinicName">Clinic *</label><input type="text" id="editClinicName" maxlength="200"></div>
+            <div class="filter-field"><label for="editContactPerson">Contact person</label><input type="text" id="editContactPerson" maxlength="150"></div>
+            <div class="filter-field"><label for="editPhone">Contact tel *</label><input type="text" id="editPhone" maxlength="30"></div>
+            <div class="filter-field"><label for="editAddress">Address *</label><input type="text" id="editAddress" maxlength="255"></div>
+            <div class="filter-field"><label for="editPaymentTerm">Payment term</label><input type="text" id="editPaymentTerm" maxlength="100"></div>
+            <div class="filter-field"><label for="editInstallTerm">Installation term</label><input type="text" id="editInstallTerm" maxlength="150"></div>
+            <div class="filter-field">
+                <label for="editStatus">Status</label>
+                <select id="editStatus">
+                    <option value="pending">Pending</option>
+                    <option value="confirmed">Confirmed</option>
+                    <option value="delivered">Delivered</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+            </div>
+            {% if has_permission('product_management') %}
+            <!-- The order-level "special discount". store-api gates this on
+                 product_management exactly as it does when the order is first placed,
+                 so a price_listing-only staffer doesn't get the controls at all. -->
+            <div class="filter-field">
+                <label for="editDiscountType">Special discount</label>
+                <div style="display:flex; gap:6px;">
+                    <select id="editDiscountType" style="flex:1;" onchange="renderOrderEditItems()">
+                        <option value="percent">Percent (%)</option>
+                        <option value="cash">Cash ($)</option>
+                    </select>
+                    <input type="number" id="editDiscountValue" min="0" step="0.01" style="width:100px;" oninput="renderOrderEditItems()">
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="order-edit-items-head">
+            <h5>Items</h5>
+            <div class="search-box-dash">
+                <i class="fas fa-search"></i>
+                <input type="text" id="editProductSearch" class="search-input-dash" placeholder="Add a product by name or code..." oninput="renderProductPicker()" autocomplete="off">
+            </div>
+        </div>
+        <div id="editProductResults" class="order-edit-picker" style="display:none;"></div>
+
+        <div class="dash-card" style="margin-bottom:12px;">
+            <div class="card-body" style="padding:0;">
+                <table>
+                    <thead><tr><th>Item</th><th>Code</th><th style="width:110px;">Qty</th><th style="width:110px;">Unit Price</th><th style="width:110px;">Amount</th><th style="width:44px;"></th></tr></thead>
+                    <tbody id="editItemsBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="quote-summary-rows" style="margin-bottom:6px;">
+            <div class="quote-summary-row"><span>Estimated sub-total</span><span id="editSubtotal"></span></div>
+            <div class="quote-summary-row"><span id="editDiscountLabel">Estimated special discount</span><span id="editDiscountAmount"></span></div>
+            <div class="quote-summary-row quote-grand-total-row"><span>Estimated grand total</span><span id="editGrandTotal"></span></div>
+        </div>
+        <p class="page-sub" style="margin-bottom:14px;">Estimated from today's catalogue prices — the figures store-api computes when you save are what the order actually carries.</p>
+
+        <div class="order-edit-error" id="orderEditError" style="display:none;"></div>
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+            <button type="button" class="btn-dash outline" onclick="closeOrderEditModal()">Cancel</button>
+            <button type="button" class="btn-dash primary" id="orderEditSaveBtn" onclick="saveOrderEdit()"><i class="fas fa-save"></i> Save changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- Staff Payment QR Modal -->
+<!-- The same KHQR the storefront checkout shows a customer, issued against an order
+     that already exists. Polls the same payment-status endpoint, so a scan confirmed
+     by Bakong/PayWay flips the order to paid here without anyone clicking anything. -->
+<div class="dash-modal-overlay" id="orderQrOverlay">
+    <div class="dash-modal-box" style="max-width:420px; text-align:center;">
+        <button type="button" class="dash-modal-close" onclick="closeOrderQrModal()"><i class="fas fa-times"></i></button>
+        <h3 class="dash-modal-title">Scan to pay</h3>
+        <div id="orderQrAmount" class="order-qr-amount"></div>
+        <div id="orderQrMeta" style="font-size:0.72rem; color:var(--text-light); margin-bottom:14px;"></div>
+        <div id="orderQrBox" class="order-qr-box"></div>
+        <div id="orderQrStatus" class="order-qr-status"></div>
+        <button type="button" class="btn-dash outline" style="margin-top:14px;" onclick="closeOrderQrModal()">Close</button>
     </div>
 </div>
 {% endblock %}
@@ -227,8 +402,20 @@
     ORDERS_DATA.forEach(o => { ORDERS_BY_ID[o.id] = o; });
     const ORDER_STATUS_URL_TEMPLATE = {{ url_for('admin.orders_status', order_id=0)|tojson }};
     const ORDER_MARK_PAID_URL_TEMPLATE = {{ url_for('admin.orders_mark_paid', order_id=0)|tojson }};
+    const ORDER_EDIT_URL_TEMPLATE = {{ url_for('admin.orders_edit', order_id=0)|tojson }};
+    const ORDER_KHQR_URL_TEMPLATE = {{ url_for('admin.orders_khqr', order_id=0)|tojson }};
+    const ORDER_PAYMENT_STATUS_URL_TEMPLATE = {{ url_for('admin.orders_payment_status', order_id=0)|tojson }};
+    // The catalogue behind the edit modal's product picker (see admin.orders()).
+    const PRODUCTS_DATA = {{ products|tojson }};
+    const CAN_DISCOUNT = {{ has_permission('product_management')|tojson }};
     let currentOrderId = null;
     let currentTypeFilter = 'all';
+
+    const orderUrl = (template, orderId) => template.replace('/0/', '/' + orderId + '/');
+
+    // A paid order is a closed record: store-api refuses every edit, the payment flag
+    // and the delete (409). Mirrored here so the buttons that would 409 aren't offered.
+    const isPaid = order => order.payment_status === 'paid';
 
     // Quote/Order tabs - combined with the text search in filterOrdersTable().
     function setOrderTypeFilter(type) {
@@ -241,8 +428,10 @@
 
     function describePayment(order) {
         if (order.payment_method === 'khqr') {
-            return order.payment_status === 'paid' ? 'KHQR — paid' : 'KHQR — awaiting payment';
+            return isPaid(order) ? 'KHQR — paid' : 'KHQR — awaiting payment';
         }
+        // Paid with no method recorded = staff took the money directly and marked it.
+        if (isPaid(order)) return 'Paid — recorded by staff';
         if (order.payment_method === 'cash') return 'Cash (quote)';
         return '—';
     }
@@ -264,11 +453,7 @@
         document.getElementById('orderQuoteCode').textContent = order.quote_code;
         document.getElementById('orderPayment').textContent = describePayment(order);
 
-        // Manual "Mark as Paid" only makes sense on an unpaid KHQR order.
-        const markPaidForm = document.getElementById('orderMarkPaidForm');
-        const needsMarkPaid = order.payment_method === 'khqr' && order.payment_status !== 'paid';
-        markPaidForm.style.display = needsMarkPaid ? '' : 'none';
-        markPaidForm.action = ORDER_MARK_PAID_URL_TEMPLATE.replace('/0/', '/' + orderId + '/');
+        applyOrderLock(order);
         const statusBadge = document.getElementById('orderStatusBadge');
         statusBadge.textContent = order.status;
         statusBadge.className = 'status-badge status-' + order.status;
@@ -322,9 +507,29 @@
         document.getElementById('orderDiscountAmount').textContent = formatMoney(order.discount_amount);
         document.getElementById('orderGrandTotal').textContent = formatMoney(order.grand_total);
         document.getElementById('orderStatusSelect').value = order.status;
-        document.getElementById('orderStatusForm').action = ORDER_STATUS_URL_TEMPLATE.replace('/0/', '/' + orderId + '/');
+        document.getElementById('orderStatusForm').action = orderUrl(ORDER_STATUS_URL_TEMPLATE, orderId);
 
         document.getElementById('orderModalOverlay').classList.add('active');
+    }
+
+    // Which of the modal's actions are on offer.
+    //
+    // A paid order used to be Print-only, mirroring a hard 409 in store-api. That freeze
+    // was lifted on 2026-08-11 (see _reject_if_paid): staff need to correct a real order
+    // after taking payment, so Edit and the status control stay available whatever the
+    // payment state. Only the two genuinely payment-specific actions still come and go.
+    function applyOrderLock(order) {
+        const paid = isPaid(order);
+        document.getElementById('orderLockedNote').style.display = 'none';
+        document.getElementById('orderStatusForm').style.display = 'flex';
+        document.getElementById('orderEditBtn').style.display = '';
+        // A QR is only worth showing while there's still something to collect.
+        document.getElementById('orderQrBtn').style.display = paid ? 'none' : '';
+
+        // "Complete" records the payment, so it disappears once there is one.
+        const markPaidForm = document.getElementById('orderMarkPaidForm');
+        markPaidForm.style.display = paid ? 'none' : '';
+        markPaidForm.action = orderUrl(ORDER_MARK_PAID_URL_TEMPLATE, order.id);
     }
 
     function closeOrderModal() {
@@ -344,10 +549,10 @@
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
         try {
             QuoteCart.buildPrintTemplate(order);
-            // Paid KHQR orders reprint as a Receipt, everything else as a Quotation -
-            // buildPrintTemplate() picks the printed title from the same fields.
-            const docName = (order.payment_method === 'khqr' && order.payment_status === 'paid') ? 'Receipt' : 'Quotation';
-            await QuoteCart.exportPDF(order.quote_code, docName);
+            // Any row with a payment on record reprints as a Receipt - a confirmed
+            // KHQR payment, or a quote staff marked paid after taking cash.
+            // buildPrintTemplate() picks the printed title from the same one field.
+            await QuoteCart.exportPDF(order.quote_code, isPaid(order) ? 'Receipt' : 'Quotation');
         } finally {
             btn.disabled = false;
             btn.innerHTML = originalHtml;
@@ -356,6 +561,337 @@
 
     document.getElementById('orderModalOverlay').addEventListener('click', function(e) {
         if (e.target === this) closeOrderModal();
+    });
+
+    // ---- Edit an order ------------------------------------------------------------
+    // The working copy is a plain list of {kind, id, name, code, qty} - ids and
+    // quantities only. No price ever leaves this page: store-api re-looks-up every
+    // line from the current Product/Promotion/Set row on save, so the figures below
+    // are an estimate for the person editing, never the ones that get recorded.
+
+    let editOrderId = null;
+    let editItems = [];
+
+    function openOrderEditModal(orderId) {
+        const order = ORDERS_BY_ID[orderId];
+        if (!order) return;
+        if (isPaid(order)) {
+            ebAlert('This order has been paid, so it can no longer be edited.', { title: 'Order locked', tone: 'warning' });
+            return;
+        }
+        editOrderId = orderId;
+        closeOrderModal();
+
+        document.getElementById('orderEditTitle').textContent =
+            'Edit ' + (order.order_type === 'quote' ? 'Quote ' : 'Order ') + order.order_number;
+        document.getElementById('editClinicName').value = order.clinic_name || '';
+        document.getElementById('editContactPerson').value = order.contact_person || '';
+        document.getElementById('editPhone').value = order.phone || '';
+        document.getElementById('editAddress').value = order.address || '';
+        document.getElementById('editPaymentTerm').value = order.payment_term || '';
+        document.getElementById('editInstallTerm').value = order.install_term || '';
+        document.getElementById('editStatus').value = order.status || 'pending';
+        if (CAN_DISCOUNT) {
+            document.getElementById('editDiscountType').value = order.discount_type || 'percent';
+            document.getElementById('editDiscountValue').value = Number(order.discount_value || 0);
+        }
+
+        // Only the lines actually being charged for. The $0 component rows underneath
+        // them (a promotion/set's contents, a product's free gifts) are regenerated by
+        // store-api from the parent line, so sending them back would duplicate them.
+        editItems = order.items.filter(item => !item.parent_item_id).map(item => ({
+            kind: item.promotion_id ? 'promotion' : item.set_id ? 'set' : 'product',
+            id: item.product_id || item.promotion_id || item.set_id || null,
+            name: item.product_name,
+            code: item.product_code || '',
+            qty: item.qty,
+            // The snapshot price, shown so the row isn't blank; the catalogue price is
+            // preferred where we have one, since that is what saving will charge.
+            unitPrice: Number(item.unit_price) || 0,
+        }));
+
+        document.getElementById('editProductSearch').value = '';
+        document.getElementById('editProductResults').style.display = 'none';
+        showOrderEditError('');
+        renderOrderEditItems();
+        document.getElementById('orderEditOverlay').classList.add('active');
+    }
+
+    function closeOrderEditModal() {
+        document.getElementById('orderEditOverlay').classList.remove('active');
+        editOrderId = null;
+    }
+
+    function showOrderEditError(message) {
+        const box = document.getElementById('orderEditError');
+        box.textContent = message;
+        box.style.display = message ? '' : 'none';
+    }
+
+    // What this line will cost when saved: the catalogue price for a product we can
+    // still find, otherwise the price snapshotted on the order (a promotion/set line,
+    // or a product that has since been removed from the catalogue).
+    function editLinePrice(line) {
+        if (line.kind === 'product') {
+            const product = PRODUCTS_DATA.find(p => p.id === line.id);
+            if (product) return Number(product.price) || 0;
+        }
+        return line.unitPrice;
+    }
+
+    function renderOrderEditItems() {
+        const body = document.getElementById('editItemsBody');
+        // ebEscapeHtml (main.js) on every string, same as the view modal: item names
+        // are free text and this is assigned to innerHTML.
+        body.innerHTML = editItems.map((line, index) => {
+            // product_id is SET NULL when a product is deleted, so an old order can
+            // carry a line there is no longer anything to re-price. It can't be sent
+            // back, and silently dropping it would quietly shrink the order - so it's
+            // flagged and has to be removed deliberately.
+            const orphaned = line.id === null;
+            return `
+            <tr${orphaned ? ' class="order-edit-orphan"' : ''}>
+                <td>
+                    ${ebEscapeHtml(line.name)}
+                    ${line.kind !== 'product' ? `<span class="order-edit-kind">${line.kind}</span>` : ''}
+                    ${orphaned ? '<div class="order-edit-orphan-note">No longer in the catalogue — remove this line before saving.</div>' : ''}
+                </td>
+                <td>${ebEscapeHtml(line.code || '—')}</td>
+                <td><input type="number" min="1" step="1" value="${line.qty}" style="width:80px;" onchange="changeEditQty(${index}, this.value)"${orphaned ? ' disabled' : ''}></td>
+                <td>${orphaned ? '—' : formatMoney(editLinePrice(line))}</td>
+                <td>${orphaned ? '—' : formatMoney(editLinePrice(line) * line.qty)}</td>
+                <td><button type="button" class="btn-dash danger sm" title="Remove" onclick="removeEditItem(${index})"><i class="fas fa-trash"></i></button></td>
+            </tr>`;
+        }).join('') || '<tr><td colspan="6" style="text-align:center; color:var(--text-light);">No items — add at least one product.</td></tr>';
+
+        renderOrderEditTotals();
+    }
+
+    // Mirrors store-api's own arithmetic (_build_order_lines/_compute_discount):
+    // promotion and set lines are already a deal price, so the order-level discount
+    // never applies on top of them.
+    function renderOrderEditTotals() {
+        let subtotal = 0, discountable = 0;
+        editItems.forEach(line => {
+            if (line.id === null) return;
+            const amount = editLinePrice(line) * line.qty;
+            subtotal += amount;
+            if (line.kind === 'product') discountable += amount;
+        });
+
+        const type = CAN_DISCOUNT ? document.getElementById('editDiscountType').value : null;
+        const value = CAN_DISCOUNT ? Number(document.getElementById('editDiscountValue').value) || 0 : 0;
+        const discount = type === 'percent' ? discountable * value / 100 : Math.min(value, discountable);
+
+        document.getElementById('editSubtotal').textContent = formatMoney(subtotal);
+        document.getElementById('editDiscountLabel').textContent = type === 'cash'
+            ? 'Estimated special discount (Cash)'
+            : `Estimated special discount (${value}%)`;
+        document.getElementById('editDiscountAmount').textContent = formatMoney(discount);
+        document.getElementById('editGrandTotal').textContent = formatMoney(Math.max(0, subtotal - discount));
+    }
+
+    function changeEditQty(index, value) {
+        const qty = Math.max(1, parseInt(value, 10) || 1);
+        editItems[index].qty = qty;
+        renderOrderEditItems();
+    }
+
+    function removeEditItem(index) {
+        editItems.splice(index, 1);
+        renderOrderEditItems();
+    }
+
+    // Substring match over the catalogue already embedded in the page - no request per
+    // keystroke. Capped at 8 rows so the picker never pushes the items grid off screen.
+    function renderProductPicker() {
+        const query = document.getElementById('editProductSearch').value.trim().toLowerCase();
+        const results = document.getElementById('editProductResults');
+        if (!query) {
+            results.style.display = 'none';
+            return;
+        }
+        const matches = PRODUCTS_DATA.filter(p =>
+            (p.product_name || '').toLowerCase().includes(query) ||
+            (p.product_code || '').toLowerCase().includes(query)
+        ).slice(0, 8);
+
+        results.innerHTML = matches.length
+            ? matches.map(p => `
+                <button type="button" class="order-edit-picker-row" onclick="addEditProduct(${p.id})">
+                    <span>${ebEscapeHtml(p.product_name)}${p.product_code ? ` <span class="order-edit-kind">${ebEscapeHtml(p.product_code)}</span>` : ''}</span>
+                    <span>${formatMoney(Number(p.price) || 0)}</span>
+                </button>`).join('')
+            : '<div class="order-edit-picker-empty">No product matches that.</div>';
+        results.style.display = '';
+    }
+
+    function addEditProduct(productId) {
+        const product = PRODUCTS_DATA.find(p => p.id === productId);
+        if (!product) return;
+        // Adding something already on the order bumps its quantity rather than
+        // creating a second line for the same product.
+        const existing = editItems.find(line => line.kind === 'product' && line.id === productId);
+        if (existing) {
+            existing.qty += 1;
+        } else {
+            editItems.push({
+                kind: 'product',
+                id: product.id,
+                name: product.product_name,
+                code: product.product_code || '',
+                qty: 1,
+                unitPrice: Number(product.price) || 0,
+            });
+        }
+        document.getElementById('editProductSearch').value = '';
+        document.getElementById('editProductResults').style.display = 'none';
+        renderOrderEditItems();
+    }
+
+    async function saveOrderEdit() {
+        const clinic = document.getElementById('editClinicName').value.trim();
+        const phone = document.getElementById('editPhone').value.trim();
+        const address = document.getElementById('editAddress').value.trim();
+        if (!clinic || !phone || !address) {
+            showOrderEditError('Clinic, contact tel and address are required.');
+            return;
+        }
+        if (editItems.length === 0) {
+            showOrderEditError('An order needs at least one item.');
+            return;
+        }
+        if (editItems.some(line => line.id === null)) {
+            showOrderEditError('Remove the line whose product is no longer in the catalogue, then save.');
+            return;
+        }
+
+        const payload = {
+            clinic_name: clinic,
+            contact_person: document.getElementById('editContactPerson').value.trim() || null,
+            phone: phone,
+            address: address,
+            payment_term: document.getElementById('editPaymentTerm').value.trim() || null,
+            install_term: document.getElementById('editInstallTerm').value.trim() || null,
+            status: document.getElementById('editStatus').value,
+            items: editItems.map(line => ({ kind: line.kind, id: line.id, qty: line.qty })),
+        };
+        if (CAN_DISCOUNT) {
+            payload.discount_type = document.getElementById('editDiscountType').value;
+            payload.discount_value = Number(document.getElementById('editDiscountValue').value) || 0;
+        }
+
+        const btn = document.getElementById('orderEditSaveBtn');
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        showOrderEditError('');
+        try {
+            const resp = await fetch(orderUrl(ORDER_EDIT_URL_TEMPLATE, editOrderId), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await resp.json();
+            if (!resp.ok) {
+                showOrderEditError(data.detail || 'Could not save the changes.');
+                return;
+            }
+            // Reloading rather than patching ORDERS_DATA in place: the server just
+            // re-priced every line, so the page's copy of this order (and the totals
+            // strip built from it) is stale in ways only the response knows about.
+            btn.innerHTML = '<i class="fas fa-circle-check"></i> Saved';
+            window.location.reload();
+        } catch (err) {
+            showOrderEditError('Could not reach the server. Please try again.');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    }
+
+    document.getElementById('orderEditOverlay').addEventListener('click', function(e) {
+        if (e.target === this) closeOrderEditModal();
+    });
+
+    // ---- Payment QR ---------------------------------------------------------------
+    // Issues (or re-opens) a KHQR for an existing order and watches it settle. Same
+    // endpoint the storefront's own checkout modal polls, so a scan confirmed by
+    // Bakong/PayWay marks the order paid and fires the receipt alert on its own.
+
+    let qrPollTimer = null;
+
+    function stopQrPolling() {
+        if (qrPollTimer) { clearInterval(qrPollTimer); qrPollTimer = null; }
+    }
+
+    async function openOrderQrModal(orderId) {
+        const order = ORDERS_BY_ID[orderId];
+        if (!order) return;
+
+        const overlay = document.getElementById('orderQrOverlay');
+        const box = document.getElementById('orderQrBox');
+        const statusRow = document.getElementById('orderQrStatus');
+        document.getElementById('orderQrAmount').textContent = formatMoney(order.grand_total);
+        document.getElementById('orderQrMeta').textContent =
+            'No. ' + order.order_number + ' · Code ' + order.quote_code + ' · ' + (order.clinic_name || '');
+        box.innerHTML = '';
+        statusRow.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing the QR…';
+        overlay.classList.add('active');
+
+        let paymentOrder;
+        try {
+            const resp = await fetch(orderUrl(ORDER_KHQR_URL_TEMPLATE, orderId), { method: 'POST' });
+            paymentOrder = await resp.json();
+            if (!resp.ok) throw new Error(paymentOrder.detail || 'Could not generate a payment QR.');
+        } catch (err) {
+            statusRow.innerHTML = '<span style="color:var(--danger,#dc2626);">' + ebEscapeHtml(err.message) + '</span>';
+            return;
+        }
+
+        try {
+            // QuoteCart lazy-loads qrcode.js the same way the storefront modal does -
+            // main.js is on this page, so there's nothing extra to include here.
+            await QuoteCart._ensureQrLib();
+            box.innerHTML = '';
+            new QRCode(box, {
+                text: paymentOrder.khqr_string,
+                width: 220,
+                height: 220,
+                correctLevel: QRCode.CorrectLevel.M,
+            });
+        } catch (err) {
+            statusRow.textContent = 'Could not draw the QR code — please check your connection.';
+            return;
+        }
+        statusRow.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Waiting for the customer to pay…';
+
+        // Every 3s, exactly like the storefront modal. Transient failures are ignored -
+        // the loop only ends on "paid" or on the dialog being closed.
+        const url = orderUrl(ORDER_PAYMENT_STATUS_URL_TEMPLATE, orderId);
+        stopQrPolling();
+        qrPollTimer = setInterval(async () => {
+            let data;
+            try {
+                const resp = await fetch(url);
+                if (!resp.ok) return;
+                data = await resp.json();
+            } catch { return; }
+            if (data.payment_status === 'paid') {
+                stopQrPolling();
+                statusRow.innerHTML = '<i class="fas fa-circle-check" style="color:#16a34a;"></i> Payment received — the order is now locked.';
+                setTimeout(() => window.location.reload(), 1500);
+            }
+        }, 3000);
+    }
+
+    function closeOrderQrModal() {
+        stopQrPolling();
+        document.getElementById('orderQrOverlay').classList.remove('active');
+    }
+
+    document.getElementById('orderQrOverlay').addEventListener('click', function(e) {
+        if (e.target === this) closeOrderQrModal();
     });
 
     // ---- Filters (type tabs + search + status + date range) ----------------------
@@ -430,7 +966,7 @@
 
     // Money split for the rows currently shown. "Paid" is deliberately narrow: only rows
     // the system actually recorded a payment for (payment_status === 'paid' - a confirmed
-    // KHQR payment or a staff "Mark as Paid"). Cash quotes are settled offline and carry
+    // KHQR payment or a staff "Complete"). Cash quotes are settled offline and carry
     // no payment record at all, so they count as pending rather than being guessed at.
     // Cancelled rows are counted but contribute no money either way.
     function renderOrdersSummary(orders) {

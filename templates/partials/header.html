@@ -1,6 +1,12 @@
 <header class="eb-header" id="ebHeader">
-    <a href="{{ url_for('main.landing') }}" class="logo">
-    <img src="{{ url_for('static', filename='images/machinery-logo.png') }}" alt="EB Dental Supply" class="header-logo-img" />
+    {# The logo belongs to whichever half of the site you're in (see site_section()
+       in app.py): the machinery mark on machinery pages, HOME 49 on materials
+       pages - and each links back to its own section's home page. #}
+    {% set in_materials = site_section() == 'materials' %}
+    <a href="{{ url_for('main.materials') if in_materials else url_for('main.home') }}" class="logo"
+       title="{{ 'Materials' if in_materials else 'Machinery' }}">
+    <img src="{{ url_for('static', filename='images/home-49.png' if in_materials else 'images/machinery-logo.png') }}"
+         alt="{{ 'HOME 49' if in_materials else 'EB Dental Supply' }}" class="header-logo-img" />
     </a>
     <nav class="eb-nav-center" id="ebNav">
         <a href="{{ url_for('main.home') }}" class="{{ 'active' if request.endpoint == 'main.home' }}">Home</a>
@@ -11,7 +17,8 @@
         
         <a href="{{ url_for('main.about') }}" class="{{ 'active' if request.endpoint == 'main.about' }}">About</a>
         <a href="{{ url_for('main.contact') }}" class="{{ 'active' if request.endpoint == 'main.contact' }}">Contact</a>
-        <a href="{{ url_for('catalog.manuals') }}" class="{{ 'active' if request.endpoint == 'catalog.manuals' }}"> Manual</a>
+        {# No "Manual" link here anymore - a manual is shown on the page of the
+           product it belongs to (products/detail.html's buy box). #}
     </nav>
     <div class="header-right">
         <div class="lang-dropdown" id="langDropdown">
@@ -35,9 +42,13 @@
             <span class="quote-cart-badge" id="quoteCartBadge" style="display:none;">0</span>
         </span>
         {% if is_logged_in() %}
-        <a href="{{ url_for('auth.profile') }}" class="header-account-name" style="font-size:0.8rem; color:var(--text-light); white-space:nowrap; text-decoration:none; display:flex; align-items:center; gap:6px;" title="{{ current_account().email }}">
+{# Opens the account slide-over (partials/account_drawer.html) rather than navigating.
+   Still a real link to /profile so it keeps working without JS - AccountDrawer only
+   preventDefault()s once it has a drawer to open. The name is wrapped so narrow
+   screens can drop the text and keep the avatar as the tap target. #}
+        <a href="{{ url_for('auth.profile') }}" id="accountDrawerBtn" class="header-account-name" style="font-size:0.8rem; color:var(--text-light); white-space:nowrap; text-decoration:none; display:flex; align-items:center; gap:6px;" title="{{ current_account().email }}">
     <img src="{{ img(current_account().image) or url_for('static', filename='images/eb-logo.png') }}" alt="" class="header-avatar-img" />
-    {{ current_account().name }}
+    <span class="header-account-label">{{ current_account().name }}</span>
 </a>
 {% if is_staff() %}
 <a class="profile-btn" href="{{ url_for('admin.dashboard') }}" title="Admin Dashboard"><i class="fas fa-gauge"></i></a>

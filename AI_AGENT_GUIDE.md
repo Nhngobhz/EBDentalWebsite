@@ -85,7 +85,7 @@ follows.
   that when store-api demands more than just "is staff".
 - **"Continue with Google"** (added 2026-08-05) is a second way into the
   same session, not a second session model. `partials/google_signin.html`
-  (included by both `auth/login.html` and `auth/register.html`, and
+  (included once by `auth/auth.html`, shared by both its tabs, and
   rendering **nothing** unless `GOOGLE_CLIENT_ID` is configured) lets
   Google Identity Services render its own button; the ID token it produces
   is POSTed to `auth.google_login` (`/auth/google`), which forwards it to
@@ -110,6 +110,21 @@ follows.
   Before surfacing a new profile field, check whether `users`, `customers`, or
   both actually have it; adding a one-sided field unguarded renders an empty
   row for the other principal type.
+- The header avatar opens the **account slide-over**
+  (`partials/account_drawer.html`, `AccountDrawer` in `main.js`) rather than
+  navigating - `/profile` is still its `href`, so it degrades to a plain link
+  without JS. Its Orders tab fetches `/profile/orders`
+  (JSON, summary fields only) on **first open**, backed by store-api's
+  `GET /orders/mine`; the staff-only `GET /orders/` can't serve it because a
+  customer has no `price_listing`. Tapping an order fetches it in full from
+  `/profile/orders/<id>` (cached per page view) and shows its line items; its
+  **Download PDF** button re-runs `QuoteCart.buildPrintTemplate` + `exportPDF`
+  on that payload - the same two calls the admin Orders page's Print button
+  makes. Nothing is resubmitted and no PDF is stored: the document is rebuilt in
+  the browser every time, so a re-download always matches what's on record. Don't confuse it with the cart "drawer",
+  which is really a centered modal - this one actually slides from the edge and
+  animates on `transform`, so its hidden state must stay laid out
+  (`visibility`, not `display:none`).
 - The three decorators fail in three deliberately different ways:
   `login_required` (storefront pages) flashes and redirects to `/login`;
   `staff_required` (the `/admin/*` gate) **`abort(404)`s** so the admin
@@ -152,7 +167,11 @@ follows.
   `blueprints/admin/{products,brands,categories,manuals}.py`) and pass it
   to `post_form`/`post_json`'s sibling calls - store-api expects
   `multipart/form-data` for these, never JSON (see the other guide's
-  section 3).
+  section 3). The one endpoint that takes **several** files
+  (`POST /products/{id}/gallery`) needs a *list of tuples* instead of a
+  dict, since every part reuses the same field name:
+  `[("files", (filename, stream, mimetype)), ...]` - see
+  `_gallery_files_from_request()` in `blueprints/admin/products.py`.
 
 ## 3. The admin blueprint - the pattern every page follows
 
@@ -251,20 +270,49 @@ anything quote-related.
   driven by the `IS_STAFF` global from `base.html`); customers must pick a
   **Payment Method** in the drawer (`qiPaymentMethod` select, customers
   only) - **Cash** also produces a quote (quotation PDF downloads
-  immediately), **KHQR** creates a real order awaiting payment. For KHQR,
-  `confirmPurchase()` clears the cart, opens the KHQR modal
-  (`QuoteCart.showKhqrModal()` - renders `order.khqr_string` via a
-  lazy-loaded qrcode.js, same CDN pattern as jsPDF), and polls
-  `/quote/<id>/payment-status` (relayed to store-api) every 3s. **The
-  receipt PDF is only ever generated in `_finishPaidOrder()`, after the
-  poll reports "paid"** - `buildPrintTemplate()` titles the document
-  "Receipt" instead of "Quotation" when
-  `payment_method == 'khqr' && payment_status == 'paid'`, and
-  `exportPDF(suffix, docName)` takes the filename word as its second arg.
-  The admin Orders page separates the two with Type tabs/badges and has a
-  "Mark as Paid" fallback (`admin.orders_mark_paid` ->
-  `PUT /orders/{id} {"payment_status": "paid"}`) for setups without a
-  Bakong API token.
+  immediately). **KHQR creates NOTHING until the payment lands (changed
+  2026-08-11)** - a customer must never hold an unpaid order. `/quote/submit`
+  routes a `khqr` body to store-api's `POST /orders/checkout` and returns
+  `{"checkout": {...}}` instead of an order; `confirmPurchase()` sees that key,
+  clears the cart and opens the KHQR modal
+  (`QuoteCart.showKhqrModal(checkout)` - renders `checkout.khqr_string` via a
+  lazy-loaded qrcode.js, same CDN pattern as jsPDF, and shows the checkout
+  `reference` where an order number used to go, because there isn't one). It
+  polls `/quote/checkout/<id>/payment-status` every 3s, which returns
+  `{payment_status, order}`: **the order arrives on the transition to "paid" -
+  that poll is what creates it** - and `_finishPaidOrder(data.order)` renders
+  the receipt from that server-returned order. A third state, `"expired"`,
+  ends the poll and tells the customer nothing was charged. Closing the tab
+  loses nothing: store-api's own sweep creates the order if the payment lands
+  unwatched. `exportPDF(suffix, docName)` takes the filename word as its
+  second arg.
+- **Receipt vs. Quotation is `payment_status === 'paid'`, nothing else
+  (changed 2026-08-08)**. It used to also require `payment_method === 'khqr'`,
+  which meant a quote staff had taken cash for could never print as a
+  receipt. The single-field rule lives in four places that must agree:
+  `QuoteCart.buildPrintTemplate()`, `AccountDrawer.renderOrderDetail()` /
+  `downloadOrderPDF()`, `printOrder()` in `admin/orders.html`, and
+  store-api's `services/invoice_pdf.py`. `payment_method` now only picks
+  the wording of the paid note ("Paid via KHQR" vs "Paid in full").
+- **The admin Orders page is where staff run an order (reworked
+  2026-08-08)**, `templates/admin/orders.html` + `blueprints/admin/orders.py`.
+  Type tabs/badges separate quotes from orders, and each row's modal offers:
+  **Edit** (a full editor - clinic details, terms, discount, and an items grid
+  with a product picker over the catalogue embedded in the page; posts to
+  `admin.orders_edit` → `PUT /orders/{id}`, sending only ids + quantities,
+  then reloads because the server re-prices everything), **Payment QR**
+  (`admin.orders_khqr` → `POST /orders/{id}/khqr`, draws the KHQR with the
+  same lazy-loaded qrcode.js and polls `admin.orders_payment_status` every
+  3s), and **Mark as Paid** (`admin.orders_mark_paid`, now valid on **any**
+  order - counter cash, bank transfer, or a KHQR payment auto-detection
+  missed).
+- **A paid order is frozen, and the UI must not pretend otherwise.**
+  store-api `409`s every `PUT`/`DELETE` on a paid row, so the page hides
+  Edit, Delete, Update Status, Payment QR and Mark as Paid for it
+  (`applyOrderLock()` in the modal, a "Locked" chip in the table) and leaves
+  only Print. If you add a new order-mutating control, gate it on
+  `isPaid(order)` too - the server will refuse it regardless, but a button
+  that only ever errors is worse than no button.
 - **Sub-Total/Discount/Special Discount/Grand Total, in both the cart
   drawer and the printed PDF**: Sub-Total is the undiscounted combined list
   price, Discount is the money each product's own (admin-set) discount
@@ -385,3 +433,31 @@ Exposed as Jinja globals in `app.py` (`img`, `file_url`, `price`,
    truthiness), but don't pass them to `|tojson` or code that needs a real
    `list` - fetch and adapt your own list in the route instead (which also
    shadows the global, skipping the sitewide fetch entirely).
+11. **Looking for the storefront product modal.** It's gone (2026-08-06).
+   A catalog card is now a plain `<a>` to `/products/<id>`
+   (`products/detail.html`), so there is no `PRODUCTS_DATA` blob on the
+   catalog page and no `openProductModal()` in `main.js` - the identically
+   named function in `admin/products.html` is the admin's own create/edit
+   modal and is unrelated. `partials/product_modal.html` was renamed
+   `partials/toast.html`, which is all that survived of it.
+   That page's image gallery (main picture + store-api's
+   `Product.images`) is assembled **in the route**, not the template:
+   `catalog.product_detail` resolves every URL through
+   `resolve_image_url` and passes one `gallery` list, because both the
+   `{% block content %}` markup and the `{% block extra_js %}` blob need
+   the same list and a top-level `{% set %}` shared across two blocks is
+   exactly the kind of Jinja scoping that quietly breaks.
+12. **Adding a second copy of the gallery/lightbox JS.** There is one
+   (`static/js/product-gallery.js`, `PdGallery.init([urls])`), shared by
+   `products/detail.html` and `products/bundle_detail.html`. A page only
+   has to render the same `.pd-gallery` markup - `#pdThumbs` buttons
+   carrying `data-index`, `#pdMainImage`, `#pdZoomBtn`, `#pdLightbox*` -
+   and call `init` with the same list the thumbnails came from.
+13. **Writing a third bundle page.** A `Promotion` and a `Set` share one
+   template (`products/bundle_detail.html`) and one route helper
+   (`catalog._bundle_detail`), which normalizes either row into
+   `bundle`/`name`/`gallery`/`contents` plus a `kind` of `"promotion"` or
+   `"set"`. They differ only in which columns hold the name/image and
+   whether the deal has dates; keep it that way rather than forking the
+   page. Note `contents` is passed separately precisely so the template
+   never has to write `bundle.items` (see mistake 8).

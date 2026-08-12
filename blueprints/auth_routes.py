@@ -3,6 +3,7 @@ from urllib.parse import urlparse
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 from auth import account_type, current_account, is_staff, login_required
+from formatting import adapt_order, to_number
 from store_api import StoreAPIError, get_api_client
 
 auth_bp = Blueprint("auth", __name__)
@@ -80,10 +81,16 @@ def _establish_session(result):
     return url_for("main.home")
 
 
+# Sign In and Register are one template rendered at both URLs - `mode` picks which
+# panel opens. See templates/auth/auth.html: once it's loaded, switching tabs is a
+# class change rather than a second page load.
+AUTH_TEMPLATE = "auth/auth.html"
+
+
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "GET":
-        return render_template("auth/login.html")
+        return render_template(AUTH_TEMPLATE, mode="login")
 
     email = request.form.get("email", "").strip()
     password = request.form.get("password", "")
@@ -92,7 +99,7 @@ def login():
         if wants_json:
             return jsonify({"success": False, "reason": "invalid", "detail": "Please enter both email and password."}), 400
         flash("Please enter both email and password.", "error")
-        return render_template("auth/login.html"), 400
+        return render_template(AUTH_TEMPLATE, mode="login"), 400
 
     client = get_api_client()
     try:
@@ -100,12 +107,11 @@ def login():
     except StoreAPIError as e:
         if wants_json:
             # Distinguishes "account exists but hasn't confirmed their email yet" (which
-            # the login page's JS turns into a polling loading screen - see
-            # templates/auth/login.html) from any other login failure.
+            # the page's JS reports differently) from any other login failure.
             reason = "unverified" if "confirm your email" in e.detail.lower() else "invalid"
             return jsonify({"success": False, "reason": reason, "detail": e.detail}), (e.status_code or 400)
         flash(e.detail, "error")
-        return render_template("auth/login.html"), (e.status_code or 400)
+        return render_template(AUTH_TEMPLATE, mode="login"), (e.status_code or 400)
 
     redirect_url = _establish_session(result)
     if wants_json:
@@ -161,7 +167,7 @@ def forgot_password():
 @auth_bp.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "GET":
-        return render_template("auth/register.html")
+        return render_template(AUTH_TEMPLATE, mode="register")
 
     name = request.form.get("name", "").strip()
     email = request.form.get("email", "").strip()
@@ -174,7 +180,7 @@ def register():
         if wants_json:
             return jsonify({"success": False, "detail": "Name, email, and password are required."}), 400
         flash("Name, email, and password are required.", "error")
-        return render_template("auth/register.html"), 400
+        return render_template(AUTH_TEMPLATE, mode="register"), 400
 
     payload = {
         "customer_name": name,
@@ -190,11 +196,11 @@ def register():
         if wants_json:
             return jsonify({"success": False, "detail": e.detail}), (e.status_code or 400)
         flash(e.detail, "error")
-        return render_template("auth/register.html"), (e.status_code or 400)
+        return render_template(AUTH_TEMPLATE, mode="register"), (e.status_code or 400)
 
-    # JSON callers (register.html's fetch-based submit) move straight into the
+    # JSON callers (the register form's fetch-based submit) move straight into the
     # waiting-for-confirmation screen using the credentials just submitted - see
-    # templates/auth/register.html - instead of redirecting to /login and making the
+    # templates/auth/auth.html - instead of redirecting to /login and making the
     # user retype what they just entered.
     if wants_json:
         return jsonify({"success": True})
@@ -269,6 +275,67 @@ def profile_edit():
     # Caps the birthday date-picker client-side; store-api rejects a future date
     # regardless, this just stops the user hitting that error in the first place.
     return render_template("auth/profile_edit.html", me=me, today=date.today().isoformat())
+
+
+@auth_bp.route("/profile/orders", methods=["GET"])
+@login_required
+def profile_orders():
+    """JSON feed for the account drawer's "Orders" tab (partials/account_drawer.html),
+    fetched the first time the tab is opened rather than on every page render.
+
+    Only summary fields are returned - the drawer lists orders, it doesn't reprint them,
+    so there's no reason to ship every line item's pricing to the browser. Ownership is
+    store-api's call, not ours: /orders/mine derives it from the bearer token, so this
+    route never passes an account id of its own."""
+    client = get_api_client()
+    try:
+        raw_orders = client.get("/orders/mine", params={"limit": 25})
+    except StoreAPIError as e:
+        # StoreAPIUnavailable carries no status_code - report it as a 503 rather than
+        # letting `None` blow up Flask's response builder.
+        return jsonify({"detail": e.detail}), e.status_code or 503
+
+    return jsonify([
+        {
+            "id": o["id"],
+            "order_number": o.get("order_number"),
+            "quote_code": o.get("quote_code"),
+            "created_at": o.get("created_at"),
+            "grand_total": to_number(o.get("grand_total")),
+            "status": o.get("status"),
+            "order_type": o.get("order_type"),
+            "payment_method": o.get("payment_method"),
+            "payment_status": o.get("payment_status"),
+            "clinic_name": o.get("clinic_name"),
+            # Component ($0 bundle-content) lines are spelled-out contents of another
+            # line, not things ordered separately - counting them would inflate the
+            # "N items" label on every order containing a promotion/set/freebie.
+            "item_count": sum(1 for i in o.get("items", []) if not i.get("parent_item_id")),
+        }
+        for o in raw_orders
+    ])
+
+
+@auth_bp.route("/profile/orders/<int:order_id>", methods=["GET"])
+@login_required
+def profile_order_detail(order_id):
+    """One of the caller's own orders in full, for the account drawer's order detail
+    view and its "Download PDF" button - the PDF is rebuilt in the browser from this
+    exact payload (QuoteCart.buildPrintTemplate), the same way the admin Orders page
+    re-prints one, so nothing is resubmitted and no PDF is stored server-side.
+
+    Ownership is store-api's call (/orders/mine/<id> 404s on somebody else's order);
+    this route never checks the id against the session itself."""
+    client = get_api_client()
+    try:
+        order = client.get(f"/orders/mine/{order_id}")
+    except StoreAPIError as e:
+        return jsonify({"detail": e.detail}), e.status_code or 503
+
+    # adapt_order coerces store-api's numeric-as-string money fields to real numbers -
+    # the print template does arithmetic on them (see main.js), so strings would
+    # silently concatenate.
+    return jsonify(adapt_order(order))
 
 
 @auth_bp.route("/profile/password", methods=["POST"])

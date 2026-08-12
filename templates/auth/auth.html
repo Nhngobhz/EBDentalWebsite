@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+
+{# Sign In and Register in ONE document, served at both /login and /register.
+
+   They used to be two templates behind two routes, so switching tabs meant a full
+   navigation: the whole shell was torn down and rebuilt for a card that differs by
+   three fields, and the white flash in between was the most noticeable thing about
+   it. Here `mode` only decides which panel starts open; from then on the tabs are a
+   class change, and history.pushState keeps the URL and the Back button honest.
+
+   Without JavaScript the tabs are still ordinary links to /login and /register, and
+   both forms still POST normally - the server renders whichever panel the URL asks
+   for. #}
+{% set is_register = mode == 'register' %}
+
+{% block title %}{{ 'Register' if is_register else 'Sign In' }}{% endblock %}
+
+{# These pages render the site shell but none of the catalog, so they take the lean
+   bundle - see CSS_BUNDLES in assets.py. It is roughly a third of the storefront
+   one, which is most of the reason this page loads as fast as it does. #}
+{% block page_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename=css_bundle('auth.css')) }}">
+{% endblock %}
+
+{% block content %}
+<div class="login-overlay active" style="position: relative; inset: auto; min-height: 70vh; padding: 40px 0;">
+    <div class="login-box">
+        <div id="authMain">
+            <div class="login-header">
+                <img src="{{ url_for('static', filename='images/machinery-logo.png') }}" alt="EB Dental Supply" class="auth-logo" />
+                <div class="brand-text">
+                    <h2 data-auth-text="login"{% if is_register %} hidden{% endif %}>Welcome back to <span>EB Dental Supply</span></h2>
+                    <h2 data-auth-text="register"{% if not is_register %} hidden{% endif %}>Create your <span>EB Dental Supply</span> account</h2>
+                    <p data-auth-text="login"{% if is_register %} hidden{% endif %}>Sign in with your email and password, or create an account if you don't have one yet.</p>
+                    <p data-auth-text="register"{% if not is_register %} hidden{% endif %}>Fill in your details below to get started.</p>
+                </div>
+            </div>
+
+            <div class="tab-buttons">
+                <a href="{{ url_for('auth.login') }}" data-auth-tab="login" class="{{ 'active' if not is_register }}">Sign In</a>
+                <a href="{{ url_for('auth.register') }}" data-auth-tab="register" class="{{ 'active' if is_register }}">Register</a>
+            </div>
+
+            <!-- novalidate on both forms: the required/type=email constraints below are
+                 still what's checked, but ebValidateForm() (main.js) renders the
+                 failures as inline messages instead of the browser's native
+                 "Please fill out this field." bubble. -->
+            <div class="tab-content {{ 'active' if not is_register }}" data-auth-panel="login">
+                <form id="loginForm" method="post" action="{{ url_for('auth.login') }}" novalidate>
+                    <div class="form-group">
+                        <label for="loginEmailInput">Email</label>
+                        <input type="email" id="loginEmailInput" name="email" placeholder="Enter your email" autocomplete="email" required />
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPasswordInput">Password</label>
+                        <div class="input-wrap">
+                            <input type="password" id="loginPasswordInput" name="password" placeholder="Enter your password" autocomplete="current-password" required />
+                            <button type="button" class="toggle-password" data-toggle-password="loginPasswordInput"><i class="fas fa-eye"></i></button>
+                        </div>
+                    </div>
+                    <div style="text-align: right; margin-bottom: 16px;">
+                        <a href="{{ url_for('auth.forgot_password') }}" style="font-size: 0.8rem; color: #2563eb; font-weight: 500; text-decoration: none;">Forgot password?</a>
+                    </div>
+                    <div id="loginErrorMsg" class="login-error"></div>
+                    <button type="submit" class="btn-login" id="loginBtn"><i class="fas fa-lock"></i> Login now</button>
+                </form>
+            </div>
+
+            <div class="tab-content {{ 'active' if is_register }}" data-auth-panel="register">
+                <form id="registerForm" method="post" action="{{ url_for('auth.register') }}" novalidate>
+                    <div class="form-group">
+                        <label for="regName">Full Name</label>
+                        <input type="text" id="regName" name="name" placeholder="Enter your full name" autocomplete="name" required />
+                    </div>
+                    <div class="form-group">
+                        <label for="regEmail">Email</label>
+                        <input type="email" id="regEmail" name="email" placeholder="Enter your email" autocomplete="email" required />
+                    </div>
+                    <div class="form-group">
+                        <label for="regPassword">Password</label>
+                        <div class="input-wrap">
+                            <input type="password" id="regPassword" name="password" placeholder="Create a password" autocomplete="new-password" required />
+                            <button type="button" class="toggle-password" data-toggle-password="regPassword"><i class="fas fa-eye"></i></button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="regPhone">Phone Number</label>
+                        <input type="tel" id="regPhone" name="phone" placeholder="Enter your phone number" autocomplete="tel" />
+                    </div>
+                    <div class="form-group">
+                        <label for="regAddress">Address</label>
+                        <input type="text" id="regAddress" name="address" placeholder="Enter your address" autocomplete="street-address" />
+                    </div>
+                    <div id="registerErrorMsg" class="login-error"></div>
+                    <button type="submit" class="btn-login" id="registerBtn"><i class="fas fa-user-plus"></i> Create Account</button>
+                </form>
+            </div>
+
+            {# Included ONCE for both tabs, not per panel: it's one account path either
+               way, so it doesn't matter which tab it's clicked from - an email Google
+               has already confirmed either matches an existing account or creates a
+               customer. Signing up this way also skips the email-confirmation wait
+               below entirely, since store-api creates the account already verified. #}
+            {% include "partials/google_signin.html" %}
+
+            <div class="login-footer">
+                <span data-auth-text="login"{% if is_register %} hidden{% endif %}>Don't have an account? <a href="{{ url_for('auth.register') }}" data-auth-tab="register">Register here</a></span>
+                <span data-auth-text="register"{% if not is_register %} hidden{% endif %}>Already have an account? <a href="{{ url_for('auth.login') }}" data-auth-tab="login">Sign In</a></span>
+            </div>
+        </div>
+
+        <!-- Shown right after a successful registration instead of redirecting to
+             /login - polls the login endpoint every 5s with the credentials just
+             submitted (kept only in memory, never persisted) and signs the new
+             account in automatically as soon as its email is confirmed. -->
+        <div class="login-waiting" id="registerWaitingScreen" style="display:none;">
+            <div class="login-waiting-spinner"><i class="fas fa-spinner fa-spin"></i></div>
+            <h3>Waiting for email confirmation</h3>
+            <p>We've sent a confirmation link to your email. Once you click it, we'll sign you in automatically — this checks every few seconds.</p>
+            <button type="button" class="btn-outline" id="registerWaitingCancelBtn">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const LOGIN_URL = {{ url_for('auth.login')|tojson }};
+    const REGISTER_URL = {{ url_for('auth.register')|tojson }};
+    const TITLES = { login: 'Sign In', register: 'Register' };
+
+    const main = document.getElementById('authMain');
+    const waitingScreen = document.getElementById('registerWaitingScreen');
+
+    // ---- tabs -------------------------------------------------------------
+    // A ?next= put there by a gated page has to survive a tab switch, otherwise
+    // registering from "log in to see prices" loses where you were headed.
+    function urlFor(mode) {
+        return (mode === 'register' ? REGISTER_URL : LOGIN_URL) + window.location.search;
+    }
+
+    function showTab(mode, push) {
+        document.querySelectorAll('[data-auth-panel]').forEach((el) => {
+            el.classList.toggle('active', el.dataset.authPanel === mode);
+        });
+        document.querySelectorAll('.tab-buttons [data-auth-tab]').forEach((el) => {
+            el.classList.toggle('active', el.dataset.authTab === mode);
+        });
+        document.querySelectorAll('[data-auth-text]').forEach((el) => {
+            el.hidden = el.dataset.authText !== mode;
+        });
+        document.title = TITLES[mode] + ' — Partner in Dentistry Since 1985';
+        if (push) history.pushState({ authMode: mode }, '', urlFor(mode));
+
+        const first = document.querySelector('[data-auth-panel].active input');
+        // Only pull focus once the user has asked for this tab - stealing it on
+        // load would scroll a phone straight into the keyboard.
+        if (first && push) first.focus();
+    }
+
+    // Bound to the links themselves rather than delegated off `document`: the
+    // loading overlay (partials/loader.html) listens for link clicks on document
+    // and was registered first, so a document-level handler here would run after
+    // it and the overlay would already be on its way up for a navigation that
+    // never happens. An element listener fires before either of them.
+    document.querySelectorAll('[data-auth-tab]').forEach((tab) => {
+        tab.addEventListener('click', (e) => {
+            // Let ctrl/cmd/middle-click open the other tab in a new browser tab,
+            // the way any other link on the page would.
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+            e.preventDefault();
+            showTab(tab.dataset.authTab, true);
+        });
+    });
+
+    // Back/Forward between the two tabs is a history entry like any other.
+    window.addEventListener('popstate', (e) => {
+        const mode = (e.state && e.state.authMode)
+            || (window.location.pathname === REGISTER_URL ? 'register' : 'login');
+        showTab(mode, false);
+    });
+    history.replaceState({ authMode: {{ ('register' if is_register else 'login')|tojson }} }, '');
+
+    // ---- shared helpers ---------------------------------------------------
+    function errorBox(id) {
+        const el = document.getElementById(id);
+        return {
+            show(message) { el.textContent = message; el.classList.add('show'); },
+            hide() { el.classList.remove('show'); },
+        };
+    }
+
+    async function attemptLogin(email, password) {
+        const resp = await fetch(LOGIN_URL + window.location.search, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({ email, password }),
+        });
+        return resp.json();
+    }
+
+    function onLoginSuccess(data) {
+        stopPolling();
+        // A cart built while logged out (or as someone else) shouldn't carry into
+        // the new session.
+        localStorage.removeItem('eb_quote_cart');
+        localStorage.removeItem('eb_quote_customer_info');
+        localStorage.removeItem('eb_quote_discount_type');
+        localStorage.removeItem('eb_quote_discount_value');
+        window.location.href = data.redirect_url;
+    }
+
+    // ---- sign in ----------------------------------------------------------
+    const loginForm = document.getElementById('loginForm');
+    const loginBtn = document.getElementById('loginBtn');
+    const loginError = errorBox('loginErrorMsg');
+
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        loginError.hide();
+        if (!ebValidateForm(loginForm)) return;
+
+        const email = document.getElementById('loginEmailInput').value.trim();
+        const password = document.getElementById('loginPasswordInput').value;
+
+        loginBtn.disabled = true;
+        loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
+        try {
+            const data = await attemptLogin(email, password);
+            if (data.success) {
+                onLoginSuccess(data);
+                return;
+            }
+            // "unverified" means the account exists but hasn't confirmed its email -
+            // worth saying so rather than implying the password was wrong.
+            loginError.show(data.detail || (data.reason === 'unverified'
+                ? 'Please confirm your email address before logging in.'
+                : 'Incorrect email or password.'));
+        } catch (err) {
+            loginError.show('Could not reach the server. Please check your connection and try again.');
+        } finally {
+            loginBtn.disabled = false;
+            loginBtn.innerHTML = '<i class="fas fa-lock"></i> Login now';
+        }
+    });
+
+    // ---- register ---------------------------------------------------------
+    const registerForm = document.getElementById('registerForm');
+    const registerBtn = document.getElementById('registerBtn');
+    const registerError = errorBox('registerErrorMsg');
+
+    let pollTimer = null;
+    let pendingCredentials = null;
+
+    function stopPolling() {
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = null;
+        pendingCredentials = null;
+    }
+
+    function startWaiting(email, password) {
+        pendingCredentials = { email, password };
+        main.style.display = 'none';
+        waitingScreen.style.display = 'block';
+        pollTimer = setInterval(async () => {
+            if (!pendingCredentials) return;
+            try {
+                const pollData = await attemptLogin(pendingCredentials.email, pendingCredentials.password);
+                if (pollData.success) onLoginSuccess(pollData);
+            } catch {
+                // Transient network hiccup - just try again on the next tick.
+            }
+        }, 5000);
+    }
+
+    registerForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        registerError.hide();
+        if (!ebValidateForm(registerForm)) return;
+
+        const email = document.getElementById('regEmail').value.trim();
+        const password = document.getElementById('regPassword').value;
+
+        registerBtn.disabled = true;
+        registerBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating account...';
+        try {
+            const resp = await fetch(registerForm.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: new FormData(registerForm),
+            });
+            const data = await resp.json();
+            if (data.success) {
+                startWaiting(email, password);
+                return;
+            }
+            registerError.show(data.detail || 'Could not create your account. Please try again.');
+        } catch (err) {
+            registerError.show('Could not reach the server. Please check your connection and try again.');
+        } finally {
+            registerBtn.disabled = false;
+            registerBtn.innerHTML = '<i class="fas fa-user-plus"></i> Create Account';
+        }
+    });
+
+    document.getElementById('registerWaitingCancelBtn')?.addEventListener('click', () => {
+        stopPolling();
+        waitingScreen.style.display = 'none';
+        main.style.display = '';
+    });
+
+    // ---- password visibility ----------------------------------------------
+    document.querySelectorAll('[data-toggle-password]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const input = document.getElementById(btn.dataset.togglePassword);
+            const icon = btn.querySelector('i');
+            const isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            icon.className = isHidden ? 'fas fa-eye-slash' : 'fas fa-eye';
+        });
+    });
+})();
+</script>
+{% endblock %}

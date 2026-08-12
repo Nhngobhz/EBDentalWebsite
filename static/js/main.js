@@ -341,21 +341,25 @@ const QuoteCart = {
         localStorage.removeItem(this.DISCOUNT_VALUE_KEY);
     },
 
-    addItem(product) {
+    // `qty` is how many the product page's quantity selector asked for; every other
+    // caller adds one at a time and can leave it out.
+    addItem(product, qty = 1) {
         // Belt-and-suspenders: CAN_QUOTE should already have kept the "Add to
         // Quote" control from ever being wired up to a disallowed viewer (see
-        // openProductModal() and products/detail.html), and a masked price is
-        // never a real number - so nothing here should ever be reachable with
-        // a bad price, but nothing downstream should have to assume that either.
+        // products/detail.html), and a masked price is never a real number - so
+        // nothing here should ever be reachable with a bad price, but nothing
+        // downstream should have to assume that either.
         if (typeof CAN_QUOTE !== 'undefined' && !CAN_QUOTE) return;
         if (typeof product.price !== 'number') return;
+
+        qty = Math.max(1, Math.floor(Number(qty) || 1));
 
         // Always appends to whatever is already in the cart - a normal cart never
         // wipes itself out when you add a second product.
         const items = this.getItems();
         const existing = items.find(i => i.id === product.id && i.kind === 'product');
         if (existing) {
-            existing.qty += 1;
+            existing.qty += qty;
         } else {
             // Code, UOM, and discount come straight from the product record
             // (set by admin) — salespeople only ever adjust qty on the quote.
@@ -373,7 +377,7 @@ const QuoteCart = {
                 discount: product.discount || 0,
                 discountType: product.discount_type || 'percent',
                 image: product.image || '',
-                qty: 1,
+                qty,
                 // Freebies that ride along with this product, shown under the
                 // line in the drawer and on the printed quote at $0.00.
                 components: normalizeBundleComponents(product.free_items),
@@ -386,14 +390,16 @@ const QuoteCart = {
     // A Promotion (homepage/promotions-page marketing deal) is bought the same way as
     // a product - see promo.id, which lives in a separate table from Product.id and
     // can collide with it, hence 'kind' to disambiguate cart lookups.
-    addPromotion(promo) {
+    addPromotion(promo, qty = 1) {
         if (typeof CAN_QUOTE !== 'undefined' && !CAN_QUOTE) return;
         if (typeof promo.price !== 'number') return;
+
+        qty = Math.max(1, Math.floor(Number(qty) || 1));
 
         const items = this.getItems();
         const existing = items.find(i => i.id === promo.id && i.kind === 'promotion');
         if (existing) {
-            existing.qty += 1;
+            existing.qty += qty;
         } else {
             const oldPrice = typeof promo.old_price === 'number' ? promo.old_price : promo.price;
             // Reproduces old_price as a cash "discount" (see routers/orders.py's
@@ -411,7 +417,7 @@ const QuoteCart = {
                 discount: discount,
                 discountType: 'cash',
                 image: promo.image || '',
-                qty: 1,
+                qty,
                 // The products the deal is made of - listed under it at $0.00.
                 components: normalizeBundleComponents(promo.items),
             });
@@ -423,14 +429,16 @@ const QuoteCart = {
     // A Set (Promotions-page bundle deal) is bought the same way a Promotion is - see
     // set.id, which lives in a separate table from Product.id/Promotion.id and can
     // collide with either, hence 'kind' to disambiguate cart lookups.
-    addSet(set) {
+    addSet(set, qty = 1) {
         if (typeof CAN_QUOTE !== 'undefined' && !CAN_QUOTE) return;
         if (typeof set.price !== 'number') return;
+
+        qty = Math.max(1, Math.floor(Number(qty) || 1));
 
         const items = this.getItems();
         const existing = items.find(i => i.id === set.id && i.kind === 'set');
         if (existing) {
-            existing.qty += 1;
+            existing.qty += qty;
         } else {
             const oldPrice = typeof set.old_price === 'number' ? set.old_price : set.price;
             const discount = oldPrice > set.price ? oldPrice - set.price : 0;
@@ -445,7 +453,7 @@ const QuoteCart = {
                 discount: discount,
                 discountType: 'cash',
                 image: set.image || '',
-                qty: 1,
+                qty,
                 components: normalizeBundleComponents(set.items),
             });
         }
@@ -626,11 +634,6 @@ const QuoteCart = {
 
     // ---- drawer open/close ----
     open() {
-        const modal = document.getElementById('productModal');
-        if (modal && modal.classList.contains('active')) {
-            modal.classList.remove('active');
-            document.body.style.overflow = '';
-        }
         document.getElementById('quoteDrawer')?.classList.add('active');
         document.getElementById('quoteDrawerOverlay')?.classList.add('active');
     },
@@ -653,10 +656,17 @@ const QuoteCart = {
         const discountValueInput = document.getElementById('quoteDiscountValue');
         if (discountValueInput) discountValueInput.value = this.getDiscountValue();
 
+        const items = this.getItems();
+        // An empty cart has nothing to quote, so the drawer shows only the empty
+        // message: .is-empty hides the Quote Info form above it and the totals /
+        // Confirm Purchase footer below (see base.css). Those were asking for clinic
+        // details and offering to submit an order with no lines in it -
+        // confirmPurchase() already refuses that, so the button was never live.
+        document.getElementById('quoteDrawer')?.classList.toggle('is-empty', items.length === 0);
+
         const itemsEl = document.getElementById('quoteDrawerItems');
         if (!itemsEl) return;
 
-        const items = this.getItems();
         if (items.length === 0) {
             itemsEl.innerHTML = `
                 <div class="quote-drawer-empty">
@@ -729,13 +739,18 @@ const QuoteCart = {
     // clinic name is markup, and it would execute in a staff member's session the
     // moment they hit Print on the admin Orders page.
     buildPrintTemplate(order) {
-        // A paid KHQR order prints as a Receipt; everything else (staff quote,
-        // customer cash quote, unpaid order) stays a Quotation. Mirrored by
+        // Anything with a payment on record prints as a Receipt - a confirmed KHQR
+        // payment, or a quote staff marked paid after taking the money at the counter.
+        // Everything still awaiting payment stays a Quotation. Deliberately keyed on
+        // payment_status alone, NOT on payment_method/order_type: a paid quote is a
+        // completed sale and the customer is owed a receipt for it. Mirrored by
         // store-api's fallback PDF (services/invoice_pdf.py).
-        const isReceipt = order.payment_method === 'khqr' && order.payment_status === 'paid';
+        const isReceipt = order.payment_status === 'paid';
         const docTitle = isReceipt ? 'Receipt' : 'Quotation';
         const validityNote = isReceipt
-            ? 'Paid via KHQR. Thank you for your purchase.'
+            ? (order.payment_method === 'khqr'
+                ? 'Paid via KHQR. Thank you for your purchase.'
+                : 'Paid in full. Thank you for your purchase.')
             : 'Quotation valid for <b>30 days</b> from the date issued.';
 
         const specialDiscountLabel = order.discount_type === 'cash'
@@ -1047,14 +1062,15 @@ const QuoteCart = {
         // disabled on "Generating PDF..." forever, since the reset only lived
         // on the success path's own finally below.
 
-        // KHQR: the order exists server-side awaiting payment. No PDF yet - the
-        // receipt is generated only after the payment is confirmed.
-        if (order.payment_method === 'khqr') {
+        // KHQR: NO order exists yet, and none will until the payment is confirmed -
+        // store-api returns a checkout (the QR to render and an id to poll) instead.
+        // The order, and with it the receipt, comes into existence in _finishPaidOrder.
+        if (order.checkout) {
             resetBtn();
             this.clearDraft();
             this.render();
             this.close();
-            this.showKhqrModal(order);
+            this.showKhqrModal(order.checkout);
             return;
         }
 
@@ -1101,12 +1117,17 @@ const QuoteCart = {
         }
     },
 
-    async showKhqrModal(order) {
+    // `checkout` is a pending payment, NOT an order: it has an id to poll, the QR to
+    // render and the amount owed, and that's all that exists until the money arrives.
+    async showKhqrModal(checkout) {
         const overlay = document.getElementById('khqrModalOverlay');
         if (!overlay) return;
 
-        document.getElementById('khqrAmount').textContent = '$' + Number(order.grand_total).toFixed(2);
-        document.getElementById('khqrOrderNo').textContent = 'Order ' + order.order_number + ' · Code ' + order.quote_code;
+        document.getElementById('khqrAmount').textContent = '$' + Number(checkout.grand_total).toFixed(2);
+        // No order number to show yet - there is no order. The reference is what the
+        // payment appears as at the bank, which is the useful thing if anything needs
+        // chasing up by hand.
+        document.getElementById('khqrOrderNo').textContent = 'Ref ' + checkout.reference;
         const statusRow = document.getElementById('khqrStatusRow');
         statusRow.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scan with your banking app — waiting for payment…';
 
@@ -1115,7 +1136,7 @@ const QuoteCart = {
         try {
             await this._ensureQrLib();
             new QRCode(codeBox, {
-                text: order.khqr_string,
+                text: checkout.khqr_string,
                 width: 220,
                 height: 220,
                 correctLevel: QRCode.CorrectLevel.M,
@@ -1125,12 +1146,13 @@ const QuoteCart = {
         }
         overlay.style.display = 'flex';
 
-        // Poll the payment status every 3s. Transient failures are ignored (just try
-        // again next tick); the loop only ever ends on "paid" or the user closing the
-        // modal. Server-side, the first poll that finds the Bakong transaction flips
-        // the order to paid and fires the Telegram alert - see store-api's
-        // routers/orders.py::check_payment_status.
-        const url = PAYMENT_STATUS_URL_TEMPLATE.replace('/0/', '/' + order.id + '/');
+        // Poll every 3s. Transient failures are ignored (just try again next tick); the
+        // loop ends on "paid", on "expired", or when the user closes the modal.
+        // Server-side, the first poll that finds the payment is what CREATES the order
+        // and fires the Telegram alert - see store-api's
+        // routers/orders.py::check_checkout_payment. If the customer closes the tab
+        // mid-payment nothing is lost: the server's own sweep does the same job.
+        const url = CHECKOUT_STATUS_URL_TEMPLATE.replace('/0/', '/' + checkout.id + '/');
         this._stopKhqrPolling();
         this._khqrPollTimer = setInterval(async () => {
             let data;
@@ -1141,9 +1163,16 @@ const QuoteCart = {
             } catch {
                 return;
             }
-            if (data.payment_status === 'paid') {
+            if (data.payment_status === 'paid' && data.order) {
                 this._stopKhqrPolling();
-                await this._finishPaidOrder(order);
+                await this._finishPaidOrder(data.order);
+            } else if (data.payment_status === 'expired') {
+                this._stopKhqrPolling();
+                this.hideKhqrModal();
+                await ebAlert('This payment code has expired before the payment arrived. Nothing has been charged — please add your items again to get a fresh code.', {
+                    title: 'Payment code expired',
+                    tone: 'danger',
+                });
             }
         }, 3000);
     },
@@ -1155,15 +1184,16 @@ const QuoteCart = {
     },
 
     // Payment confirmed - the ONLY place a receipt is ever produced for a KHQR order.
-    // Also hands the receipt to store-api so the paid-order Telegram alert (already
-    // waiting server-side) carries the real client-rendered document.
+    // `order` is the one the server has just created off the back of the payment (the
+    // poll returns it on the transition to paid); it did not exist a moment ago. Also
+    // hands the receipt to store-api so the paid-order Telegram alert (already waiting
+    // server-side) carries the real client-rendered document.
     async _finishPaidOrder(order) {
         const statusRow = document.getElementById('khqrStatusRow');
         if (statusRow) {
             statusRow.innerHTML = '<i class="fas fa-circle-check" style="color:#16a34a;"></i> Payment received — generating your receipt…';
         }
 
-        order.payment_status = 'paid';
         try {
             this.buildPrintTemplate(order);
             const pdfBlob = await this.exportPDF(order.quote_code, 'Receipt');
@@ -1204,63 +1234,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('quoteInfoForm')?.classList.toggle('collapsed');
     });
 });
-
-/* ============================================================
-   PRODUCT DETAIL MODAL — new interaction.
-   Pages that list products (e.g. the catalog) define a page-local
-   `PRODUCTS_DATA` array before this runs, then call
-   openProductModal('some-id') from a product card's onclick.
-   ============================================================ */
-function openProductModal(id) {
-    if (typeof PRODUCTS_DATA === 'undefined') return;
-    const p = PRODUCTS_DATA.find(item => item.id === id);
-    if (!p) return;
-
-    document.getElementById('modalImage').src = p.image || '';
-    document.getElementById('modalBrand').textContent = (p.brand && p.brand.brand_name) || '';
-    document.getElementById('modalTitle').textContent = p.product_name;
-    document.getElementById('modalDesc').textContent = p.description || '';
-
-    const priceEl = document.getElementById('modalPrice');
-    let priceHtml = formatPrice(p.price);
-    if (p.was_price) priceHtml += ` <span class="old">${formatPrice(p.was_price)}</span>`;
-    priceEl.innerHTML = priceHtml;
-
-    // Freebies this product comes with (Product.free_items in store-api) - the
-    // whole block stays hidden for products that come with nothing.
-    const freeWrap = document.getElementById('modalFreeItems');
-    if (freeWrap) {
-        const freeItems = p.free_items || [];
-        freeWrap.style.display = freeItems.length ? '' : 'none';
-        document.getElementById('modalFreeItemsList').innerHTML = freeItems.map(item => `
-            <li><i class="fas fa-check"></i> ${ebEscapeHtml(item.product_name)}${item.qty > 1 ? ` <span class="bundle-qty">×${item.qty}</span>` : ''}</li>
-        `).join('');
-    }
-
-    const addBtn = document.getElementById('modalAddToQuoteBtn');
-    if (typeof CAN_QUOTE !== 'undefined' && CAN_QUOTE && typeof p.price === 'number') {
-        addBtn.innerHTML = '<i class="fas fa-shopping-cart"></i> Add to Cart';
-        addBtn.onclick = () => {
-            QuoteCart.addItem(p);
-            closeProductModal();
-            showToast('Added to cart successfully');
-        };
-    } else if (typeof IS_LOGGED_IN !== 'undefined' && IS_LOGGED_IN) {
-        addBtn.innerHTML = '<i class="fas fa-phone"></i> Contact Us for Pricing';
-        addBtn.onclick = () => { window.location.href = CONTACT_URL; };
-    } else {
-        addBtn.innerHTML = '<i class="fas fa-lock"></i> Log in to Request a Quote';
-        addBtn.onclick = () => { window.location.href = LOGIN_URL; };
-    }
-
-    document.getElementById('productModal').classList.add('active');
-    document.body.style.overflow = 'hidden';
-}
-
-function closeProductModal() {
-    document.getElementById('productModal').classList.remove('active');
-    document.body.style.overflow = '';
-}
 
 /* ------------------------------------------------------------
    TOAST — brief confirmation message (e.g. "Added to cart
@@ -1620,4 +1593,272 @@ document.addEventListener('DOMContentLoaded', () => {
             banner.style.display = 'none';
         });
     }
+});
+/* ============================================================
+   ACCOUNT DRAWER — the header avatar now slides a panel in from
+   the right (orders + profile settings) instead of navigating to
+   /profile. Markup: partials/account_drawer.html.
+
+   Orders are fetched once, on the first open, from
+   PROFILE_ORDERS_URL (/profile/orders) — there's no reason to
+   pay for that request on page loads where the drawer is never
+   opened. `_loaded` is what keeps it to one fetch per page view.
+   ============================================================ */
+const AccountDrawer = {
+    _loaded: false,
+
+    open() {
+        const drawer = document.getElementById('accountDrawer');
+        if (!drawer) return;
+        drawer.classList.add('active');
+        drawer.setAttribute('aria-hidden', 'false');
+        document.getElementById('accountDrawerOverlay')?.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        if (!this._loaded) {
+            this._loaded = true;
+            this.loadOrders();
+        }
+    },
+
+    close() {
+        const drawer = document.getElementById('accountDrawer');
+        if (!drawer) return;
+        drawer.classList.remove('active');
+        drawer.setAttribute('aria-hidden', 'true');
+        document.getElementById('accountDrawerOverlay')?.classList.remove('active');
+        document.body.style.overflow = '';
+        // Reopening starts at the list again - coming back to a drawer still parked on
+        // one old order (with no visible sign of how you got there) reads as a bug.
+        this.closeOrder();
+    },
+
+    showTab(name) {
+        document.querySelectorAll('.account-tab').forEach(tab => {
+            const on = tab.dataset.accountTab === name;
+            tab.classList.toggle('active', on);
+            tab.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        document.getElementById('accountPanelOrders')?.classList.toggle('active', name === 'orders');
+        document.getElementById('accountPanelSettings')?.classList.toggle('active', name === 'settings');
+        // Switching tabs always leaves the per-order detail view - it belongs to the
+        // Orders tab, and leaving it visible under the Settings tab would be nonsense.
+        document.getElementById('accountPanelOrderDetail')?.classList.remove('active');
+    },
+
+    async loadOrders() {
+        const list = document.getElementById('accountOrdersList');
+        const loading = document.getElementById('accountOrdersLoading');
+        if (!list) return;
+        try {
+            const res = await fetch(PROFILE_ORDERS_URL, { headers: { 'Accept': 'application/json' } });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Could not load your orders.');
+            this.renderOrders(data);
+        } catch (err) {
+            list.innerHTML = `<div class="account-orders-empty">
+                <i class="fas fa-triangle-exclamation"></i>${ebEscapeHtml(err.message)}
+            </div>`;
+            // A failed load shouldn't be permanent - let the next open try again.
+            this._loaded = false;
+        } finally {
+            if (loading) loading.style.display = 'none';
+        }
+    },
+
+    renderOrders(orders) {
+        const list = document.getElementById('accountOrdersList');
+        if (!orders.length) {
+            list.innerHTML = `<div class="account-orders-empty">
+                <i class="fas fa-receipt"></i>Nothing here yet — your orders will appear once you check out.
+            </div>`;
+            return;
+        }
+        list.innerHTML = orders.map(o => {
+            const date = o.created_at
+                ? new Date(o.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+                : '';
+            const tags = [];
+            // "quote" vs "order" is the real distinction here (staff quotes and
+            // customer cash orders are quotes; only KHQR produces a paid order) -
+            // see Order.order_type in store-api.
+            tags.push(`<span class="account-tag ${o.order_type === 'order' ? 'order' : ''}">${o.order_type === 'order' ? 'Order' : 'Quote'}</span>`);
+            // payment_status only means anything on a KHQR order.
+            if (o.payment_status) {
+                const paid = o.payment_status === 'paid';
+                tags.push(`<span class="account-tag ${paid ? 'paid' : 'unpaid'}">${paid ? 'Paid' : 'Awaiting payment'}</span>`);
+            }
+            if (o.status) tags.push(`<span class="account-tag">${ebEscapeHtml(o.status)}</span>`);
+            // A <button>, not a <div>: the whole card opens the order, so it has to be
+            // focusable and Enter/Space-activatable like any other control.
+            return `<button type="button" class="account-order-card" data-order-id="${o.id}">
+                <div class="account-order-top">
+                    <span class="account-order-no">#${ebEscapeHtml(o.order_number || o.id)}</span>
+                    <span class="account-order-total">${formatPrice(o.grand_total)}</span>
+                </div>
+                <div class="account-order-meta">
+                    ${date ? `<span><i class="fas fa-calendar"></i> ${ebEscapeHtml(date)}</span>` : ''}
+                    <span>${o.item_count} item${o.item_count === 1 ? '' : 's'}</span>
+                    ${o.clinic_name ? `<span>${ebEscapeHtml(o.clinic_name)}</span>` : ''}
+                </div>
+                <div class="account-order-tags">${tags.join('')}</div>
+            </button>`;
+        }).join('');
+        list.querySelectorAll('.account-order-card').forEach(card => {
+            card.addEventListener('click', () => this.openOrder(Number(card.dataset.orderId)));
+        });
+    },
+
+    // ---- order detail ----
+    // The list only carries summaries, so opening an order fetches it in full
+    // (/profile/orders/<id>). Cached per page view: the same order is re-opened often
+    // enough - list -> detail -> back -> detail - that refetching each time is waste,
+    // and an already-placed order's data doesn't change under us.
+    _orderCache: {},
+
+    async openOrder(orderId) {
+        const panel = document.getElementById('accountPanelOrderDetail');
+        const body = document.getElementById('accountOrderDetail');
+        if (!panel || !body) return;
+        document.getElementById('accountPanelOrders')?.classList.remove('active');
+        panel.classList.add('active');
+        panel.scrollTop = 0;
+        document.querySelector('.account-drawer-body').scrollTop = 0;
+
+        const cached = this._orderCache[orderId];
+        if (cached) {
+            this.renderOrderDetail(cached);
+            return;
+        }
+        body.innerHTML = '<div class="account-orders-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div>';
+        try {
+            const res = await fetch(`${PROFILE_ORDERS_URL}/${orderId}`, { headers: { 'Accept': 'application/json' } });
+            const order = await res.json();
+            if (!res.ok) throw new Error(order.detail || 'Could not load this order.');
+            this._orderCache[orderId] = order;
+            this.renderOrderDetail(order);
+        } catch (err) {
+            body.innerHTML = `<div class="account-orders-empty">
+                <i class="fas fa-triangle-exclamation"></i>${ebEscapeHtml(err.message)}
+            </div>`;
+        }
+    },
+
+    // Back out of the detail view to whichever tab is actually selected - closing the
+    // drawer calls this too, and the selected tab may well be Settings by then.
+    closeOrder() {
+        document.getElementById('accountPanelOrderDetail')?.classList.remove('active');
+        const active = document.querySelector('.account-tab.active')?.dataset.accountTab || 'orders';
+        this.showTab(active);
+    },
+
+    // Everything interpolated here is escaped: the item names are admin-entered
+    // snapshots and the clinic/address came from a checkout form, i.e. free text.
+    renderOrderDetail(order) {
+        const body = document.getElementById('accountOrderDetail');
+        // Same single-field rule as buildPrintTemplate() - see the comment there.
+        const isReceipt = order.payment_status === 'paid';
+        // Sub-Total/Discount are derived the same way the printed quote and the admin
+        // modal derive them - from each line's snapshotted list_price vs the unit_price
+        // actually charged - so all three always agree.
+        const undiscountedSubtotal = order.items.reduce(
+            (sum, item) => sum + deriveOldUnitPrice(item) * item.qty, 0
+        );
+        const itemDiscountTotal = printedCashDiscountTotal(order.items);
+        const specialDiscountLabel = order.discount_type === 'cash'
+            ? 'Special Discount (Cash)'
+            : `Special Discount (${Number(order.discount_value || 0)}%)`;
+
+        // Component lines ($0 bundle contents / freebies) print under their parent as
+        // "Free" sub-rows, exactly as they do on the PDF and the admin modal.
+        const rows = order.items.map(item => item.parent_item_id ? `
+            <div class="account-item-row component">
+                <span class="account-item-name">• ${ebEscapeHtml(item.product_name)} <span class="account-item-qty">×${item.qty}</span></span>
+                <span class="account-item-amount">Free</span>
+            </div>` : `
+            <div class="account-item-row">
+                <span class="account-item-name">
+                    ${ebEscapeHtml(item.product_name)}
+                    <span class="account-item-qty">×${item.qty}${item.product_code ? ` · ${ebEscapeHtml(item.product_code)}` : ''}</span>
+                </span>
+                <span class="account-item-amount">${formatPrice(printedItemAmount(item))}</span>
+            </div>`).join('');
+
+        body.innerHTML = `
+            <div class="account-detail-head">
+                <div>
+                    <strong>${order.order_type === 'quote' ? 'Quote' : 'Order'} #${ebEscapeHtml(order.order_number)}</strong>
+                    <span>${ebEscapeHtml(QuoteCart._formatQuoteDate(order.created_at))} · C. Code ${ebEscapeHtml(order.quote_code || '—')}</span>
+                </div>
+                <span class="account-order-total">${formatPrice(order.grand_total)}</span>
+            </div>
+
+            <div class="account-detail-row"><span>Clinic</span><strong>${ebEscapeHtml(order.clinic_name || '—')}</strong></div>
+            <div class="account-detail-row"><span>Phone</span><strong>${ebEscapeHtml(order.phone || '—')}</strong></div>
+            <div class="account-detail-row"><span>Address</span><strong>${ebEscapeHtml(order.address || '—')}</strong></div>
+            <div class="account-detail-row"><span>Status</span><strong>${ebEscapeHtml(order.status || '—')}</strong></div>
+            ${(order.payment_method || order.payment_status) ? `<div class="account-detail-row"><span>Payment</span><strong>${order.payment_method === 'khqr' ? 'KHQR' : order.payment_method === 'cash' ? 'Cash' : 'Paid at counter'}${order.payment_status ? ` · ${ebEscapeHtml(order.payment_status)}` : ''}</strong></div>` : ''}
+
+            <div class="account-items">${rows}</div>
+
+            <div class="account-detail-row"><span>Sub-Total</span><strong>${formatPrice(undiscountedSubtotal)}</strong></div>
+            <div class="account-detail-row"><span>Discount</span><strong>${formatPrice(itemDiscountTotal)}</strong></div>
+            <div class="account-detail-row"><span>${specialDiscountLabel}</span><strong>${formatPrice(Number(order.discount_amount))}</strong></div>
+            <div class="account-detail-row grand"><span>Grand Total</span><strong>${formatPrice(Number(order.grand_total))}</strong></div>
+
+            <button type="button" class="account-pdf-btn" id="accountOrderPdfBtn">
+                <i class="fas fa-file-arrow-down"></i> Download ${isReceipt ? 'Receipt' : 'Quotation'} PDF
+            </button>`;
+
+        document.getElementById('accountOrderPdfBtn').addEventListener('click', () => this.downloadOrderPDF(order));
+    },
+
+    // Re-generates the original document from the order that's on record - the same
+    // two calls the admin Orders page's Print button makes (QuoteCart.buildPrintTemplate
+    // + exportPDF in this file). Nothing is resubmitted and no PDF is stored anywhere:
+    // the document is rebuilt in the browser each time it's asked for.
+    async downloadOrderPDF(order) {
+        const btn = document.getElementById('accountOrderPdfBtn');
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating…';
+        try {
+            QuoteCart.buildPrintTemplate(order);
+            await QuoteCart.exportPDF(
+                order.quote_code, order.payment_status === 'paid' ? 'Receipt' : 'Quotation'
+            );
+        } catch (err) {
+            await ebAlert('Sorry, the PDF could not be generated. Please try again.', { tone: 'error' });
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    },
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    const trigger = document.getElementById('accountDrawerBtn');
+    const drawer = document.getElementById('accountDrawer');
+    // Without the drawer in the page (logged out), the trigger stays an ordinary
+    // link to /profile - hence the guard rather than an unconditional preventDefault.
+    if (trigger && drawer) {
+        trigger.addEventListener('click', (e) => {
+            e.preventDefault();
+            AccountDrawer.open();
+        });
+    }
+    document.getElementById('accountOrderBackBtn')?.addEventListener('click', () => AccountDrawer.closeOrder());
+    document.getElementById('accountDrawerClose')?.addEventListener('click', () => AccountDrawer.close());
+    document.getElementById('accountDrawerOverlay')?.addEventListener('click', () => AccountDrawer.close());
+    document.querySelectorAll('.account-tab').forEach(tab => {
+        tab.addEventListener('click', () => AccountDrawer.showTab(tab.dataset.accountTab));
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape' || !drawer?.classList.contains('active')) return;
+        // One step back per press: out of an open order first, then out of the drawer.
+        if (document.getElementById('accountPanelOrderDetail')?.classList.contains('active')) {
+            AccountDrawer.closeOrder();
+        } else {
+            AccountDrawer.close();
+        }
+    });
 });

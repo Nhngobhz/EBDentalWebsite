@@ -159,9 +159,21 @@
                 </button>
             </div>
             <div class="form-group" style="margin-bottom:12px;">
-                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Product Image</label>
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Main Image</label>
                 <input type="file" name="file" id="prodImageFile" accept="image/png,image/jpeg,image/webp,image/gif" data-preview="prodImagePreview" style="width:100%;font-size:0.8rem;">
                 <img id="prodImagePreview" src="" alt="" style="display:none; margin-top:8px; width:70px; height:70px; border-radius:8px; object-fit:cover; border:1px solid var(--border);">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">More Photos (product page gallery)</label>
+                <div style="font-size:0.7rem;color:var(--text-light);margin-bottom:6px;">
+                    Extra angles/close-ups shown as thumbnails on the product page, after the main image. Pick several at once.
+                </div>
+                {# Existing photos, rendered by openProductModal(). Removing one only
+                   adds a hidden remove_gallery_ids input - nothing is deleted until
+                   the form is saved. #}
+                <div class="gallery-thumbs" id="prodGalleryExisting"></div>
+                <input type="file" name="gallery" id="prodGalleryFile" accept="image/png,image/jpeg,image/webp,image/gif" multiple style="width:100%;font-size:0.8rem;">
+                <div id="prodGalleryRemovals"></div>
             </div>
             <button type="submit" class="btn-dash primary" style="width:100%;padding:10px;font-size:0.9rem;justify-content:center;margin-top:4px;" id="productModalSubmitBtn">
                 <i class="fas fa-save"></i> Create Product
@@ -206,7 +218,13 @@
 <script>
     {% set products_json = [] %}
     {% for p in products %}
-    {% set _ = products_json.append(dict(p, image=img(p.product_image))) %}
+    {# Gallery photos need their URLs resolved through img() here, same as the main
+       image - the raw field can be a store-api-relative path. #}
+    {% set gallery = [] %}
+    {% for gi in p.images or [] %}
+    {% set _ = gallery.append({'id': gi.id, 'url': img(gi.image)}) %}
+    {% endfor %}
+    {% set _ = products_json.append(dict(p, image=img(p.product_image), gallery=gallery)) %}
     {% endfor %}
     const PRODUCTS_DATA = {{ products_json|tojson }};
     {# The "Comes With (Free)" dropdowns pick from this same catalog - see
@@ -311,11 +329,39 @@
         // (data-preview on the input above, handled in main.js).
         ebSetImagePreview('prodImagePreview', isEdit ? product.image : null);
 
+        document.getElementById('prodGalleryFile').value = '';
+        document.getElementById('prodGalleryRemovals').innerHTML = '';
+        renderProductGallery(isEdit ? (product.gallery || []) : []);
+
         // Free products that come with this one (empty when creating).
         // Submitting with no rows clears the list - see bundle_items_from_form().
         ebBundlePicker.render('prodFreeItemsPicker', isEdit ? product.free_items : []);
 
         document.getElementById('productModalOverlay').classList.add('active');
+    }
+
+    // Existing gallery photos, each with an X. Clicking one doesn't call the API -
+    // it drops the thumbnail and leaves a hidden remove_gallery_ids input behind, so
+    // the deletion happens with the rest of the save (and closing the modal without
+    // saving undoes it).
+    function renderProductGallery(images) {
+        const wrap = document.getElementById('prodGalleryExisting');
+        if (!wrap) return;
+        wrap.innerHTML = images.map(image => `
+            <div class="gallery-thumb" data-image-id="${image.id}">
+                <img src="${image.url}" alt="" loading="lazy">
+                <button type="button" class="gallery-thumb-remove" title="Remove this photo"
+                        onclick="removeProductGalleryImage(${image.id})"><i class="fas fa-times"></i></button>
+            </div>`).join('');
+    }
+
+    function removeProductGalleryImage(imageId) {
+        document.querySelector(`#prodGalleryExisting .gallery-thumb[data-image-id="${imageId}"]`)?.remove();
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'remove_gallery_ids';
+        input.value = imageId;
+        document.getElementById('prodGalleryRemovals').appendChild(input);
     }
 
     function closeProductModal() {

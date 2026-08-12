@@ -6,6 +6,17 @@ from store_api import StoreAPIError, get_api_client
 
 quote_bp = Blueprint("quote", __name__, url_prefix="/quote")
 
+# EB's own terms of sale, applied to every customer-placed order.
+#
+# Staff still type these per quote - they're negotiating them. A customer isn't:
+# these are the terms being offered *to* them, so the cart drawer shows them as
+# read-only text (partials/quote_drawer.html) and submit() below substitutes them
+# rather than trusting the request, which is what stops a hand-crafted POST from
+# printing its own payment terms on an EB quotation. Registered as Jinja globals in
+# app.py so the drawer and this module can't drift apart.
+CUSTOMER_PAYMENT_TERM = "COD"
+CUSTOMER_INSTALL_TERM = "Free within Phnom Penh"
+
 
 @quote_bp.route("/submit", methods=["POST"])
 def submit():
@@ -37,6 +48,17 @@ def submit():
     if is_customer() and payment_method not in ("cash", "khqr"):
         return jsonify({"detail": "Please choose a payment method (Cash or KHQR)."}), 400
 
+    # Payment/installation terms are EB's to state, so a customer's order gets the
+    # standing ones no matter what the request said. Staff are quoting per deal and
+    # keep typing their own. Contact person stays client-supplied either way - that
+    # one genuinely is the buyer's own detail.
+    if is_customer():
+        payment_term = CUSTOMER_PAYMENT_TERM
+        install_term = CUSTOMER_INSTALL_TERM
+    else:
+        payment_term = body.get("payment_term") or None
+        install_term = body.get("install_term") or None
+
     # salesperson/quoted_by_name are NOT sent - store-api derives them server-side from
     # whoever is actually calling (see routers/orders.py::create_order), never trusted
     # from the client.
@@ -45,8 +67,8 @@ def submit():
         "contact_person": body.get("contact_person") or None,
         "phone": phone,
         "address": address,
-        "payment_term": body.get("payment_term") or None,
-        "install_term": body.get("install_term") or None,
+        "payment_term": payment_term,
+        "install_term": install_term,
         "payment_method": payment_method if is_customer() else None,
         "discount_type": body.get("discount_type") or "percent",
         "discount_value": body.get("discount_value") or 0,
@@ -61,6 +83,18 @@ def submit():
     }
 
     client = get_api_client()
+
+    # Pay-by-QR is NOT an order yet. store-api deliberately writes no order and no line
+    # items until the payment is confirmed, so this returns a checkout (a QR + an id to
+    # poll) and the order only comes into existence at /quote/checkout/<id>/payment-status.
+    # A customer therefore never holds an order they haven't paid for.
+    if payment_method == "khqr":
+        try:
+            checkout = client.post_json("/orders/checkout", payload)
+        except StoreAPIError as e:
+            return jsonify({"detail": e.detail}), (e.status_code or 400)
+        return jsonify({"checkout": checkout})
+
     try:
         order = client.post_json("/orders/", payload)
     except StoreAPIError as e:
@@ -97,20 +131,29 @@ def upload_pdf(order_id):
     return jsonify({"received": True})
 
 
-@quote_bp.route("/<int:order_id>/payment-status", methods=["GET"])
-def payment_status(order_id):
-    """Polled by the KHQR modal (QuoteCart.showKhqrModal in main.js) every few
-    seconds. A thin relay to store-api's GET /orders/{id}/payment-status, which does
-    the actual Bakong check, flips the order to paid, and fires the paid-order
-    Telegram alert - store-api also re-checks that the caller is the principal who
-    placed the order, so this can't be used to probe someone else's order."""
+@quote_bp.route("/checkout/<int:checkout_id>/payment-status", methods=["GET"])
+def checkout_payment_status(checkout_id):
+    """Polled by the KHQR modal (QuoteCart.showKhqrModal in main.js) every few seconds.
+    A thin relay to store-api's GET /orders/checkout/{id}/payment-status, which asks
+    Bakong/PayWay and, on the first confirmed check, CREATES the order (as paid) and
+    fires the paid-order Telegram alert. Until then no order exists at all - that's the
+    point of the checkout flow.
+
+    Returns {"payment_status": "unpaid"|"paid"|"expired", "order": {...} | null}; the
+    order is present from the moment it flips to paid, and is what the browser renders
+    the receipt from. store-api re-checks that the caller owns the checkout, so this
+    can't be used to probe someone else's."""
     if not is_logged_in():
         return jsonify({"detail": "Please log in."}), 401
 
     client = get_api_client()
     try:
-        result = client.get(f"/orders/{order_id}/payment-status")
+        result = client.get(f"/orders/checkout/{checkout_id}/payment-status")
     except StoreAPIError as e:
         return jsonify({"detail": e.detail}), (e.status_code or 400)
 
+    # The order arrives raw from store-api; the browser expects the same adapted shape
+    # every other order in this app is rendered from.
+    if result.get("order"):
+        result["order"] = adapt_order(result["order"])
     return jsonify(result)
