@@ -27,7 +27,34 @@ def orders():
         }
         for p in (adapt_product(p) for p in raw_products)
     ]
-    return render_template("admin/orders.html", orders=orders_list, products=products_list)
+    # Customers paying by QR have no order until the payment is confirmed, so an
+    # attempt that automatic confirmation never saw would otherwise be invisible.
+    # These are money-may-have-moved rows and render above the orders table.
+    checkouts = client.get("/orders/checkouts")
+    return render_template(
+        "admin/orders.html",
+        orders=orders_list,
+        products=products_list,
+        checkouts=checkouts,
+    )
+
+
+@admin_bp.route("/checkouts/<int:checkout_id>/confirm", methods=["POST"])
+@permission_required("price_listing")
+def checkouts_confirm(checkout_id):
+    """Staff assert a KHQR payment arrived that automatic confirmation couldn't see,
+    and store-api writes the order from the checkout's stored snapshot. Same trust
+    model as "Mark as Paid" on an existing order - the person looking at the bank
+    statement is the authority, and store-api records it against them."""
+    client = get_api_client()
+    try:
+        order = client.post_json(f"/orders/checkout/{checkout_id}/confirm", {})
+    except StoreAPIError as e:
+        flash(e.detail, "error")
+        return redirect(url_for("admin.orders"))
+
+    flash(f"Payment confirmed - order {order['order_number']} created.", "success")
+    return redirect(url_for("admin.orders"))
 
 
 @admin_bp.route("/orders/<int:order_id>/status", methods=["POST"])

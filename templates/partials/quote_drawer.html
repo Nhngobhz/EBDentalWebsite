@@ -162,10 +162,13 @@
     </div>
 </div>
 
-<!-- KHQR payment modal - shown after a customer confirms a KHQR order. Renders the
-     order's Bakong QR (QuoteCart.showKhqrModal in main.js), then polls
-     /quote/<id>/payment-status until it flips to "paid", at which point the receipt
-     PDF is generated and downloaded. Closing early keeps the order awaiting payment. -->
+<!-- KHQR payment modal - shown after a customer confirms a KHQR purchase. At this point
+     NO order exists: store-api has only issued a checkout (a QR + a reference), and the
+     order is created by the payment itself. Renders that QR (QuoteCart.showKhqrModal in
+     main.js), then polls /quote/checkout/<id>/payment-status until it reports "paid",
+     which is when the order comes back and the receipt PDF is generated. Closing early
+     charges nothing and leaves nothing behind - if the payment lands anyway, store-api's
+     own sweep creates the order server-side. -->
 <div class="khqr-modal-overlay" id="khqrModalOverlay" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:10000; align-items:center; justify-content:center; padding:16px;">
     <div class="khqr-modal-box" style="background:#fff; border-radius:16px; max-width:360px; width:100%; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.35); font-family:inherit;">
         <div style="background:#e21836; color:#fff; padding:14px 18px; display:flex; align-items:center; justify-content:space-between;">

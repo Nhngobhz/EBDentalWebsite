@@ -71,9 +71,10 @@
         const CONTACT_URL = {{ url_for('main.contact')|tojson }};
         const LOGIN_URL = {{ url_for('auth.login')|tojson }};
         const QUOTE_SUBMIT_URL = {{ url_for('quote.submit')|tojson }};
-        // "/quote/0/payment-status" - main.js swaps the 0 for a real order id when
-        // polling a KHQR order's payment state.
-        const PAYMENT_STATUS_URL_TEMPLATE = {{ url_for('quote.payment_status', order_id=0)|tojson }};
+        // "/quote/checkout/0/payment-status" - main.js swaps the 0 for a real checkout
+        // id while the KHQR modal waits. A checkout is a pending payment, not an order:
+        // the order is only created once that poll reports the money arrived.
+        const CHECKOUT_STATUS_URL_TEMPLATE = {{ url_for('quote.checkout_payment_status', checkout_id=0)|tojson }};
         // Feed behind the account drawer's Orders tab (see AccountDrawer in main.js).
         const PROFILE_ORDERS_URL = {{ url_for('auth.profile_orders')|tojson }};
     </script>

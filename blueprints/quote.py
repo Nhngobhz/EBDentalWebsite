@@ -83,6 +83,18 @@ def submit():
     }
 
     client = get_api_client()
+
+    # Pay-by-QR is NOT an order yet. store-api deliberately writes no order and no line
+    # items until the payment is confirmed, so this returns a checkout (a QR + an id to
+    # poll) and the order only comes into existence at /quote/checkout/<id>/payment-status.
+    # A customer therefore never holds an order they haven't paid for.
+    if payment_method == "khqr":
+        try:
+            checkout = client.post_json("/orders/checkout", payload)
+        except StoreAPIError as e:
+            return jsonify({"detail": e.detail}), (e.status_code or 400)
+        return jsonify({"checkout": checkout})
+
     try:
         order = client.post_json("/orders/", payload)
     except StoreAPIError as e:
@@ -119,20 +131,29 @@ def upload_pdf(order_id):
     return jsonify({"received": True})
 
 
-@quote_bp.route("/<int:order_id>/payment-status", methods=["GET"])
-def payment_status(order_id):
-    """Polled by the KHQR modal (QuoteCart.showKhqrModal in main.js) every few
-    seconds. A thin relay to store-api's GET /orders/{id}/payment-status, which does
-    the actual Bakong check, flips the order to paid, and fires the paid-order
-    Telegram alert - store-api also re-checks that the caller is the principal who
-    placed the order, so this can't be used to probe someone else's order."""
+@quote_bp.route("/checkout/<int:checkout_id>/payment-status", methods=["GET"])
+def checkout_payment_status(checkout_id):
+    """Polled by the KHQR modal (QuoteCart.showKhqrModal in main.js) every few seconds.
+    A thin relay to store-api's GET /orders/checkout/{id}/payment-status, which asks
+    Bakong/PayWay and, on the first confirmed check, CREATES the order (as paid) and
+    fires the paid-order Telegram alert. Until then no order exists at all - that's the
+    point of the checkout flow.
+
+    Returns {"payment_status": "unpaid"|"paid"|"expired", "order": {...} | null}; the
+    order is present from the moment it flips to paid, and is what the browser renders
+    the receipt from. store-api re-checks that the caller owns the checkout, so this
+    can't be used to probe someone else's."""
     if not is_logged_in():
         return jsonify({"detail": "Please log in."}), 401
 
     client = get_api_client()
     try:
-        result = client.get(f"/orders/{order_id}/payment-status")
+        result = client.get(f"/orders/checkout/{checkout_id}/payment-status")
     except StoreAPIError as e:
         return jsonify({"detail": e.detail}), (e.status_code or 400)
 
+    # The order arrives raw from store-api; the browser expects the same adapted shape
+    # every other order in this app is rendered from.
+    if result.get("order"):
+        result["order"] = adapt_order(result["order"])
     return jsonify(result)

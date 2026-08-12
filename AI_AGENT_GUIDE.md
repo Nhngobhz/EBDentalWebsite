@@ -270,14 +270,22 @@ anything quote-related.
   driven by the `IS_STAFF` global from `base.html`); customers must pick a
   **Payment Method** in the drawer (`qiPaymentMethod` select, customers
   only) - **Cash** also produces a quote (quotation PDF downloads
-  immediately), **KHQR** creates a real order awaiting payment. For KHQR,
-  `confirmPurchase()` clears the cart, opens the KHQR modal
-  (`QuoteCart.showKhqrModal()` - renders `order.khqr_string` via a
-  lazy-loaded qrcode.js, same CDN pattern as jsPDF), and polls
-  `/quote/<id>/payment-status` (relayed to store-api) every 3s. **The
-  receipt PDF is only ever generated in `_finishPaidOrder()`, after the
-  poll reports "paid"** - and `exportPDF(suffix, docName)` takes the
-  filename word as its second arg.
+  immediately). **KHQR creates NOTHING until the payment lands (changed
+  2026-08-11)** - a customer must never hold an unpaid order. `/quote/submit`
+  routes a `khqr` body to store-api's `POST /orders/checkout` and returns
+  `{"checkout": {...}}` instead of an order; `confirmPurchase()` sees that key,
+  clears the cart and opens the KHQR modal
+  (`QuoteCart.showKhqrModal(checkout)` - renders `checkout.khqr_string` via a
+  lazy-loaded qrcode.js, same CDN pattern as jsPDF, and shows the checkout
+  `reference` where an order number used to go, because there isn't one). It
+  polls `/quote/checkout/<id>/payment-status` every 3s, which returns
+  `{payment_status, order}`: **the order arrives on the transition to "paid" -
+  that poll is what creates it** - and `_finishPaidOrder(data.order)` renders
+  the receipt from that server-returned order. A third state, `"expired"`,
+  ends the poll and tells the customer nothing was charged. Closing the tab
+  loses nothing: store-api's own sweep creates the order if the payment lands
+  unwatched. `exportPDF(suffix, docName)` takes the filename word as its
+  second arg.
 - **Receipt vs. Quotation is `payment_status === 'paid'`, nothing else
   (changed 2026-08-08)**. It used to also require `payment_method === 'khqr'`,
   which meant a quote staff had taken cash for could never print as a

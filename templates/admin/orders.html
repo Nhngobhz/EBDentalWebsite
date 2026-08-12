@@ -5,7 +5,63 @@
 
 {% block admin_content %}
 <div class="page-title"><i class="fas fa-shopping-cart"></i> Orders</div>
-<p class="page-sub">Orders and quotes finalized through the storefront's Cart. Staff carts and customer Cash checkouts are stored as <strong>quotes</strong>; only KHQR checkouts are real orders (paid or awaiting payment). Every price shown here was computed server-side at the moment the row was created.</p>
+<p class="page-sub">Orders and quotes finalized through the storefront's Cart. Staff carts and customer Cash checkouts are stored as <strong>quotes</strong>; a customer paying by KHQR becomes a real order <strong>only once the payment is confirmed</strong>. Every price shown here was computed server-side at the moment the row was created.</p>
+
+{% if checkouts %}
+<!-- Money that may be in flight. A customer paying by QR has no order until the payment
+     is confirmed, so if automatic confirmation fails (provider unreachable, expired
+     token, a QR the bank settles on its own rail) this card is the ONLY place the
+     attempt is visible. Rows disappear on their own the moment confirmation succeeds -
+     anything lingering here wants a human to check the bank statement against the
+     reference and press Confirm, which writes the order. -->
+<div class="dash-card" style="margin-bottom:18px; border-left:3px solid #f59e0b;">
+    <div class="card-header">
+        <h5><i class="fas fa-hourglass-half" style="color:#f59e0b;"></i> Awaiting payment ({{ checkouts|length }})</h5>
+    </div>
+    <div class="card-body" style="padding:0; overflow-x:auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Reference</th>
+                    <th>Customer</th>
+                    <th>Clinic</th>
+                    <th>Items</th>
+                    <th>Amount</th>
+                    <th>Started</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in checkouts %}
+                <tr>
+                    <td><code>{{ c.reference }}</code></td>
+                    <td>{{ c.customer_name or '-' }}</td>
+                    <td>{{ c.clinic_name }}<div style="font-size:0.78rem; color:#64748b;">{{ c.phone }}</div></td>
+                    <td style="font-size:0.82rem;">
+                        {% for item in c['items'] %}{{ item.product_name }} &times;{{ item.qty }}{% if not loop.last %}<br>{% endif %}{% endfor %}
+                    </td>
+                    <td><strong>${{ '%.2f'|format(c.grand_total|float) }}</strong></td>
+                    <td style="font-size:0.82rem;">
+                        {{ c.created_at[:16]|replace('T', ' ') }}
+                        {% if c.is_expired %}<div style="color:#b45309;">QR expired</div>{% endif %}
+                    </td>
+                    <td style="text-align:right;">
+                        <!-- data-confirm routes through ebConfirm (see main.js) rather than
+                             the native dialog: this writes a real order off a staff
+                             assertion that money arrived, so it must not be a stray click. -->
+                        <form method="POST" action="{{ url_for('admin.checkouts_confirm', checkout_id=c.id) }}" style="display:inline;"
+                              data-confirm="Confirm that ${{ '%.2f'|format(c.grand_total|float) }} for reference {{ c.reference }} has arrived? This creates the order."
+                              data-confirm-tone="warning" data-confirm-label="Confirm payment">
+                            <button type="submit" class="btn-dash sm primary"><i class="fas fa-check"></i> Payment received</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
 
 <div class="dash-card">
     <div class="card-header">
@@ -204,8 +260,11 @@
 
         <!-- Everything except Print is hidden once the order is paid - see
              applyOrderLock(). A paid row is a closed financial record. -->
+        <!-- Kept (permanently hidden) rather than deleted: applyOrderLock still
+             addresses it, and the paid-order freeze this warned about could come back.
+             See _reject_if_paid in store-api. -->
         <div class="order-locked-note" id="orderLockedNote" style="display:none;">
-            <i class="fas fa-lock"></i> This order has been paid. Its details, items and status are locked, and it can no longer be deleted. Print it as a receipt below.
+            <i class="fas fa-lock"></i> This order has been paid.
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <form id="orderStatusForm" method="post" style="display:flex; gap:8px; flex:1; min-width:240px;">
@@ -225,9 +284,14 @@
                  transfer, or a KHQR payment automatic checking missed. This is what
                  turns the printed document into a Receipt. -->
             <!-- data-confirm defaults to a red "Delete" button (see the submit handler
-                 in main.js) - wrong verb and wrong colour for recording a payment. -->
-            <form id="orderMarkPaidForm" method="post" data-confirm="Confirm that payment for this order has been received? The receipt is issued from this, and the order is locked afterwards - it can no longer be edited or deleted." data-confirm-label="Mark as Paid" data-confirm-tone="success">
-                <button type="submit" class="btn-dash primary" style="background:#16a34a;"><i class="fas fa-circle-check"></i> Mark as Paid</button>
+                 in main.js) - wrong verb and wrong colour for recording a payment.
+                 Labelled "Complete" rather than "Mark as Paid" (2026-08-11): staff press
+                 it when the order has been delivered AND settled, so the word describes
+                 the whole transaction rather than only the money. It still sets
+                 payment_status="paid" - that is what turns the printed document into a
+                 Receipt - and the order stays editable afterwards. -->
+            <form id="orderMarkPaidForm" method="post" data-confirm="Mark this order complete? This records the payment as received, which is what issues the receipt." data-confirm-label="Complete" data-confirm-tone="success">
+                <button type="submit" class="btn-dash primary" style="background:#16a34a;"><i class="fas fa-circle-check"></i> Complete</button>
             </form>
             <button type="button" class="btn-dash" id="orderPrintBtn" onclick="printOrder(currentOrderId)"><i class="fas fa-print"></i> Print</button>
         </div>
@@ -235,7 +299,8 @@
 </div>
 
 <!-- Edit Order Modal -->
-<!-- Only reachable while the order is unpaid. Nothing here sends a price: the items
+<!-- Reachable whatever the payment state (the paid-order freeze was lifted on
+     2026-08-11). Nothing here sends a price: the items
      grid collects product/promotion/set ids and quantities, and store-api re-looks-up
      every price and recomputes the totals when it saves (see admin.orders_edit). -->
 <div class="dash-modal-overlay" id="orderEditOverlay">
@@ -447,16 +512,21 @@
         document.getElementById('orderModalOverlay').classList.add('active');
     }
 
-    // Which of the modal's actions are on offer. Paid = Print only; everything that
-    // would change the row is withdrawn, matching what store-api will allow.
+    // Which of the modal's actions are on offer.
+    //
+    // A paid order used to be Print-only, mirroring a hard 409 in store-api. That freeze
+    // was lifted on 2026-08-11 (see _reject_if_paid): staff need to correct a real order
+    // after taking payment, so Edit and the status control stay available whatever the
+    // payment state. Only the two genuinely payment-specific actions still come and go.
     function applyOrderLock(order) {
         const paid = isPaid(order);
-        document.getElementById('orderLockedNote').style.display = paid ? '' : 'none';
-        document.getElementById('orderStatusForm').style.display = paid ? 'none' : 'flex';
-        document.getElementById('orderEditBtn').style.display = paid ? 'none' : '';
+        document.getElementById('orderLockedNote').style.display = 'none';
+        document.getElementById('orderStatusForm').style.display = 'flex';
+        document.getElementById('orderEditBtn').style.display = '';
         // A QR is only worth showing while there's still something to collect.
         document.getElementById('orderQrBtn').style.display = paid ? 'none' : '';
 
+        // "Complete" records the payment, so it disappears once there is one.
         const markPaidForm = document.getElementById('orderMarkPaidForm');
         markPaidForm.style.display = paid ? 'none' : '';
         markPaidForm.action = orderUrl(ORDER_MARK_PAID_URL_TEMPLATE, order.id);
@@ -896,7 +966,7 @@
 
     // Money split for the rows currently shown. "Paid" is deliberately narrow: only rows
     // the system actually recorded a payment for (payment_status === 'paid' - a confirmed
-    // KHQR payment or a staff "Mark as Paid"). Cash quotes are settled offline and carry
+    // KHQR payment or a staff "Complete"). Cash quotes are settled offline and carry
     // no payment record at all, so they count as pending rather than being guessed at.
     // Cancelled rows are counted but contribute no money either way.
     function renderOrdersSummary(orders) {

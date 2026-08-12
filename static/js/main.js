@@ -1062,14 +1062,15 @@ const QuoteCart = {
         // disabled on "Generating PDF..." forever, since the reset only lived
         // on the success path's own finally below.
 
-        // KHQR: the order exists server-side awaiting payment. No PDF yet - the
-        // receipt is generated only after the payment is confirmed.
-        if (order.payment_method === 'khqr') {
+        // KHQR: NO order exists yet, and none will until the payment is confirmed -
+        // store-api returns a checkout (the QR to render and an id to poll) instead.
+        // The order, and with it the receipt, comes into existence in _finishPaidOrder.
+        if (order.checkout) {
             resetBtn();
             this.clearDraft();
             this.render();
             this.close();
-            this.showKhqrModal(order);
+            this.showKhqrModal(order.checkout);
             return;
         }
 
@@ -1116,12 +1117,17 @@ const QuoteCart = {
         }
     },
 
-    async showKhqrModal(order) {
+    // `checkout` is a pending payment, NOT an order: it has an id to poll, the QR to
+    // render and the amount owed, and that's all that exists until the money arrives.
+    async showKhqrModal(checkout) {
         const overlay = document.getElementById('khqrModalOverlay');
         if (!overlay) return;
 
-        document.getElementById('khqrAmount').textContent = '$' + Number(order.grand_total).toFixed(2);
-        document.getElementById('khqrOrderNo').textContent = 'Order ' + order.order_number + ' · Code ' + order.quote_code;
+        document.getElementById('khqrAmount').textContent = '$' + Number(checkout.grand_total).toFixed(2);
+        // No order number to show yet - there is no order. The reference is what the
+        // payment appears as at the bank, which is the useful thing if anything needs
+        // chasing up by hand.
+        document.getElementById('khqrOrderNo').textContent = 'Ref ' + checkout.reference;
         const statusRow = document.getElementById('khqrStatusRow');
         statusRow.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scan with your banking app — waiting for payment…';
 
@@ -1130,7 +1136,7 @@ const QuoteCart = {
         try {
             await this._ensureQrLib();
             new QRCode(codeBox, {
-                text: order.khqr_string,
+                text: checkout.khqr_string,
                 width: 220,
                 height: 220,
                 correctLevel: QRCode.CorrectLevel.M,
@@ -1140,12 +1146,13 @@ const QuoteCart = {
         }
         overlay.style.display = 'flex';
 
-        // Poll the payment status every 3s. Transient failures are ignored (just try
-        // again next tick); the loop only ever ends on "paid" or the user closing the
-        // modal. Server-side, the first poll that finds the Bakong transaction flips
-        // the order to paid and fires the Telegram alert - see store-api's
-        // routers/orders.py::check_payment_status.
-        const url = PAYMENT_STATUS_URL_TEMPLATE.replace('/0/', '/' + order.id + '/');
+        // Poll every 3s. Transient failures are ignored (just try again next tick); the
+        // loop ends on "paid", on "expired", or when the user closes the modal.
+        // Server-side, the first poll that finds the payment is what CREATES the order
+        // and fires the Telegram alert - see store-api's
+        // routers/orders.py::check_checkout_payment. If the customer closes the tab
+        // mid-payment nothing is lost: the server's own sweep does the same job.
+        const url = CHECKOUT_STATUS_URL_TEMPLATE.replace('/0/', '/' + checkout.id + '/');
         this._stopKhqrPolling();
         this._khqrPollTimer = setInterval(async () => {
             let data;
@@ -1156,9 +1163,16 @@ const QuoteCart = {
             } catch {
                 return;
             }
-            if (data.payment_status === 'paid') {
+            if (data.payment_status === 'paid' && data.order) {
                 this._stopKhqrPolling();
-                await this._finishPaidOrder(order);
+                await this._finishPaidOrder(data.order);
+            } else if (data.payment_status === 'expired') {
+                this._stopKhqrPolling();
+                this.hideKhqrModal();
+                await ebAlert('This payment code has expired before the payment arrived. Nothing has been charged — please add your items again to get a fresh code.', {
+                    title: 'Payment code expired',
+                    tone: 'danger',
+                });
             }
         }, 3000);
     },
@@ -1170,15 +1184,16 @@ const QuoteCart = {
     },
 
     // Payment confirmed - the ONLY place a receipt is ever produced for a KHQR order.
-    // Also hands the receipt to store-api so the paid-order Telegram alert (already
-    // waiting server-side) carries the real client-rendered document.
+    // `order` is the one the server has just created off the back of the payment (the
+    // poll returns it on the transition to paid); it did not exist a moment ago. Also
+    // hands the receipt to store-api so the paid-order Telegram alert (already waiting
+    // server-side) carries the real client-rendered document.
     async _finishPaidOrder(order) {
         const statusRow = document.getElementById('khqrStatusRow');
         if (statusRow) {
             statusRow.innerHTML = '<i class="fas fa-circle-check" style="color:#16a34a;"></i> Payment received — generating your receipt…';
         }
 
-        order.payment_status = 'paid';
         try {
             this.buildPrintTemplate(order);
             const pdfBlob = await this.exportPDF(order.quote_code, 'Receipt');
