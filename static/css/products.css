@@ -3554,6 +3554,36 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    /* Anchor for .set-brand-badge below. */
+    position: relative;
+}
+/* The set's brand, over the photo rather than in the text column - the card is a
+   fixed height and the body is already packed, so an extra line there would push
+   the "View Set" link out. */
+.eb-promotion-page .set-card .set-brand-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    max-width: calc(100% - 16px);
+    padding: 3px 9px;
+    border-radius: 30px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-soft);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* Brand strip above the set grid. The shared .category-filter-wrap is written for
+   the catalog page, which has no section heading directly above it - here it sits
+   under the "Sets" hero and needs to breathe less at the top. */
+.eb-promotion-page .set-brand-filter {
+    margin-top: -6px;
+    padding-top: 0;
 }
 .eb-promotion-page .set-card .set-image {
     width: 100%;

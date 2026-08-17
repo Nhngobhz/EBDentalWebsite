@@ -1,0 +1,98 @@
+{#
+  Shown to visitors and customers while the "Maintenance mode" setting is on
+  (admin Settings → Maintenance; the gate itself is maintenance_gate() in app.py).
+
+  Deliberately standalone rather than extending base.html: the site shell's header and
+  bottom nav link into pages that are currently closed, so inheriting it would offer a
+  navigation bar where every link bounces straight back here. It also means this page
+  renders without a single call to store-api, which matters - maintenance is often
+  exactly when the API is the thing being worked on.
+
+  Signed-in staff never see this page; they keep full access to the whole site.
+#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Back soon — {{ site_settings().store_name or 'EB Dental Supply' }}</title>
+    <link rel="icon" href="{{ url_for('static', filename='images/eb.png') }}" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+    {# base.css alone: this page needs the colour tokens and nothing else. #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <style>
+        body {
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            background: var(--bg);
+        }
+        .maint {
+            max-width: 520px;
+            text-align: center;
+        }
+        .maint-logo {
+            /* base.css sets `img { display: block }`, so the parent's text-align does
+               nothing here - the centring has to come from the auto margins. */
+            width: 200px;
+            height: auto;
+            margin: 0 auto 26px;
+        }
+        .maint h1 {
+            font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+            font-size: clamp(1.5rem, 5vw, 2rem);
+            color: var(--text);
+            margin: 0 0 14px;
+        }
+        .maint p {
+            color: var(--text-light);
+            font-size: 1rem;
+            line-height: 1.75;
+            margin: 0;
+            white-space: pre-line;
+        }
+        .maint-contact {
+            margin-top: 34px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px 24px;
+            justify-content: center;
+            font-size: 0.88rem;
+            color: var(--text-soft);
+        }
+        .maint-contact a {
+            color: var(--text-soft);
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .maint-contact a:hover { color: var(--accent); }
+    </style>
+</head>
+<body>
+    {% set s = site_settings() %}
+    <div class="maint">
+        <img src="{{ url_for('static', filename='images/Main logo.png') }}" alt="{{ s.store_name }}" class="maint-logo" />
+        <h1>We'll be back shortly</h1>
+        <p>{{ s.maintenance_message }}</p>
+
+        {# Contact details stay visible - a closed storefront is precisely when someone
+           needs to reach the shop by phone. #}
+        {# No Font Awesome on this page - it loads base.css and nothing else, so the
+           labels are spelled out rather than drawn as icons that would never arrive. #}
+        {% if s.contact_phone or s.contact_email %}
+        <div class="maint-contact">
+            {% if s.contact_phone %}<span>Call {{ s.contact_phone }}</span>{% endif %}
+            {% if s.contact_email %}<a href="mailto:{{ s.contact_email }}">{{ s.contact_email }}</a>{% endif %}
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

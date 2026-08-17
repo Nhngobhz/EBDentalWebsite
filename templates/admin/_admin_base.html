@@ -120,6 +120,12 @@
          admin pages don't include. -->
     <div class="quote-print-template" id="quotePrintTemplate"></div>
 
+    <script>
+        // Same blob the storefront's base.html defines - the admin Orders page's Print
+        // button goes through the same QuoteCart.buildPrintTemplate(), so it needs the
+        // letterhead settings too.
+        const EB_SETTINGS = {{ site_settings()|tojson }};
+    </script>
     <!-- jsPDF/html2canvas are NOT loaded here anymore - QuoteCart._ensurePdfLibs()
          (main.js) injects them on demand the first time a PDF is actually exported. -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>

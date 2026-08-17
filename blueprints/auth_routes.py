@@ -50,6 +50,9 @@ def _build_session_account(account_type, user=None, customer=None):
                 "price_listing": user["price_listing"],
                 "product_management": user["product_management"],
                 "customer_management": user["customer_management"],
+                # .get, not [...]: a session established against a store-api that
+                # predates the `admin` column would KeyError on every login otherwise.
+                "admin": user.get("admin", False),
             },
         }
     return {

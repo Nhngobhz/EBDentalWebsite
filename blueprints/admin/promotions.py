@@ -70,7 +70,7 @@ def promotions():
 
 
 @admin_bp.route("/promotions/new", methods=["POST"])
-@permission_required("price_listing")
+@permission_required("product_management")
 def promotions_new():
     payload = _promo_form_payload()
     if not payload["promotion_name"] or not payload["price"] or not payload["start_date"] or not payload["end_date"]:
@@ -92,7 +92,7 @@ def promotions_new():
 
 
 @admin_bp.route("/promotions/<int:promotion_id>/edit", methods=["POST"])
-@permission_required("price_listing")
+@permission_required("product_management")
 def promotions_edit(promotion_id):
     payload = _promo_form_payload()
     client = get_api_client()
@@ -110,7 +110,7 @@ def promotions_edit(promotion_id):
 
 
 @admin_bp.route("/promotions/<int:promotion_id>/delete", methods=["POST"])
-@permission_required("price_listing")
+@permission_required("product_management")
 def promotions_delete(promotion_id):
     client = get_api_client()
     try:

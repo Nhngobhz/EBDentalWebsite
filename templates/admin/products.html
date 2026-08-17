@@ -57,12 +57,12 @@
                     <td style="font-size:0.75rem;">{% if p.discount_type == 'cash' %}{{ price(p.discount) if p.discount else '$0.00' }}{% else %}{{ p.discount or 0 }}%{% endif %}</td>
                     <td style="white-space:nowrap;">
                         {% if has_permission('product_management') %}
-                        <button type="button" class="btn-dash primary sm" onclick="openProductModal({{ p.id }})" title="Edit"><i class="fas fa-edit"></i></button>
+                        <button type="button" data-row-edit class="btn-dash primary sm" onclick="openProductModal({{ p.id }})" title="Edit"><i class="fas fa-edit"></i></button>
                         <form method="post" action="{{ url_for('admin.products_delete', product_id=p.id) }}" style="display:inline;" data-confirm="Delete this product?">
                             <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
                         </form>
                         {% elif has_permission('price_listing') %}
-                        <button type="button" class="btn-dash primary sm" onclick="openPriceModal({{ p.id }})" title="Edit Price"><i class="fas fa-tag"></i></button>
+                        <button type="button" data-row-edit class="btn-dash primary sm" onclick="openPriceModal({{ p.id }})" title="Edit Price"><i class="fas fa-tag"></i></button>
                         {% endif %}
                     </td>
                 </tr>

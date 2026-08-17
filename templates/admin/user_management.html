@@ -14,6 +14,7 @@
     <div class="dash-stat"><div class="stat-label">Price Listing</div><div class="stat-number">{{ stats.price_listing }}</div></div>
     <div class="dash-stat"><div class="stat-label">Product Mgmt</div><div class="stat-number">{{ stats.product_management }}</div></div>
     <div class="dash-stat"><div class="stat-label">Customer Mgmt</div><div class="stat-number">{{ stats.customer_management }}</div></div>
+    <div class="dash-stat"><div class="stat-label">Settings</div><div class="stat-number">{{ stats.admin }}</div></div>
 </div>
 
 <div class="dash-card">
@@ -46,6 +47,7 @@
                         {% if u.price_listing %}<span style="background:var(--bg); padding:1px 6px; border-radius:8px; margin:1px; display:inline-block;">Pricing</span>{% endif %}
                         {% if u.product_management %}<span style="background:var(--bg); padding:1px 6px; border-radius:8px; margin:1px; display:inline-block;">Products</span>{% endif %}
                         {% if u.customer_management %}<span style="background:var(--bg); padding:1px 6px; border-radius:8px; margin:1px; display:inline-block;">Customers</span>{% endif %}
+                        {% if u.admin %}<span style="background:var(--bg); padding:1px 6px; border-radius:8px; margin:1px; display:inline-block;">Settings</span>{% endif %}
                     </td>
                     <td>{{ u.phone_num or '—' }}</td>
                     <td>{{ u.gender|capitalize if u.gender else '—' }}</td>
@@ -55,7 +57,7 @@
                         {% if current_account() and u.id == current_account().id %}
                         <span style="font-size:0.65rem; color:var(--text-light);">This is you</span>
                         {% else %}
-                        <button type="button" class="btn-dash primary sm" onclick="openUserModal({{ u.id }})" title="Edit"><i class="fas fa-edit"></i></button>
+                        <button type="button" data-row-edit class="btn-dash primary sm" onclick="openUserModal({{ u.id }})" title="Edit"><i class="fas fa-edit"></i></button>
                         <form method="post" action="{{ url_for('admin.users_delete', user_id=u.id) }}" style="display:inline;" data-confirm="Deactivate this staff account?" data-confirm-label="Deactivate" data-confirm-tone="warning">
                             <button type="submit" class="btn-dash danger sm" title="Deactivate"><i class="fas fa-trash"></i></button>
                         </form>
@@ -134,7 +136,16 @@
                     <label style="font-size:0.75rem; display:flex; align-items:center; gap:4px; cursor:pointer; color:var(--text);">
                         <input type="checkbox" name="customer_management" id="permCustomerManagement"> Customer Management
                     </label>
+                    {# Spans both columns: it's the one permission that changes what the
+                       whole site says rather than which records a staffer may edit. #}
+                    <label style="font-size:0.75rem; display:flex; align-items:center; gap:4px; cursor:pointer; color:var(--text); grid-column:1 / -1;">
+                        <input type="checkbox" name="admin" id="permAdmin"> Settings (site-wide configuration)
+                    </label>
                 </div>
+                <p style="font-size:0.68rem; color:var(--text-soft); margin:6px 0 0;">
+                    Settings lets this person change the store's contact details, the wording on
+                    printed quotes, and maintenance mode. It does not grant any of the above.
+                </p>
             </div>
             <div class="form-group" id="userIsActiveGroup" style="margin-top:12px; display:none; align-items:center; gap:8px;">
                 <input type="checkbox" name="is_active" id="userIsActive" style="width:auto;">
@@ -203,6 +214,7 @@
         document.getElementById('permPriceListing').checked = isEdit ? !!user.price_listing : false;
         document.getElementById('permProductManagement').checked = isEdit ? !!user.product_management : false;
         document.getElementById('permCustomerManagement').checked = isEdit ? !!user.customer_management : false;
+        document.getElementById('permAdmin').checked = isEdit ? !!user.admin : false;
 
         const passwordForm = document.getElementById('userPasswordForm');
         passwordForm.style.display = isEdit ? 'block' : 'none';

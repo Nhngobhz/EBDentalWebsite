@@ -1,13 +1,21 @@
+{# Contact details, tagline and copyright come from the admin Settings screen
+   (Settings → Store & Contact), not from this file. site_settings() is the lazy Jinja
+   global in app.py; an empty value hides its row rather than printing a bare icon. #}
+{% set s = site_settings() %}
 <footer class="footer eb-footer" id="ebFooter">
     <div class="container">
         <div class="footer-grid" id="ebFooterGrid">
             <div class="footer-brand">
-    <img src="{{ url_for('static', filename='images/machinery-logo.png') }}" alt="EB Dental Supply" class="footer-logo" />
-                <p class="eb-tagline">Partner in Dentistry Since 1985</p>
-                <p>With over 40 years of experience, EB Dental Supply has been a trusted partner for dental professionals across Cambodia. We provide high-quality instruments, equipment, and consumables from the world's leading brands.</p>
-                <div class="eb-years"> 40+ Years of Excellence</div>
-                <div class="contact-phone"><i class="fas fa-phone"></i> 098 882 953</div>
-                <div style="margin-top:6px; font-size:0.8rem; color:#94a3b8;"><i class="fas fa-envelope"></i> info@ebdental.com</div>
+    <img src="{{ url_for('static', filename='images/machinery-logo.png') }}" alt="{{ s.store_name }}" class="footer-logo" />
+                {% if s.store_tagline %}<p class="eb-tagline">{{ s.store_tagline }}</p>{% endif %}
+                <p>{{ s.store_blurb }}</p>
+                {% if s.years_badge %}<div class="eb-years"> {{ s.years_badge }}</div>{% endif %}
+                {% if s.contact_phone %}
+                <div class="contact-phone"><i class="fas fa-phone"></i> {{ s.contact_phone }}</div>
+                {% endif %}
+                {% if s.contact_email %}
+                <div style="margin-top:6px; font-size:0.8rem; color:#94a3b8;"><i class="fas fa-envelope"></i> {{ s.contact_email }}</div>
+                {% endif %}
             </div>
             <div class="footer-links">
                 <h4>Products</h4>
@@ -23,6 +31,6 @@
                 {% endfor %}
             </div>
         </div>
-        <div class="footer-bottom">© 2026 EB Dental Supply. All rights reserved.</div>
+        <div class="footer-bottom">{{ s.footer_copyright }}</div>
     </div>
 </footer>

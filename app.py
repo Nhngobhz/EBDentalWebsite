@@ -7,7 +7,6 @@ every page fetches live from store-api.
 """
 import gzip
 import os
-import time
 from datetime import timedelta
 
 from dotenv import load_dotenv
@@ -17,6 +16,7 @@ from werkzeug.local import LocalProxy
 load_dotenv()
 
 import assets
+import site_cache
 from auth import can_view_prices, is_staff, register_auth_context
 from formatting import adapt_product, adapt_promotion, format_date, format_price, resolve_file_url, resolve_image_url
 from store_api import StoreAPIError, StoreAPIUnavailable, get_api_client
@@ -106,28 +106,19 @@ def _compress_response(response):
 # ---------------------------------------------------------------------------
 # Sitewide catalog cache
 # ---------------------------------------------------------------------------
-# The footer's brand list and the promo banner are on every public page, and each
-# was a blocking round trip to store-api before the HTML could be sent - which is
-# most of what a page like /login spent its time on. They're both slow-moving
-# lists, so a short shared TTL removes that cost without anyone noticing the lag.
-SITEWIDE_CACHE_TTL = 60  # seconds
+# Lives in site_cache.py so the admin Settings blueprint can invalidate the settings
+# entry on save without importing this module back (see that file's docstring).
 
-_sitewide_cache = {}
+# Last successfully fetched copy of store-api's public settings (GET /settings/public).
+# Used as the fallback when a later fetch fails, so a store-api blip doesn't blank the
+# footer's phone number on the pages that are still renderable - and, more importantly,
+# doesn't make maintenance mode read as "off" and then flip back on when the API returns.
+# Empty until the first successful fetch, which is the correct starting point: with no
+# answer from the source of truth, the site is not in maintenance.
+_last_known_settings = {}
 
 
-def _cached_sitewide(key, produce):
-    """Memoize `produce()` across requests for SITEWIDE_CACHE_TTL seconds.
-
-    A miss is never stored on failure - the exception propagates out of produce()
-    before anything is written - so a store-api blip isn't cached as an empty list
-    for the next minute."""
-    now = time.monotonic()
-    hit = _sitewide_cache.get(key)
-    if hit is not None and hit[0] > now:
-        return hit[1]
-    value = produce()
-    _sitewide_cache[key] = (now + SITEWIDE_CACHE_TTL, value)
-    return value
+_cached_sitewide = site_cache.cached
 
 
 
@@ -204,7 +195,7 @@ def create_app():
 
     register_auth_context(app)
 
-    def _lazy_catalog_global(cache_key, fetch, shared_scope=None):
+    def _lazy_catalog_global(cache_key, fetch, shared_scope=None, fallback=list):
         """A store-api fetch that only actually fires if the rendered template touches
         the variable, and at most once per request (memoized on `g`). Routes that pass
         their own value (e.g. catalog passes `products`) shadow the proxy entirely, so
@@ -212,11 +203,16 @@ def create_app():
 
         `shared_scope`, when given, is a callable naming a cache scope, and the result
         is additionally reused *across* requests within that scope for
-        SITEWIDE_CACHE_TTL seconds. Only safe for data that genuinely doesn't vary
+        site_cache.TTL seconds. Only safe for data that genuinely doesn't vary
         inside the scope - which is why the scope exists at all: /brands/ is public and
         identical for everyone, but store-api masks promotion prices per viewer (see
         _serialize_promotion), so promotions are scoped on price visibility and a
-        signed-out visitor can never be served a signed-in visitor's prices."""
+        signed-out visitor can never be served a signed-in visitor's prices.
+
+        `fallback` is what the proxy yields when store-api can't be reached. It defaults
+        to an empty list because every original caller here fetches a list; the settings
+        global overrides it, since a template doing `site_settings.store_name` against a
+        list would turn a store-api blip into a 500 on every page."""
 
         def resolve():
             if cache_key not in g:
@@ -228,11 +224,66 @@ def create_app():
                             (cache_key, shared_scope()), lambda: fetch(get_api_client())
                         )
                 except StoreAPIError:
-                    value = []
+                    value = fallback()
                 setattr(g, cache_key, value)
             return getattr(g, cache_key)
 
         return LocalProxy(resolve)
+
+    def site_settings():
+        """The admin-editable site settings (store-api's GET /settings/public).
+
+        A Jinja *function* rather than one of the LocalProxy globals above for two
+        reasons: it stays lazy either way (a template that never calls it costs
+        nothing), and it hands back a real dict - a LocalProxy can't be passed through
+        `|tojson`, which base.html needs to do to give main.js its copy.
+
+        Memoized on `g` for the request, and on top of that shared across requests for
+        site_cache.TTL. GET /settings/public takes no auth and returns the same values
+        to everyone, so one cached copy serves the whole site. The admin Settings
+        blueprint clears that shared entry the moment anything is saved, so a change is
+        live immediately rather than up to a minute later.
+        """
+        global _last_known_settings
+        if "_cp_site_settings" not in g:
+            try:
+                values = _cached_sitewide(
+                    ("site_settings", "all"),
+                    lambda: get_api_client().get("/settings/public"),
+                )
+                _last_known_settings = values
+            except StoreAPIError:
+                values = _last_known_settings
+            g._cp_site_settings = values
+        return g._cp_site_settings
+
+    app.jinja_env.globals["site_settings"] = site_settings
+
+    # Blueprints that must keep working while the storefront is closed: /admin/* is how
+    # maintenance mode gets switched off again, and the auth blueprint is how a staff
+    # member reaches it. Exempting `auth` wholesale also leaves /profile reachable,
+    # which is deliberate - a customer checking an order they already placed isn't
+    # shopping, and closing that would strand people mid-purchase. Everything else -
+    # the home page, catalog, product pages and the quote/cart flow - is closed to
+    # anyone who isn't signed-in staff.
+    MAINTENANCE_OPEN_BLUEPRINTS = {"admin", "auth"}
+
+    @app.before_request
+    def maintenance_gate():
+        # Static files are served straight through: the maintenance page itself needs
+        # the stylesheets, and checking a setting per asset request would be silly.
+        if request.endpoint is None or request.endpoint == "static":
+            return None
+        if request.blueprint in MAINTENANCE_OPEN_BLUEPRINTS or is_staff():
+            return None
+        values = site_settings()
+        if not values.get("maintenance_mode"):
+            return None
+        # 503 (not 200) so crawlers and uptime monitors read this as "temporarily
+        # unavailable, come back" rather than indexing it as the site's real content.
+        return render_template(
+            "maintenance.html", message=values.get("maintenance_message", "")
+        ), 503
 
     # Which half of the site the visitor is in. The landing page splits into
     # Machinery and Materials; from then on the header logo mirrors that choice -

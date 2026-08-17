@@ -65,7 +65,10 @@
         </div>
         {% endif %}
 
-        {% if has_permission('price_listing') %}
+        {# Promotions/Sets are authored by product_management and merely read by
+           price_listing, so both roles need the links; Orders stays price_listing-only,
+           which is what admin.orders itself demands. #}
+        {% if has_permission('price_listing') or has_permission('product_management') %}
         <div class="nav-group">
             <div class="group-label" onclick="toggleGroup('group-marketing')">
                 <span>Marketing &amp; Sales</span>
@@ -78,9 +81,11 @@
                 <a class="nav-item {{ 'active' if request.endpoint == 'admin.sets' }}" href="{{ url_for('admin.sets') }}">
                     <i class="fas fa-box-open"></i> Sets <span class="badge-dash">{{ sets|length }}</span>
                 </a>
+                {% if has_permission('price_listing') %}
                 <a class="nav-item {{ 'active' if request.endpoint == 'admin.orders' }}" href="{{ url_for('admin.orders') }}">
                     <i class="fas fa-shopping-cart"></i> Orders
                 </a>
+                {% endif %}
             </div>
         </div>
         {% endif %}
@@ -95,15 +100,22 @@
             </div>
         </div>
 
+        {# The `admin` permission, not user_management: changing the store's contact
+           details or switching on maintenance mode is a different job from managing
+           staff accounts. store-api enforces the same check on every read/write. #}
+        {% if has_permission('admin') %}
         <div class="nav-group">
             <div class="group-label" onclick="toggleGroup('group-system')">
                 <span>System</span>
                 <i class="fas fa-chevron-right group-icon open"></i>
             </div>
             <div class="group-items open" id="group-system">
-                <a class="nav-item" href="#"><i class="fas fa-cog"></i> Settings</a>
+                <a class="nav-item {{ 'active' if request.endpoint == 'admin.settings' }}" href="{{ url_for('admin.settings') }}">
+                    <i class="fas fa-cog"></i> Settings
+                </a>
             </div>
         </div>
+        {% endif %}
 
     </nav>
     <div class="sidebar-footer">

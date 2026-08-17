@@ -231,6 +231,16 @@ bundle lists contents, store-api reports their combined price as `old_price`
 and the stored column is ignored (so the modal prefills a number the admin
 never typed - that's the computed one, not a bug).
 
+**Set brand (added 2026-08-13)**: a Set can be filed under a Brand
+(`brand_id`, optional - see store-api's guide). The admin Sets modal has a
+"No brand"-defaulted `<select>`, and the payload always sends the key, as
+`None` when blank, so saving can also *clear* a brand. On the storefront it
+drives the brand strip above the sets grid on `/promotions`
+(`catalog.promotions_page`) - note that page fetches **all** sets and filters
+in Python rather than passing `brand_id` to store-api, because the strip is
+built from the fetched list so it only ever offers brands that actually have
+a set.
+
 `templates/partials/admin_sidebar.html` gates each nav group behind
 `has_permission(...)` matching whatever permission that section's routes
 actually require - if you add a new admin page, add its link there inside

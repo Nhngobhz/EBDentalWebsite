@@ -39,7 +39,7 @@
                     <td>{{ b.product_count }}</td>
                     <td style="white-space:nowrap;">
                         {% if has_permission('product_management') %}
-                        <button type="button" class="btn-dash primary sm" onclick="openBrandModal({{ b.id }})" title="Edit"><i class="fas fa-edit"></i></button>
+                        <button type="button" data-row-edit class="btn-dash primary sm" onclick="openBrandModal({{ b.id }})" title="Edit"><i class="fas fa-edit"></i></button>
                         <form method="post" action="{{ url_for('admin.brands_delete', brand_id=b.id) }}" style="display:inline;" data-confirm="Delete this brand? Products still assigned to it will block the delete.">
                             <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
                         </form>

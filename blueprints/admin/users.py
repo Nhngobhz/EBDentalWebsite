@@ -6,7 +6,15 @@ from auth import current_account, permission_required
 from blueprints.admin import admin_bp
 from store_api import StoreAPIError, get_api_client
 
-PERMISSION_FIELDS = ("user_management", "price_listing", "product_management", "customer_management")
+PERMISSION_FIELDS = (
+    "user_management",
+    "price_listing",
+    "product_management",
+    "customer_management",
+    # Site-wide configuration - the Settings screen. Separate from user_management
+    # on purpose; see store-api's app/core/deps.py.
+    "admin",
+)
 
 
 @admin_bp.route("/users")

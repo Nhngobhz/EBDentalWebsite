@@ -15,7 +15,11 @@
                 <i class="fas fa-search"></i>
                 <input type="text" id="setSearchInput" class="search-input-dash" placeholder="Search sets..." oninput="filterSetsTable()">
             </div>
+            {# Same gate as Promotions/Products: authoring a set needs product_management,
+               and store-api enforces it independently on every write to /sets. #}
+            {% if has_permission('product_management') %}
             <button type="button" class="btn-dash primary" onclick="openSetModal()"><i class="fas fa-plus"></i> Add Set</button>
+            {% endif %}
         </div>
     </div>
     <div class="card-body" style="padding:0;">
@@ -24,11 +28,11 @@
         {% else %}
         <table>
             <thead>
-                <tr><th>Image</th><th>Name</th><th>Price</th><th>Actions</th></tr>
+                <tr><th>Image</th><th>Name</th><th>Brand</th><th>Price</th><th>Actions</th></tr>
             </thead>
             <tbody id="setsTableBody">
                 {% for s in sets %}
-                <tr data-search="{{ s.set_name|lower }}">
+                <tr data-search="{{ (s.set_name ~ ' ' ~ (s.brand.brand_name if s.brand else ''))|lower }}">
                     <td>
                         <img src="{{ img(s.set_image) }}" loading="lazy"
                              style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid var(--border);" />
@@ -41,15 +45,20 @@
                         </div>
                         {% endif %}
                     </td>
+                    <td>{{ s.brand.brand_name if s.brand else '—' }}</td>
                     <td>
                         {{ price(s.price) }}
                         {% if s.old_price %}<span style="text-decoration:line-through; color:var(--text-light); font-size:0.7rem;">{{ price(s.old_price) }}</span>{% endif %}
                     </td>
                     <td style="white-space:nowrap;">
-                        <button type="button" class="btn-dash primary sm" onclick="openSetModal({{ s.id }})" title="Edit"><i class="fas fa-edit"></i></button>
+                        {% if has_permission('product_management') %}
+                        <button type="button" data-row-edit class="btn-dash primary sm" onclick="openSetModal({{ s.id }})" title="Edit"><i class="fas fa-edit"></i></button>
                         <form method="post" action="{{ url_for('admin.sets_delete', set_id=s.id) }}" style="display:inline;" data-confirm="Delete this set?">
                             <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
                         </form>
+                        {% else %}
+                        <span style="font-size:0.7rem;color:var(--text-light);">View only</span>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
@@ -60,6 +69,7 @@
     </div>
 </div>
 
+{% if has_permission('product_management') %}
 <!-- Add/Edit Set Modal -->
 <div class="dash-modal-overlay" id="setModalOverlay">
     <div class="dash-modal-box">
@@ -73,6 +83,18 @@
             <div class="form-group" style="margin-bottom:12px;">
                 <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Description</label>
                 <textarea name="description" id="setDesc" rows="2" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;resize:vertical;background:var(--surface);color:var(--text);"></textarea>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Brand</label>
+                <select name="brand_id" id="setBrand" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                    <option value="">No brand</option>
+                    {% for b in brands %}
+                    <option value="{{ b.id }}">{{ b.brand_name }}</option>
+                    {% endfor %}
+                </select>
+                <div style="font-size:0.7rem;color:var(--text-light);margin-top:4px;">
+                    Lets shoppers filter the Promotions page by brand. Optional — leave as "No brand" for a mixed-brand bundle, which then only shows under "All".
+                </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                 <div class="form-group" style="margin-bottom:12px;">
@@ -114,6 +136,7 @@
         </form>
     </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
@@ -149,6 +172,8 @@
 
         document.getElementById('setName').value = isEdit ? set_.set_name : '';
         document.getElementById('setDesc').value = isEdit ? (set_.description || '') : '';
+        // '' selects the "No brand" option - a set may legitimately have none.
+        document.getElementById('setBrand').value = isEdit && set_.brand ? set_.brand.id : '';
         document.getElementById('setPrice').value = isEdit && typeof set_.price === 'number' ? set_.price : '';
         document.getElementById('setOldPrice').value = isEdit && set_.old_price ? set_.old_price : '';
 
@@ -171,10 +196,11 @@
     }
 
     function closeSetModal() {
-        document.getElementById('setModalOverlay').classList.remove('active');
+        document.getElementById('setModalOverlay')?.classList.remove('active');
     }
 
-    document.getElementById('setModalOverlay').addEventListener('click', function(e) {
+    // Optional-chained: without product_management the modal isn't rendered at all.
+    document.getElementById('setModalOverlay')?.addEventListener('click', function(e) {
         if (e.target === this) closeSetModal();
     });
 

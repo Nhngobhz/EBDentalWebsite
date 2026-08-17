@@ -1,0 +1,179 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block title %}Settings{% endblock %}
+{% block admin_page_title %}Settings{% endblock %}
+
+{#
+  The whole form is generated from the spec store-api returns (its
+  app/core/settings_spec.py). Nothing about an individual setting is hard-coded here -
+  adding one is a change in that file alone. Keep it that way: the moment a setting gets
+  a hand-written input in this template, the page and the validation can disagree about
+  what exists.
+#}
+
+{% macro setting_field(s, values, defaults) %}
+    {% set value = values.get(s.key, s.default) %}
+    {% set modified = value != defaults.get(s.key) %}
+    <div class="setting-row{% if s.type == 'bool' %} setting-row-bool{% endif %}">
+        <div class="setting-label">
+            <label for="set-{{ s.key }}">{{ s.label }}</label>
+            {% if modified %}<span class="setting-modified" title="Changed from the default">Customised</span>{% endif %}
+            {% if s.help %}<p class="setting-help">{{ s.help }}</p>{% endif %}
+        </div>
+        <div class="setting-input">
+            {% if s.type == 'bool' %}
+                <label class="setting-switch">
+                    <input type="checkbox" id="set-{{ s.key }}" name="{{ s.key }}" {{ 'checked' if value }}>
+                    <span>{{ 'On' if value else 'Off' }}</span>
+                </label>
+            {% elif s.type == 'textarea' %}
+                <textarea id="set-{{ s.key }}" name="{{ s.key }}" rows="{{ s.rows }}">{{ value }}</textarea>
+            {% elif s.type == 'number' %}
+                <input type="number" id="set-{{ s.key }}" name="{{ s.key }}" value="{{ value }}"
+                       {% if s.minimum is not none %}min="{{ s.minimum }}"{% endif %}
+                       {% if s.maximum is not none %}max="{{ s.maximum }}"{% endif %}>
+            {% else %}
+                {# url/email/text all render as type=text: store-api validates the shape and
+                   returns a message naming the field, which beats the browser's generic
+                   "Please enter a URL" on a field that is also allowed to be empty. #}
+                <input type="text" id="set-{{ s.key }}" name="{{ s.key }}" value="{{ value }}"
+                       {% if s.type == 'url' %}placeholder="https://…"{% endif %}
+                       {% if s.type == 'email' %}placeholder="name@example.com"{% endif %}>
+            {% endif %}
+        </div>
+    </div>
+{% endmacro %}
+
+{% macro status_chip(label, ok, detail, off_label='Not configured') %}
+    <div class="status-chip {{ 'ok' if ok else 'off' }}">
+        <div class="status-chip-label">{{ label }}</div>
+        <div class="status-chip-value">
+            <i class="fas {{ 'fa-circle-check' if ok else 'fa-circle-minus' }}"></i>
+            {{ detail if ok else off_label }}
+        </div>
+    </div>
+{% endmacro %}
+
+{% block admin_content %}
+<div class="page-title"><i class="fas fa-cog"></i> Settings</div>
+<p class="page-sub">Site-wide configuration. Changes take effect within a minute on every page.</p>
+
+<div class="settings-tabs" id="settingsTabs">
+    {% for group in groups %}
+    <button type="button" class="btn-dash sm {{ 'primary' if group.id == active_group }}"
+            data-settings-tab="{{ group.id }}" onclick="showSettingsGroup('{{ group.id }}')">
+        <i class="fas {{ group.icon }}"></i> {{ group.label }}
+    </button>
+    {% endfor %}
+    <button type="button" class="btn-dash sm {{ 'primary' if active_group == 'integrations' }}"
+            data-settings-tab="integrations" onclick="showSettingsGroup('integrations')">
+        <i class="fas fa-plug"></i> Integrations
+    </button>
+</div>
+
+{% for group in groups %}
+<div class="settings-panel" data-settings-panel="{{ group.id }}" {{ 'hidden' if group.id != active_group }}>
+    <div class="dash-card">
+        <div class="card-header">
+            <div>
+                <h5><i class="fas {{ group.icon }}"></i> {{ group.label }}</h5>
+                <p class="settings-blurb">{{ group.blurb }}</p>
+            </div>
+            <div class="card-actions">
+                {# Its own form, not a formaction button: the data-confirm handler in
+                   main.js calls form.submit(), which ignores a button's formaction. #}
+                <form method="post" action="{{ url_for('admin.settings_reset', group_id=group.id) }}"
+                      data-confirm="Reset every setting in “{{ group.label }}” back to its default?"
+                      data-confirm-label="Reset">
+                    <button type="submit" class="btn-dash outline sm"><i class="fas fa-rotate-left"></i> Reset to defaults</button>
+                </form>
+            </div>
+        </div>
+        <div class="card-body">
+            <form method="post" action="{{ url_for('admin.settings_save', group_id=group.id) }}">
+                {% for s in group.settings %}
+                    {{ setting_field(s, values, defaults) }}
+                {% endfor %}
+                <div class="settings-actions">
+                    <button type="submit" class="btn-dash primary"><i class="fas fa-save"></i> Save changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<div class="settings-panel" data-settings-panel="integrations" {{ 'hidden' if active_group != 'integrations' }}>
+    <div class="dash-card">
+        <div class="card-header">
+            <div>
+                <h5><i class="fas fa-plug"></i> Integrations</h5>
+                <p class="settings-blurb">
+                    Read-only. These are configured by environment variables on the server
+                    (<code>store-api/.env</code>), not from this page — API keys and tokens are
+                    deliberately kept out of the database and off this screen.
+                </p>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="status-grid">
+                {{ status_chip('Environment', status.environment != 'production' or not status.debug,
+                               status.environment ~ (' (debug on)' if status.debug else ''),
+                               'production with debug on') }}
+
+                {{ status_chip('KHQR payments',
+                               status.khqr.configured,
+                               (status.khqr.provider or '—')|capitalize ~ ' · ' ~ status.khqr.merchant_name,
+                               'Disabled — customers must pay cash') }}
+
+                {{ status_chip('Payment auto-confirm', status.khqr.auto_confirm,
+                               'Automatic', 'Manual — staff use “Mark as Paid”') }}
+
+                {{ status_chip('QR expiry', true, status.khqr.expiry_minutes ~ ' minutes') }}
+
+                {{ status_chip('Telegram alerts', status.telegram.configured, 'Connected') }}
+
+                {{ status_chip('Outbound email', status.email.configured,
+                               status.email.from_address ~ ' via ' ~ status.email.server,
+                               'Dry run — emails are logged, not sent') }}
+
+                {{ status_chip('File storage', true, status.storage.mode) }}
+
+                {{ status_chip('Upload limits', true,
+                               status.storage.max_image_mb ~ ' MB images · ' ~ status.storage.max_pdf_mb ~ ' MB PDFs') }}
+
+                {{ status_chip('Google sign-in', status.google_signin.configured, 'Enabled', 'Disabled') }}
+
+                {{ status_chip('Staff session length', true,
+                               (status.session.token_expire_minutes // 60) ~ ' hours') }}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function showSettingsGroup(groupId) {
+        document.querySelectorAll('[data-settings-panel]').forEach((panel) => {
+            panel.hidden = panel.dataset.settingsPanel !== groupId;
+        });
+        document.querySelectorAll('[data-settings-tab]').forEach((tab) => {
+            tab.classList.toggle('primary', tab.dataset.settingsTab === groupId);
+        });
+        // Keeps the open tab in the URL, so a save redirect (which carries ?group=)
+        // and a browser refresh both land back on the tab the admin was using.
+        const url = new URL(window.location);
+        url.searchParams.set('group', groupId);
+        window.history.replaceState({}, '', url);
+    }
+
+    // The On/Off label beside each switch is only a label - flip it with the checkbox
+    // rather than making the admin save to find out which way round it went.
+    document.querySelectorAll('.setting-switch input[type="checkbox"]').forEach((box) => {
+        box.addEventListener('change', () => {
+            box.nextElementSibling.textContent = box.checked ? 'On' : 'Off';
+        });
+    });
+</script>
+{% endblock %}

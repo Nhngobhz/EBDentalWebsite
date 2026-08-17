@@ -508,6 +508,21 @@ a.sidebar-brand:hover {
 .dash-card .card-body table tr:hover td {
     background: var(--bg);
 }
+/* A row that is itself a link to its detail view. The hover highlight above already
+   reads as "this line is live" - this only supplies the pointer.
+
+   Two ways in, because the two cases genuinely differ:
+     .row-clickable       Orders, where the row opens the order detail view - which is
+                          NOT what any button in the Actions cell does. The row carries
+                          its own onclick, and that cell stops propagation.
+     :has([data-row-edit]) every other admin list, where the row just re-fires its own
+                          edit button (see the delegated handler in main.js). Nothing is
+                          declared per row, so a row without an edit button - a staffer's
+                          own row on User Management - is correctly left alone. */
+.dash-card .card-body table tr.row-clickable,
+.dash-card .card-body table tbody tr:has([data-row-edit]) {
+    cursor: pointer;
+}
 .dash-card .card-body .empty-state {
     text-align: center;
     padding: 30px 10px;
@@ -1167,4 +1182,153 @@ a.sidebar-brand:hover {
     color: #fff;
     background: var(--danger);
     border-color: var(--danger);
+}
+
+/* ------------------------------------------------------------------
+   SETTINGS PAGE (templates/admin/settings.html)
+
+   The form is generated from store-api's settings spec, so these styles
+   are written against the shape of a setting - label + help on the left,
+   control on the right - rather than against any particular field.
+------------------------------------------------------------------- */
+.settings-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 16px;
+}
+.settings-blurb {
+    font-size: 0.72rem;
+    color: var(--text-soft);
+    margin: 4px 0 0;
+    max-width: 70ch;
+    line-height: 1.5;
+}
+.settings-blurb code {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0 4px;
+    font-size: 0.95em;
+}
+
+.setting-row {
+    display: grid;
+    grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+    gap: 10px 24px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: start;
+}
+.setting-row:last-of-type {
+    border-bottom: none;
+}
+.setting-label label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text);
+    display: inline-block;
+}
+.setting-help {
+    font-size: 0.7rem;
+    color: var(--text-soft);
+    margin: 4px 0 0;
+    line-height: 1.5;
+}
+/* Marks a value that no longer matches the shipped default, so an admin can
+   see at a glance which of thirty fields someone has actually touched. */
+.setting-modified {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border-radius: 6px;
+    padding: 1px 6px;
+    margin-left: 6px;
+    vertical-align: 1px;
+}
+
+.setting-input input[type="text"],
+.setting-input input[type="number"],
+.setting-input textarea {
+    width: 100%;
+    padding: 8px 11px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 0.82rem;
+    font-family: inherit;
+    background: var(--surface);
+    color: var(--text);
+}
+.setting-input textarea {
+    resize: vertical;
+    line-height: 1.5;
+}
+.setting-input input:focus,
+.setting-input textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+.setting-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text);
+    cursor: pointer;
+}
+.setting-switch input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.settings-actions {
+    padding-top: 16px;
+    margin-top: 4px;
+    border-top: 1px solid var(--border);
+}
+
+/* Integrations tab: one read-only chip per credential-backed service. */
+.status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+}
+.status-chip {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: var(--bg);
+}
+.status-chip-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-soft);
+    margin-bottom: 4px;
+}
+.status-chip-value {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    word-break: break-word;
+}
+.status-chip.ok .status-chip-value i { color: var(--success); }
+.status-chip.off .status-chip-value i { color: var(--text-light); }
+.status-chip.off .status-chip-value { color: var(--text-soft); font-weight: 500; }
+
+@media (max-width: 640px) {
+    .setting-row {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
 }

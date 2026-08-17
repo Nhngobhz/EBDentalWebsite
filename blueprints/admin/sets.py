@@ -12,6 +12,11 @@ def _set_form_payload():
         "description": request.form.get("description", "").strip() or None,
         "price": request.form.get("price") or None,
         "old_price": request.form.get("old_price") or None,
+        # Which brand the set is filed under on the Promotions page. Optional -
+        # an empty select means no brand, and is sent as an explicit null so
+        # editing a set can also *clear* the brand it had (store-api leaves a
+        # field alone only when it is omitted entirely).
+        "brand_id": request.form.get("brand_id") or None,
         # A set is a collection of products - these are what the customer
         # actually receives, listed at $0 under the set on the quote.
         "items": bundle_items_from_form(),
@@ -44,15 +49,17 @@ def sets():
     raw_sets = client.get("/sets/", params={"limit": 200})
     # The full catalog feeds the modal's "Included Products" picker.
     products = client.get("/products/", params={"limit": 500})
+    brands = client.get("/brands/", params={"limit": 200})
     return render_template(
         "admin/sets.html",
         sets=[adapt_set(s) for s in raw_sets],
         products=[adapt_product(p) for p in products],
+        brands=brands,
     )
 
 
 @admin_bp.route("/sets/new", methods=["POST"])
-@permission_required("price_listing")
+@permission_required("product_management")
 def sets_new():
     payload = _set_form_payload()
     if not payload["set_name"] or not payload["price"]:
@@ -72,7 +79,7 @@ def sets_new():
 
 
 @admin_bp.route("/sets/<int:set_id>/edit", methods=["POST"])
-@permission_required("price_listing")
+@permission_required("product_management")
 def sets_edit(set_id):
     payload = _set_form_payload()
     client = get_api_client()
@@ -88,7 +95,7 @@ def sets_edit(set_id):
 
 
 @admin_bp.route("/sets/<int:set_id>/delete", methods=["POST"])
-@permission_required("price_listing")
+@permission_required("product_management")
 def sets_delete(set_id):
     client = get_api_client()
     try:

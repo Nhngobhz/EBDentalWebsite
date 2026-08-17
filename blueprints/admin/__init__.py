@@ -53,5 +53,6 @@ from blueprints.admin import (  # noqa: E402
     products,
     promotions,
     sets,
+    settings,
     users,
 )

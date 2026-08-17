@@ -15,7 +15,12 @@
                 <i class="fas fa-search"></i>
                 <input type="text" id="promoSearchInput" class="search-input-dash" placeholder="Search promotions..." oninput="filterPromosTable()">
             </div>
+            {# Authoring a promotion is a catalogue job, so it needs product_management -
+               a price_listing-only staffer reads this page but doesn't change it. Mirrors
+               store-api's own gate on POST/PUT/DELETE /promotions. #}
+            {% if has_permission('product_management') %}
             <button type="button" class="btn-dash primary" onclick="openPromoModal()"><i class="fas fa-plus"></i> Add Promotion</button>
+            {% endif %}
         </div>
     </div>
     <div class="card-body" style="padding:0;">
@@ -56,10 +61,14 @@
                         {% endif %}
                     </td>
                     <td style="white-space:nowrap;">
-                        <button type="button" class="btn-dash primary sm" onclick="openPromoModal({{ p.id }})" title="Edit"><i class="fas fa-edit"></i></button>
+                        {% if has_permission('product_management') %}
+                        <button type="button" data-row-edit class="btn-dash primary sm" onclick="openPromoModal({{ p.id }})" title="Edit"><i class="fas fa-edit"></i></button>
                         <form method="post" action="{{ url_for('admin.promotions_delete', promotion_id=p.id) }}" style="display:inline;" data-confirm="Delete this promotion?">
                             <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
                         </form>
+                        {% else %}
+                        <span style="font-size:0.7rem;color:var(--text-light);">View only</span>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
@@ -70,6 +79,7 @@
     </div>
 </div>
 
+{% if has_permission('product_management') %}
 <!-- Add/Edit Promotion Modal -->
 <div class="dash-modal-overlay" id="promoModalOverlay">
     <div class="dash-modal-box">
@@ -128,6 +138,7 @@
         </form>
     </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
@@ -179,16 +190,18 @@
     }
 
     function closePromoModal() {
-        document.getElementById('promoModalOverlay').classList.remove('active');
+        document.getElementById('promoModalOverlay')?.classList.remove('active');
     }
 
-    document.getElementById('promoModalOverlay').addEventListener('click', function(e) {
+    // Optional-chained throughout: the modal isn't rendered at all without
+    // product_management, so on a read-only view these elements don't exist.
+    document.getElementById('promoModalOverlay')?.addEventListener('click', function(e) {
         if (e.target === this) closePromoModal();
     });
 
     // Client-side date-order check, mirroring store-api's own end_date > start_date
     // validation - lets the admin fix it before a round trip, doesn't replace it.
-    document.getElementById('promoForm').addEventListener('submit', function(e) {
+    document.getElementById('promoForm')?.addEventListener('submit', function(e) {
         const start = document.getElementById('promoStart').value;
         const end = document.getElementById('promoEnd').value;
         const errorEl = document.getElementById('promoDateError');

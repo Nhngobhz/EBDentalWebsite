@@ -117,9 +117,39 @@ def promotions_page():
     client = get_api_client()
     raw_promotions = client.get("/promotions/", params={"active_only": True, "limit": 200})
     promotions = [adapt_promotion(p) for p in raw_promotions]
-    raw_sets = client.get("/sets/", params={"limit": 200})
-    sets = [adapt_set(s) for s in raw_sets]
-    return render_template("main/promotions.html", promotions=promotions, sets=sets)
+
+    selected_brand = request.args.get("brand", type=int)
+
+    # Every set is fetched, then filtered here rather than through store-api's
+    # `brand_id` param, because the brand strip is built FROM this list: it
+    # offers only brands that actually have a set, so no pill can ever lead to
+    # an empty grid (unlike the catalog, where every brand has products). A
+    # brand-filtered fetch couldn't see the brands it isn't filtering to.
+    all_sets = [adapt_set(s) for s in client.get("/sets/", params={"limit": 200})]
+
+    set_brands = sorted(
+        {s["brand"]["id"]: s["brand"] for s in all_sets if s.get("brand")}.values(),
+        key=lambda b: b["brand_name"].lower(),
+    )
+    sets = all_sets
+    if selected_brand:
+        sets = [s for s in all_sets if (s.get("brand") or {}).get("id") == selected_brand]
+
+    def sets_url(brand):
+        """Same page, different brand - anchored at #sets so clicking a pill
+        lands back on the strip instead of the top of the Promotions page."""
+        base = url_for("catalog.promotions_page")
+        query = f"?{urlencode({'brand': brand})}" if brand else ""
+        return f"{base}{query}#sets"
+
+    return render_template(
+        "main/promotions.html",
+        promotions=promotions,
+        sets=sets,
+        set_brands=set_brands,
+        selected_brand=selected_brand,
+        sets_url=sets_url,
+    )
 
 
 def _bundle_detail(kind, path, adapt, name_field, image_field, extra_images=()):

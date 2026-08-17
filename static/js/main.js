@@ -747,11 +747,17 @@ const QuoteCart = {
         // store-api's fallback PDF (services/invoice_pdf.py).
         const isReceipt = order.payment_status === 'paid';
         const docTitle = isReceipt ? 'Receipt' : 'Quotation';
+        // Letterhead and wording are admin-editable (Settings -> Quote & Invoice),
+        // delivered as EB_SETTINGS by base.html / _admin_base.html. The fallbacks below
+        // are only reached if that blob is missing entirely - store-api's spec holds the
+        // real defaults, and its own PDF builder (services/invoice_pdf.py) reads the
+        // same keys. Changing wording here means changing it there too.
+        const cfg = (typeof EB_SETTINGS !== 'undefined' && EB_SETTINGS) || {};
         const validityNote = isReceipt
             ? (order.payment_method === 'khqr'
-                ? 'Paid via KHQR. Thank you for your purchase.'
-                : 'Paid in full. Thank you for your purchase.')
-            : 'Quotation valid for <b>30 days</b> from the date issued.';
+                ? (cfg.receipt_note_khqr || 'Paid via KHQR. Thank you for your purchase.')
+                : (cfg.receipt_note_cash || 'Paid in full. Thank you for your purchase.'))
+            : `Quotation valid for <b>${Number(cfg.quote_validity_days) || 30} days</b> from the date issued.`;
 
         const specialDiscountLabel = order.discount_type === 'cash'
             ? 'Special Discount (Cash):'
@@ -816,10 +822,10 @@ const QuoteCart = {
         template.innerHTML = `
             <div class="qpt-header">
                 <div>
-                    <div class="qpt-brand-name">EB DENTAL</div>
+                    <div class="qpt-brand-name">${ebEscapeHtml(cfg.document_brand_name || 'EB DENTAL')}</div>
                     <div class="qpt-brand-meta">
-                        Phnom Penh, Cambodia<br>
-                        Tel: 012 81 89 58 / 011 81 89 58
+                        ${ebEscapeHtml(cfg.document_address_line || 'Phnom Penh, Cambodia')}
+                        ${cfg.document_tel_line ? `<br>Tel: ${ebEscapeHtml(cfg.document_tel_line)}` : ''}
                     </div>
                 </div>
                 <div>
@@ -1391,6 +1397,35 @@ document.addEventListener('submit', (e) => {
     }).then((ok) => {
         if (ok) form.submit();
     });
+});
+
+/* Clicking anywhere on an admin table row opens that row's edit dialog, so
+   reaching a record no longer means hitting the small pencil button at the far
+   right of a wide table. Delegated from the document like the handler above, so
+   it covers every admin list page without any of them wiring anything up: the
+   row's own edit button is the trigger, marked `data-row-edit` in the template.
+
+   Driving it from that button rather than from a per-row data attribute keeps
+   one source of truth for "what does editing this row do" - the row can't end
+   up opening a different record than its button does. A row with no such button
+   (a staff member's own row on User Management, or a product listed by someone
+   who only holds price_listing) simply isn't clickable, and the CSS below keys
+   off the same attribute so it isn't styled as though it were. */
+document.addEventListener('click', (e) => {
+    const row = e.target.closest('tr');
+    if (!row) return;
+    const trigger = row.querySelector('[data-row-edit]');
+    if (!trigger) return;
+    // Anything the user could have meant to click on its own terms wins: the
+    // Delete button and its form, the "View PDF" link, the price button, and any
+    // future checkbox or input in a cell.
+    if (e.target.closest('a, button, input, select, textarea, label, form')) return;
+    // Dragging across a cell to copy an email or a phone number ends in a click
+    // event too - opening a dialog on top of the selection would throw the text
+    // away just as the user finished selecting it.
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && row.contains(selection.anchorNode)) return;
+    trigger.click();
 });
 
 /* ------------------------------------------------------------

@@ -134,7 +134,12 @@
             </thead>
             <tbody id="ordersTableBody">
                 {% for o in orders %}
-                <tr data-order-id="{{ o.id }}" data-search="{{ (o.order_number ~ ' ' ~ o.quote_code ~ ' ' ~ (o.clinic_name or '') ~ ' ' ~ (o.contact_person or ''))|lower }}">
+                {# The whole row opens the view modal - the eye button stays as the
+                   visible affordance, but nobody should have to aim for it. The Actions
+                   cell swallows its own clicks so Edit/Delete/Complete still do their
+                   own thing. #}
+                <tr class="row-clickable" onclick="openOrderModal({{ o.id }})"
+                    data-order-id="{{ o.id }}" data-search="{{ (o.order_number ~ ' ' ~ o.quote_code ~ ' ' ~ (o.clinic_name or '') ~ ' ' ~ (o.contact_person or ''))|lower }}">
                     <td><strong>{{ o.order_number }}</strong><br><span style="font-size:0.65rem;color:var(--text-light);">{{ o.quote_code }}</span></td>
                     <td>
                         {% if (o.order_type or 'order') == 'quote' %}
@@ -151,7 +156,11 @@
                     <td>{{ o['items']|length }}</td>
                     <td>{{ price(o.grand_total) }}</td>
                     <td style="white-space:nowrap; font-size:0.7rem;">
-                        {% if o.payment_status == 'paid' %}
+                        {# A cancelled row is out of the money totals entirely, so showing
+                           it as "Paid" here reads as live revenue that no longer exists. #}
+                        {% if o.status == 'cancelled' %}
+                        <span style="color:var(--text-light); font-weight:600;"><i class="fas fa-ban"></i> Cancelled</span>
+                        {% elif o.payment_status == 'paid' %}
                         <span style="color:#16a34a; font-weight:600;"><i class="fas fa-circle-check"></i> Paid{% if o.payment_method == 'khqr' %} (KHQR){% endif %}</span>
                         {% elif o.payment_method == 'khqr' %}
                         <span style="color:#d97706; font-weight:600;"><i class="fas fa-clock"></i> KHQR unpaid</span>
@@ -169,8 +178,19 @@
                          issued against those exact figures, so the order is frozen.
                          store-api refuses both regardless (409) - this just stops staff
                          from clicking into a dead end. -->
-                    <td style="white-space:nowrap;">
+                    <td style="white-space:nowrap;" onclick="event.stopPropagation();">
                         <button type="button" class="btn-dash primary sm" onclick="openOrderModal({{ o.id }})" title="View"><i class="fas fa-eye"></i></button>
+                        {# Delivered but no payment on record is the one state staff act on
+                           in bulk down the list - the goods are out and the money is in, so
+                           the same "Complete" the view modal offers is put right here.
+                           Sets payment_status="paid", which is what issues the receipt. #}
+                        {% if o.status == 'delivered' and o.payment_status != 'paid' %}
+                        <form method="post" action="{{ url_for('admin.orders_mark_paid', order_id=o.id) }}" style="display:inline;"
+                              data-confirm="Mark this order complete? This records the payment as received, which is what issues the receipt."
+                              data-confirm-label="Complete" data-confirm-tone="success">
+                            <button type="submit" class="btn-dash primary sm" style="background:#16a34a;" title="Mark as complete"><i class="fas fa-check"></i></button>
+                        </form>
+                        {% endif %}
                         {% if o.payment_status == 'paid' %}
                         <span class="order-locked-chip" title="This order has been paid - it can no longer be edited or deleted."><i class="fas fa-lock"></i> Locked</span>
                         {% else %}
@@ -258,13 +278,12 @@
             <div class="quote-summary-row quote-grand-total-row"><span>Grand Total</span><span id="orderGrandTotal"></span></div>
         </div>
 
-        <!-- Everything except Print is hidden once the order is paid - see
-             applyOrderLock(). A paid row is a closed financial record. -->
-        <!-- Kept (permanently hidden) rather than deleted: applyOrderLock still
-             addresses it, and the paid-order freeze this warned about could come back.
-             See _reject_if_paid in store-api. -->
+        <!-- Shown on a paid order in place of the status control, which applyOrderLock()
+             removes: store-api refuses to move the status of a completed sale (409), so
+             offering the dropdown would only ever produce an error. The rest of the
+             order stays correctable - see _reject_if_paid in store-api. -->
         <div class="order-locked-note" id="orderLockedNote" style="display:none;">
-            <i class="fas fa-lock"></i> This order has been paid.
+            <i class="fas fa-lock"></i> This order is complete — its status is final.
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <form id="orderStatusForm" method="post" style="display:flex; gap:8px; flex:1; min-width:240px;">
@@ -427,6 +446,14 @@
     }
 
     function describePayment(order) {
+        // Same rule as the table's Payment column, except the detail view keeps what was
+        // actually recorded in brackets - staff need it to know whether a refund is owed.
+        if (order.status === 'cancelled') {
+            const wasPaid = isPaid(order)
+                ? 'was paid' + (order.payment_method === 'khqr' ? ' by KHQR' : '')
+                : null;
+            return 'Cancelled' + (wasPaid ? ' (' + wasPaid + ')' : '');
+        }
         if (order.payment_method === 'khqr') {
             return isPaid(order) ? 'KHQR — paid' : 'KHQR — awaiting payment';
         }
@@ -520,8 +547,11 @@
     // payment state. Only the two genuinely payment-specific actions still come and go.
     function applyOrderLock(order) {
         const paid = isPaid(order);
-        document.getElementById('orderLockedNote').style.display = 'none';
-        document.getElementById('orderStatusForm').style.display = 'flex';
+        // A completed sale's status is final - store-api 409s any change to it once
+        // payment is on record, so the control comes off the modal entirely and the
+        // note explains why. Everything else about the row stays as it was.
+        document.getElementById('orderLockedNote').style.display = paid ? 'flex' : 'none';
+        document.getElementById('orderStatusForm').style.display = paid ? 'none' : 'flex';
         document.getElementById('orderEditBtn').style.display = '';
         // A QR is only worth showing while there's still something to collect.
         document.getElementById('orderQrBtn').style.display = paid ? 'none' : '';

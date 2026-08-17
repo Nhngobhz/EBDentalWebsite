@@ -65,10 +65,28 @@
                 {% endfor %}
             </div>
 
-            <div class="sets-hero">
+            <div class="sets-hero" id="sets">
                 <h2>📦 <span>Sets</span></h2>
                 <p>Bundle deals, always on sale.</p>
             </div>
+
+            {# Brand strip for the sets below - same pills as the catalog's category
+               filter. Only brands that actually have a set are listed (see
+               promotions_page), so a pill can never lead to an empty grid, and the
+               whole strip disappears while no set has a brand yet. #}
+            {% if set_brands %}
+            <div class="category-filter-wrap set-brand-filter">
+                <span class="filter-label"><i class="fas fa-tags"></i> Brand:</span>
+                <div class="category-filter-scroll">
+                    <a class="subcategory-pill {{ 'active' if not selected_brand }}"
+                       href="{{ sets_url(None) }}">All Brands</a>
+                    {% for b in set_brands %}
+                    <a class="subcategory-pill {{ 'active' if selected_brand == b.id }}"
+                       href="{{ sets_url(b.id) }}">{{ b.brand_name }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
 
             {# One set per row, each card a fixed height: a set with no contents and
                no detail image should sit in exactly the same box as one with six
@@ -77,8 +95,13 @@
                 {% if sets|length == 0 %}
                 <div class="empty-promos">
                     <div class="icon"><i class="fas fa-box-open"></i></div>
+                    {% if selected_brand %}
+                    <h3>No sets from this brand</h3>
+                    <p><a href="{{ sets_url(None) }}">Show all sets</a></p>
+                    {% else %}
                     <h3>No sets available</h3>
                     <p>Check back later for bundle deals.</p>
+                    {% endif %}
                 </div>
                 {% endif %}
 
@@ -88,6 +111,13 @@
                         <img class="set-image"
                              src="{{ img(set_.set_image) }}"
                              alt="{{ set_.set_name }}" loading="lazy" />
+                        {# Brand sits on the photo, not in the text column: the card
+                           has a fixed height and the body is already full (name,
+                           description, detail image, contents), so an extra line
+                           there would push the "View Set" link out of the card. #}
+                        {% if set_.brand %}
+                        <div class="set-brand-badge">{{ set_.brand.brand_name }}</div>
+                        {% endif %}
                     </div>
 
                     <div class="set-body">
