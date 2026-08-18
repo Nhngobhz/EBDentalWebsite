@@ -1,13 +1,20 @@
 from flask import flash, jsonify, redirect, render_template, request, url_for
 
-from auth import permission_required
+from auth import any_permission_required
 from blueprints.admin import admin_bp
 from formatting import adapt_order, adapt_product
 from store_api import StoreAPIError, get_api_client
 
+# Who may work the Orders screen: sales staff through `price_listing`, and the owner
+# through `admin` (added 2026-08-17 - `admin` is "runs this store", not a job title, so
+# it isn't implied by the other four flags and an owner holding only it was locked out
+# of recording a payment). One name for the whole file so the two can't drift apart
+# route by route. store-api enforces the same pair with require_any_permission.
+ORDERS_PERMISSION = any_permission_required("price_listing", "admin")
+
 
 @admin_bp.route("/orders")
-@permission_required("price_listing")
+@ORDERS_PERMISSION
 def orders():
     client = get_api_client()
     raw_orders = client.get("/orders/", params={"limit": 200})
@@ -40,7 +47,7 @@ def orders():
 
 
 @admin_bp.route("/checkouts/<int:checkout_id>/confirm", methods=["POST"])
-@permission_required("price_listing")
+@ORDERS_PERMISSION
 def checkouts_confirm(checkout_id):
     """Staff assert a KHQR payment arrived that automatic confirmation couldn't see,
     and store-api writes the order from the checkout's stored snapshot. Same trust
@@ -58,7 +65,7 @@ def checkouts_confirm(checkout_id):
 
 
 @admin_bp.route("/orders/<int:order_id>/status", methods=["POST"])
-@permission_required("price_listing")
+@ORDERS_PERMISSION
 def orders_status(order_id):
     new_status = request.form.get("status", "").strip()
     if not new_status:
@@ -77,7 +84,7 @@ def orders_status(order_id):
 
 
 @admin_bp.route("/orders/<int:order_id>/edit", methods=["POST"])
-@permission_required("price_listing")
+@ORDERS_PERMISSION
 def orders_edit(order_id):
     """Saves the admin Orders page's edit modal. JSON in, JSON out - the modal stays
     open on failure and shows store-api's own message, which is the only place the
@@ -130,7 +137,7 @@ def orders_edit(order_id):
 
 
 @admin_bp.route("/orders/<int:order_id>/mark-paid", methods=["POST"])
-@permission_required("price_listing")
+@ORDERS_PERMISSION
 def orders_mark_paid(order_id):
     """Records that payment for this order has been received - cash over the counter,
     a bank transfer, or a KHQR payment automatic checking didn't catch. store-api
@@ -152,7 +159,7 @@ def orders_mark_paid(order_id):
 
 
 @admin_bp.route("/orders/<int:order_id>/khqr", methods=["POST"])
-@permission_required("price_listing")
+@ORDERS_PERMISSION
 def orders_khqr(order_id):
     """Puts a payment QR on an existing order so the customer can scan it - the counter
     and phone-order case. Returns the whole order back, so the modal can draw the QR
@@ -167,7 +174,7 @@ def orders_khqr(order_id):
 
 
 @admin_bp.route("/orders/<int:order_id>/payment-status", methods=["GET"])
-@permission_required("price_listing")
+@ORDERS_PERMISSION
 def orders_payment_status(order_id):
     """Polled by the staff QR dialog while the customer scans, exactly as the
     storefront's own KHQR modal polls /quote/<id>/payment-status. store-api does the
@@ -183,7 +190,7 @@ def orders_payment_status(order_id):
 
 
 @admin_bp.route("/orders/<int:order_id>/delete", methods=["POST"])
-@permission_required("price_listing")
+@ORDERS_PERMISSION
 def orders_delete(order_id):
     client = get_api_client()
     try:

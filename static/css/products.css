@@ -3979,3 +3979,479 @@
 .special-product-card:hover .special-product-card-cta i {
     transform: translateX(3px);
 }
+
+/* ==========================================================================
+   MY ORDERS  (auth/orders.html + auth/order_detail.html)
+   The full-page order history. The account drawer's compact card list stays as
+   it is - these are the same records with room for a search box, filter chips
+   and a real item table.
+   ========================================================================== */
+.eb-orders-page {
+    padding: 40px 0 60px;
+    background: var(--bg);
+    min-height: 70vh;
+}
+/* A plain page heading, not the coloured hero the contact/about pages use: this is
+   a working list someone opens to find an order, and a 200px banner just pushed the
+   rows they came for below the fold. */
+.eb-orders-page .orders-head {
+    margin-bottom: 22px;
+}
+.eb-orders-page .orders-head h1 {
+    font-size: 1.7rem;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    color: var(--text);
+    margin-bottom: 6px;
+}
+.eb-orders-page .orders-head p {
+    font-size: 0.85rem;
+    color: var(--text-light);
+    line-height: 1.6;
+    max-width: 620px;
+}
+
+.eb-orders-page .orders-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+}
+.eb-orders-page .orders-stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    box-shadow: var(--shadow);
+}
+.eb-orders-page .orders-stat-number {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.2;
+}
+.eb-orders-page .orders-stat-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-light);
+}
+
+.eb-orders-page .orders-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+.eb-orders-page .orders-search {
+    position: relative;
+    flex: 1;
+    min-width: 240px;
+}
+.eb-orders-page .orders-search i {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-light);
+    font-size: 0.8rem;
+}
+.eb-orders-page .orders-search input {
+    width: 100%;
+    padding: 11px 14px 11px 38px;
+    border-radius: 99px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.85rem;
+}
+.eb-orders-page .orders-search input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+.eb-orders-page .orders-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.eb-orders-page .orders-chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-soft);
+    padding: 8px 16px;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: var(--transition);
+}
+.eb-orders-page .orders-chip:hover {
+    border-color: var(--accent-light);
+    color: var(--text);
+}
+.eb-orders-page .orders-chip.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+}
+
+.eb-orders-page .orders-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.eb-orders-page .order-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    box-shadow: var(--shadow);
+    text-decoration: none;
+    color: inherit;
+    transition: var(--transition);
+}
+.eb-orders-page .order-row:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--accent-light);
+}
+.eb-orders-page .order-row-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+.eb-orders-page .order-row-no {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text);
+}
+.eb-orders-page .order-row-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    font-size: 0.73rem;
+    color: var(--text-light);
+}
+.eb-orders-page .order-row-meta i {
+    opacity: 0.7;
+    margin-right: 4px;
+}
+.eb-orders-page .order-row-code {
+    font-variant-numeric: tabular-nums;
+}
+.eb-orders-page .order-row-end {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    white-space: nowrap;
+}
+.eb-orders-page .order-row-total {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--text);
+}
+.eb-orders-page .order-row-open {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--accent);
+}
+.eb-orders-page .order-row-open i {
+    font-size: 0.6rem;
+    margin-left: 2px;
+}
+
+/* Document type (Quote / Order / Invoice) and state (awaiting payment /
+   cancelled) are two different facts, so they get two different pill shapes -
+   the whole point of the split is that "paid" and "cancelled" can never sit
+   side by side reading like equals. */
+.eb-orders-page .order-doc-tag {
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: 99px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    background: rgba(245, 158, 11, 0.12);
+    color: #b45309;
+}
+.eb-orders-page .order-doc-tag.order {
+    background: rgba(37, 99, 235, 0.1);
+    color: #2563eb;
+}
+.eb-orders-page .order-doc-tag.invoice {
+    background: rgba(22, 163, 74, 0.12);
+    color: #15803d;
+}
+.eb-orders-page .order-state-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 99px;
+    font-size: 0.62rem;
+    font-weight: 600;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-light);
+    text-transform: capitalize;
+}
+.eb-orders-page .order-state-tag.unpaid {
+    background: rgba(217, 119, 6, 0.1);
+    border-color: transparent;
+    color: #b45309;
+}
+.eb-orders-page .order-state-tag.cancelled {
+    background: rgba(220, 38, 38, 0.08);
+    border-color: transparent;
+    color: #dc2626;
+}
+
+.eb-orders-page .orders-empty {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 48px 32px;
+    text-align: center;
+    box-shadow: var(--shadow);
+}
+.eb-orders-page .orders-empty i {
+    font-size: 2.4rem;
+    color: var(--text-light);
+    opacity: 0.4;
+    margin-bottom: 14px;
+    display: block;
+}
+.eb-orders-page .orders-empty h3 {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 6px;
+}
+.eb-orders-page .orders-empty p {
+    font-size: 0.85rem;
+    color: var(--text-light);
+    margin-bottom: 18px;
+}
+
+/* ---- detail page ---- */
+.eb-orders-page .orders-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-light);
+    text-decoration: none;
+    margin-bottom: 16px;
+    transition: var(--transition);
+}
+.eb-orders-page .orders-back:hover {
+    color: var(--accent);
+}
+.eb-orders-page .order-detail-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 28px 30px 30px;
+}
+.eb-orders-page .order-detail-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+}
+.eb-orders-page .order-detail-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.eb-orders-page .order-detail-head h1 {
+    font-size: 1.6rem;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    color: var(--text);
+    margin-bottom: 4px;
+}
+.eb-orders-page .order-detail-head p {
+    font-size: 0.75rem;
+    color: var(--text-light);
+}
+.eb-orders-page .order-detail-total {
+    text-align: right;
+}
+.eb-orders-page .order-detail-total span {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-light);
+}
+.eb-orders-page .order-detail-total strong {
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: var(--accent);
+}
+.eb-orders-page .order-detail-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: rgba(220, 38, 38, 0.06);
+    border: 1px solid rgba(220, 38, 38, 0.18);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-top: 18px;
+    font-size: 0.8rem;
+    line-height: 1.6;
+    color: var(--text);
+}
+.eb-orders-page .order-detail-note i {
+    color: #dc2626;
+    margin-top: 2px;
+}
+.eb-orders-page .order-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px 24px;
+    padding: 20px 0;
+}
+.eb-orders-page .order-detail-grid span {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-light);
+    margin-bottom: 2px;
+}
+.eb-orders-page .order-detail-grid strong {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+    word-break: break-word;
+}
+
+/* The table scrolls inside its own box on narrow screens rather than pushing
+   the page sideways. */
+.eb-orders-page .order-items-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+.eb-orders-page .order-items-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+    min-width: 520px;
+}
+.eb-orders-page .order-items-table th {
+    background: var(--bg);
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-light);
+    white-space: nowrap;
+}
+.eb-orders-page .order-items-table td {
+    padding: 11px 14px;
+    border-top: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+}
+.eb-orders-page .order-items-table .num {
+    text-align: right;
+    white-space: nowrap;
+}
+.eb-orders-page .order-items-table tr.component td {
+    color: var(--text-light);
+    font-style: italic;
+    padding-top: 6px;
+    padding-bottom: 6px;
+}
+.eb-orders-page .order-item-code {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--text-light);
+    font-style: normal;
+}
+.eb-orders-page .order-totals {
+    margin: 18px 0 4px auto;
+    max-width: 340px;
+}
+.eb-orders-page .order-total-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 7px 0;
+    font-size: 0.82rem;
+    color: var(--text-soft);
+}
+.eb-orders-page .order-total-row.grand {
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+    padding-top: 12px;
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text);
+}
+.eb-orders-page .order-detail-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 22px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+}
+
+@media (max-width: 720px) {
+    .eb-orders-page {
+        padding: 24px 0 40px;
+    }
+    .eb-orders-page .orders-head h1 {
+        font-size: 1.35rem;
+    }
+    .eb-orders-page .order-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    .eb-orders-page .order-row-end {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+    }
+    .eb-orders-page .order-detail-card {
+        padding: 20px 18px 22px;
+    }
+    .eb-orders-page .order-detail-total {
+        text-align: left;
+    }
+    .eb-orders-page .order-totals {
+        max-width: none;
+    }
+    .eb-orders-page .order-detail-actions .btn-primary,
+    .eb-orders-page .order-detail-actions .btn-outline {
+        width: 100%;
+        justify-content: center;
+    }
+}

@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{# Full-page order history (auth.my_orders). The account drawer's Orders tab is the
+   quick glance; this is the place you come to actually find something - hence the
+   search box, the filter chips and one row per order with everything on it.
+
+   Staff see the same page: /orders/mine returns the quotes they raised, which is what
+   the drawer already calls "My Quotes" for them. #}
+{% set is_staff_view = is_staff() %}
+
+{% block title %}{{ "My Quotes" if is_staff_view else "My Orders" }}{% endblock %}
+
+{% block content %}
+{# Paid ⇒ Invoice, whatever the row started as - the same single rule the printed
+   document, the admin list and the account drawer follow. See documentWord() in
+   templates/admin/orders.html and document_title() in store-api's invoice_pdf.py. #}
+{% macro document_word(o) %}{% if o.payment_status == 'paid' %}Invoice{% elif (o.order_type or 'order') == 'quote' %}Quote{% else %}Order{% endif %}{% endmacro %}
+
+<div class="eb-orders-page">
+    <div class="container">
+
+        <div class="orders-head reveal">
+            <h1>{{ "My Quotes" if is_staff_view else "My Orders" }}</h1>
+            <p>
+                {% if is_staff_view %}
+                Every quote you have raised. Open one to see its lines, or download it again as a PDF.
+                {% else %}
+                Everything you have ordered from us. Open an order to see what was in it, what it cost, and to download the document again.
+                {% endif %}
+            </p>
+        </div>
+
+        {% if orders %}
+        {# Counted with explicit tests rather than by subtraction: a row can be BOTH paid
+           and cancelled (payment confirmed after a cancellation - see the 409 rule in
+           store-api's update_order), and subtracting both counts from the total took
+           that row off twice, which is how "Awaiting payment" managed to read -1. #}
+        {% set cancelled_count = orders|selectattr('status', 'equalto', 'cancelled')|list|length %}
+        {% set paid_count = orders|rejectattr('status', 'equalto', 'cancelled')|selectattr('payment_status', 'equalto', 'paid')|list|length %}
+        {% set awaiting_count = orders|rejectattr('status', 'equalto', 'cancelled')|rejectattr('payment_status', 'equalto', 'paid')|list|length %}
+        <div class="orders-stats reveal">
+            <div class="orders-stat">
+                <span class="orders-stat-number">{{ orders|length }}</span>
+                <span class="orders-stat-label">Total</span>
+            </div>
+            <div class="orders-stat">
+                <span class="orders-stat-number">{{ paid_count }}</span>
+                <span class="orders-stat-label">Paid</span>
+            </div>
+            <div class="orders-stat">
+                <span class="orders-stat-number">{{ awaiting_count }}</span>
+                <span class="orders-stat-label">Awaiting payment</span>
+            </div>
+            {% if cancelled_count %}
+            <div class="orders-stat">
+                <span class="orders-stat-number">{{ cancelled_count }}</span>
+                <span class="orders-stat-label">Cancelled</span>
+            </div>
+            {% endif %}
+        </div>
+
+        {# Filtering is client-side over rows that are already on the page: the list is
+           capped at 100 and every value it filters on is in the markup, so a round trip
+           per keystroke would buy nothing. #}
+        <div class="orders-toolbar reveal">
+            <div class="orders-search">
+                <i class="fas fa-search"></i>
+                <input type="search" id="ordersSearch" placeholder="Search by number, code or clinic…"
+                       oninput="ebFilterOrders()" autocomplete="off" />
+            </div>
+            <div class="orders-chips" id="ordersChips">
+                <button type="button" class="orders-chip active" data-filter="all" onclick="ebSetOrderFilter(this)">All</button>
+                <button type="button" class="orders-chip" data-filter="unpaid" onclick="ebSetOrderFilter(this)">Awaiting payment</button>
+                <button type="button" class="orders-chip" data-filter="paid" onclick="ebSetOrderFilter(this)">Paid</button>
+                {% if cancelled_count %}
+                <button type="button" class="orders-chip" data-filter="cancelled" onclick="ebSetOrderFilter(this)">Cancelled</button>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="orders-list" id="ordersList">
+            {% for o in orders %}
+            {% set paid = o.payment_status == 'paid' %}
+            {% set cancelled = o.status == 'cancelled' %}
+            <a class="order-row reveal" href="{{ url_for('auth.my_order_detail', order_id=o.id) }}"
+               data-state="{{ 'cancelled' if cancelled else ('paid' if paid else 'unpaid') }}"
+               data-search="{{ ((o.order_number or '') ~ ' ' ~ (o.quote_code or '') ~ ' ' ~ (o.clinic_name or ''))|lower }}">
+                <div class="order-row-main">
+                    <div class="order-row-head">
+                        <span class="order-row-no">#{{ o.order_number }}</span>
+                        <span class="order-doc-tag {{ 'invoice' if paid else ((o.order_type or 'order')) }}">{{ document_word(o) }}</span>
+                        {% if cancelled %}<span class="order-state-tag cancelled">Cancelled</span>
+                        {% elif not paid %}<span class="order-state-tag unpaid">Awaiting payment</span>
+                        {% endif %}
+                    </div>
+                    <div class="order-row-meta">
+                        <span><i class="fas fa-calendar"></i> {{ format_date(o.created_at) }}</span>
+                        <span><i class="fas fa-box"></i> {{ o.item_count }} item{{ '' if o.item_count == 1 else 's' }}</span>
+                        {% if o.clinic_name %}<span><i class="fas fa-hospital"></i> {{ o.clinic_name }}</span>{% endif %}
+                        {% if o.quote_code %}<span class="order-row-code">C. Code {{ o.quote_code }}</span>{% endif %}
+                    </div>
+                </div>
+                <div class="order-row-end">
+                    <span class="order-row-total">{{ price(o.grand_total) }}</span>
+                    <span class="order-row-open">View <i class="fas fa-chevron-right"></i></span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+
+        <div class="orders-empty" id="ordersNoMatch" style="display:none;">
+            <i class="fas fa-magnifying-glass"></i>
+            <p>Nothing matches that search.</p>
+        </div>
+
+        {% else %}
+        <div class="orders-empty reveal">
+            <i class="fas fa-receipt"></i>
+            <h3>No {{ "quotes" if is_staff_view else "orders" }} yet</h3>
+            <p>
+                {% if is_staff_view %}
+                Quotes you raise from the cart will be listed here.
+                {% else %}
+                Once you check out, your orders will appear here with their documents ready to download.
+                {% endif %}
+            </p>
+            <a class="btn-primary" href="{{ url_for('catalog.products_catalog') }}">
+                <i class="fas fa-th-large"></i> Browse products
+            </a>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let ebOrderFilter = 'all';
+
+    function ebSetOrderFilter(btn) {
+        ebOrderFilter = btn.dataset.filter;
+        document.querySelectorAll('#ordersChips .orders-chip').forEach(chip => {
+            chip.classList.toggle('active', chip === btn);
+        });
+        ebFilterOrders();
+    }
+
+    // One pass over the rows for both controls - a chip and a search term narrow the
+    // same list rather than fighting over it.
+    function ebFilterOrders() {
+        const query = (document.getElementById('ordersSearch')?.value || '').trim().toLowerCase();
+        let visible = 0;
+
+        document.querySelectorAll('#ordersList .order-row').forEach(row => {
+            const matchesFilter = ebOrderFilter === 'all' || row.dataset.state === ebOrderFilter;
+            const matchesQuery = !query || (row.dataset.search || '').includes(query);
+            const show = matchesFilter && matchesQuery;
+            row.style.display = show ? '' : 'none';
+            if (show) visible++;
+        });
+
+        const noMatch = document.getElementById('ordersNoMatch');
+        if (noMatch) noMatch.style.display = visible === 0 ? 'block' : 'none';
+    }
+</script>
+{% endblock %}

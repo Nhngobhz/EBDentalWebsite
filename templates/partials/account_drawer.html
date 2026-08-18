@@ -43,6 +43,13 @@
                 <i class="fas fa-spinner fa-spin"></i> Loading…
             </div>
             <div id="accountOrdersList"></div>
+            {# The drawer is the quick glance and shows the 25 most recent; the full page
+               (auth.my_orders) has the search box, the filters and room for the whole
+               item table. #}
+            <a class="account-see-all" href="{{ url_for('auth.my_orders') }}">
+                <i class="fas fa-list"></i> See all {{ "quotes" if is_staff() else "orders" }}
+                <i class="fas fa-chevron-right"></i>
+            </a>
         </div>
 
         {# Order detail — line items + totals + a re-generated PDF. The order is fetched
@@ -76,6 +83,9 @@
             {% endif %}
 
             <nav class="account-links">
+                <a href="{{ url_for('auth.my_orders') }}">
+                    <i class="fas fa-receipt"></i> <span>{{ "All my quotes" if is_staff() else "All my orders" }}</span><i class="fas fa-chevron-right"></i>
+                </a>
                 <a href="{{ url_for('auth.profile') }}">
                     <i class="fas fa-id-card"></i> <span>View full profile</span><i class="fas fa-chevron-right"></i>
                 </a>

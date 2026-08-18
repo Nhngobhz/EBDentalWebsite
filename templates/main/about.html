@@ -7,10 +7,17 @@
     <div class="eb-about-page">
         <div class="container">
 
+            {# Copy on this page comes from Settings → About Page, except the headline
+               below (its <span> highlight makes it markup rather than text). The badge
+               reuses the Store group's tagline instead of restating it - the two used
+               to say the same thing in two places, and only one of them was editable. #}
+            {% set s = site_settings() %}
             <section class="about-hero reveal">
-                <div class="hero-badge"><i class="fas fa-tooth"></i> Partner in Dentistry since 1985</div>
+                {% if s.store_tagline %}
+                <div class="hero-badge"><i class="fas fa-tooth"></i> {{ s.store_tagline }}</div>
+                {% endif %}
                 <h1>Four decades of <span>dental excellence</span> in Cambodia</h1>
-                <p>EB Dental Supply equips clinics, laboratories and dental professionals across the country with instruments, equipment and consumables from the world's leading manufacturers.</p>
+                <p>{{ s.about_intro }}</p>
                 <div class="about-hero-actions">
                     <a class="about-btn primary" href="{{ url_for('catalog.products_catalog') }}">
                         <i class="fas fa-boxes-stacked"></i> Browse Our Products
@@ -21,30 +28,35 @@
                 </div>
             </section>
 
+            {# Built from a list so a cleared number drops its tile and the --i stagger
+               index stays contiguous - hardcoding --i on three fixed divs would leave a
+               gap in the animation sequence when one is hidden. #}
+            {% set stats = [
+                ('fa-award', s.stat_years, 'Years of Excellence'),
+                ('fa-certificate', s.stat_brands, 'Trusted Brands'),
+                ('fa-user-doctor', s.stat_clinicians, 'Happy Clinicians'),
+            ]|selectattr('1')|list %}
+            {% if stats %}
             <section class="about-stats reveal-stagger">
-                <div class="about-stat" style="--i: 0;">
-                    <div class="about-stat__icon"><i class="fas fa-award"></i></div>
-                    <div class="number">40+</div>
-                    <div class="label">Years of Excellence</div>
+                {% for icon, number, label in stats %}
+                <div class="about-stat" style="--i: {{ loop.index0 }};">
+                    <div class="about-stat__icon"><i class="fas {{ icon }}"></i></div>
+                    <div class="number">{{ number }}</div>
+                    <div class="label">{{ label }}</div>
                 </div>
-                <div class="about-stat" style="--i: 1;">
-                    <div class="about-stat__icon"><i class="fas fa-certificate"></i></div>
-                    <div class="number">100+</div>
-                    <div class="label">Trusted Brands</div>
-                </div>
-                <div class="about-stat" style="--i: 2;">
-                    <div class="about-stat__icon"><i class="fas fa-user-doctor"></i></div>
-                    <div class="number">5000+</div>
-                    <div class="label">Happy Clinicians</div>
-                </div>
+                {% endfor %}
             </section>
+            {% endif %}
 
             <section class="about-split">
                 <div class="about-card about-story reveal">
                     <div class="section-label"><i class="fas fa-book-open"></i> Our Story</div>
-                    <h2>A name dental professionals have trusted since 1985</h2>
-                    <p>For over 40 years, EB Dental Supply has been a trusted partner for dental professionals across Cambodia and the region. We provide high-quality instruments, equipment, and consumables from the world's leading brands, ensuring that practitioners have access to the best tools for patient care.</p>
-                    <p>From our home at Orussey Market in Phnom Penh, we support everything from a single hand instrument to a full clinic fit-out — backed by a team that knows the products it sells and stands behind them long after delivery.</p>
+                    <h2>{{ s.about_story_heading }}</h2>
+                    {# One <p> per non-blank line of the setting, so the shop can write
+                       as many paragraphs as it wants without touching this file. #}
+                    {% for para in s.about_story.split('\n') %}
+                    {% if para.strip() %}<p>{{ para.strip() }}</p>{% endif %}
+                    {% endfor %}
                 </div>
 
                 {# The four teams a visitor can actually reach - same split as the

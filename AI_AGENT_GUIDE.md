@@ -121,7 +121,15 @@ follows.
   **Download PDF** button re-runs `QuoteCart.buildPrintTemplate` + `exportPDF`
   on that payload - the same two calls the admin Orders page's Print button
   makes. Nothing is resubmitted and no PDF is stored: the document is rebuilt in
-  the browser every time, so a re-download always matches what's on record. Don't confuse it with the cart "drawer",
+  the browser every time, so a re-download always matches what's on record.
+  The drawer is the quick glance; **the full page is `/my-orders`**
+  (`auth.my_orders` → `templates/auth/orders.html`, added 2026-08-17), which
+  server-renders the same list with a search box, filter chips and real URLs,
+  and `/my-orders/<id>` renders one order in full. That page fetches nothing:
+  it IS the list, so a spinner would buy nothing - only its item table is built
+  in the browser, by the same `printedItemAmount()`/`deriveOldUnitPrice()`
+  helpers, so it can never disagree with the PDF the same page downloads.
+  Don't confuse the drawer with the cart "drawer",
   which is really a centered modal - this one actually slides from the edge and
   animates on `transform`, so its hidden state must stay laid out
   (`visibility`, not `display:none`).
@@ -299,11 +307,16 @@ anything quote-related.
 - **Receipt vs. Quotation is `payment_status === 'paid'`, nothing else
   (changed 2026-08-08)**. It used to also require `payment_method === 'khqr'`,
   which meant a quote staff had taken cash for could never print as a
-  receipt. The single-field rule lives in four places that must agree:
-  `QuoteCart.buildPrintTemplate()`, `AccountDrawer.renderOrderDetail()` /
-  `downloadOrderPDF()`, `printOrder()` in `admin/orders.html`, and
-  store-api's `services/invoice_pdf.py`. `payment_method` now only picks
-  the wording of the paid note ("Paid via KHQR" vs "Paid in full").
+  paid document. That document is titled **Invoice** (it said "Receipt"
+  until 2026-08-17 - the `receipt_note_*` setting keys kept their old names),
+  and paid rows are badged `Invoice` in the admin list, on `/my-orders` and in
+  the account drawer for the same reason. The single-field rule lives in five
+  places that must agree: `QuoteCart.buildPrintTemplate()`,
+  `AccountDrawer.renderOrders()` / `renderOrderDetail()` / `downloadOrderPDF()`,
+  `documentWord()` + `printOrder()` in `admin/orders.html`, the
+  `doc_word`/`document_word()` in `auth/order_detail.html` +`auth/orders.html`,
+  and store-api's `invoice_pdf.document_title()`. `payment_method` now only
+  picks the wording of the paid note ("Paid via KHQR" vs "Paid in full").
 - **The admin Orders page is where staff run an order (reworked
   2026-08-08)**, `templates/admin/orders.html` + `blueprints/admin/orders.py`.
   Type tabs/badges separate quotes from orders, and each row's modal offers:

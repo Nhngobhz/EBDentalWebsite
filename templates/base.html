@@ -4,7 +4,12 @@
     <script>document.documentElement.classList.add('has-js');</script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{% block title %}EB Dental Supply{% endblock %} — Partner in Dentistry Since 1985</title>
+    {# Both halves come from Settings → Store & Contact. The tagline used to be
+       hardcoded here while also being editable in the footer, so changing it updated
+       the page and not the browser tab. site_settings() is called twice rather than
+       {% set %} because a child template's {% block title %} override can't see a
+       variable set in this template's scope. #}
+    <title>{% block title %}{{ site_settings().store_name }}{% endblock %}{% if site_settings().store_tagline %} — {{ site_settings().store_tagline }}{% endif %}</title>
 
     {# Browser-tab icon. Same mark as the header/footer logo; url_for('static')
        fingerprints it with ?v=<mtime>, so replacing the file updates the tab. #}

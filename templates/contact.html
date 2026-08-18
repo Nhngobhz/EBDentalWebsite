@@ -41,61 +41,42 @@
             </div>
 
             {#
-              Department QR codes. Drop the real images into
-              static/images/qr/ using exactly these filenames and they appear
-              automatically - until then each card shows a "QR coming soon" box:
-                technician-support.png  machine-sale.png
-                material-sale.png       slock-implant.png
+              Department QR codes, one card per row of Admin → Settings → Department QR
+              Codes (store-api's qr_codes table, fetched in blueprints/main.py::contact).
+              There is no fixed four any more: add, reorder or delete cards on that tab
+              and this grid follows. Deleting every card hides the whole section, the
+              same way an empty phone number or Facebook URL hides its row above.
+
+              A card with no picture uploaded yet still renders, showing the "QR coming
+              soon" box; so does one whose image fails to load, since the <img> sits
+              over that box and is removed on error (see the handler further down).
             #}
+            {% if qr_codes %}
             <div class="qr-section">
                 <div class="section-label"><i class="fas fa-qrcode"></i> Scan to Connect</div>
                 <h2><i class="fas fa-qrcode"></i> Department QR Codes</h2>
                 <div class="qr-grid-4">
-                    <div class="qr-card" data-qr-title="Technician Support">
+                    {% for card in qr_codes %}
+                    <div class="qr-card" data-qr-title="{{ card.title }}">
                         <div class="qr-placeholder">
-                            <img src="{{ url_for('static', filename='images/qr/technician-support.png') }}" alt="Technician Support QR code" />
+                            {% if card.qr_image %}
+                            <img src="{{ img(card.qr_image) }}" alt="{{ card.title }} QR code" />
+                            {% endif %}
                             <span class="qr-soon"><i class="fas fa-qrcode"></i> QR coming soon</span>
                         </div>
-                        <div class="qr-label">Technician Support</div>
-                        <div class="qr-sub">Technical Support Team</div>
-                        <span class="qr-badge"><i class="fas fa-wrench"></i> Support</span>
+                        <div class="qr-label">{{ card.title }}</div>
+                        {% if card.subtitle %}<div class="qr-sub">{{ card.subtitle }}</div>{% endif %}
+                        {% if card.badge_label %}
+                        <span class="qr-badge {{ card.badge_variant or '' }}"><i class="fas {{ card.badge_icon or 'fa-qrcode' }}"></i> {{ card.badge_label }}</span>
+                        {% endif %}
+                        {% if card.qr_image %}
                         <div class="qr-click-hint"><i class="fas fa-up-right-and-down-left-from-center"></i> Click to enlarge</div>
+                        {% endif %}
                     </div>
-
-                    <div class="qr-card" data-qr-title="Machine Sale">
-                        <div class="qr-placeholder">
-                            <img src="{{ url_for('static', filename='images/qr/machine-sale.png') }}" alt="Machine Sale QR code" />
-                            <span class="qr-soon"><i class="fas fa-qrcode"></i> QR coming soon</span>
-                        </div>
-                        <div class="qr-label">Machine Sale</div>
-                        <div class="qr-sub">Sales Department - Machinery</div>
-                        <span class="qr-badge machinery"><i class="fas fa-gear"></i> Machinery</span>
-                        <div class="qr-click-hint"><i class="fas fa-up-right-and-down-left-from-center"></i> Click to enlarge</div>
-                    </div>
-
-                    <div class="qr-card" data-qr-title="Material Sale">
-                        <div class="qr-placeholder">
-                            <img src="{{ url_for('static', filename='images/qr/material-sale.png') }}" alt="Material Sale QR code" />
-                            <span class="qr-soon"><i class="fas fa-qrcode"></i> QR coming soon</span>
-                        </div>
-                        <div class="qr-label">Material Sale</div>
-                        <div class="qr-sub">Sales Department - Materials</div>
-                        <span class="qr-badge materials"><i class="fas fa-flask"></i> Materials</span>
-                        <div class="qr-click-hint"><i class="fas fa-up-right-and-down-left-from-center"></i> Click to enlarge</div>
-                    </div>
-
-                    <div class="qr-card" data-qr-title="Slock Implant">
-                        <div class="qr-placeholder">
-                            <img src="{{ url_for('static', filename='images/qr/slock-implant.png') }}" alt="Slock Implant QR code" />
-                            <span class="qr-soon"><i class="fas fa-qrcode"></i> QR coming soon</span>
-                        </div>
-                        <div class="qr-label">Slock Implant</div>
-                        <div class="qr-sub">Implant Department</div>
-                        <span class="qr-badge implants"><i class="fas fa-tooth"></i> Implants</span>
-                        <div class="qr-click-hint"><i class="fas fa-up-right-and-down-left-from-center"></i> Click to enlarge</div>
-                    </div>
+                    {% endfor %}
                 </div>
             </div>
+            {% endif %}
 
             {# One card per configured page. The list is built first so the whole
                section can be skipped when none of the three URLs is set. #}

@@ -1,3 +1,4 @@
+import site_settings
 from flask import Blueprint, jsonify, request
 
 from auth import can_quote, is_customer, is_logged_in
@@ -12,10 +13,18 @@ quote_bp = Blueprint("quote", __name__, url_prefix="/quote")
 # these are the terms being offered *to* them, so the cart drawer shows them as
 # read-only text (partials/quote_drawer.html) and submit() below substitutes them
 # rather than trusting the request, which is what stops a hand-crafted POST from
-# printing its own payment terms on an EB quotation. Registered as Jinja globals in
-# app.py so the drawer and this module can't drift apart.
-CUSTOMER_PAYMENT_TERM = "COD"
-CUSTOMER_INSTALL_TERM = "Free within Phnom Penh"
+# printing its own payment terms on an EB quotation.
+#
+# Both now come from the admin Settings screen (Settings → Quote & Invoice), which is
+# also where store-api's own PDF builder reads its fallbacks from - so the terms the
+# cart shows, the terms recorded on the order and the terms printed on the document are
+# one value, not three literals in two repos.
+def customer_payment_term():
+    return site_settings.get().get("default_payment_term") or "COD"
+
+
+def customer_install_term():
+    return site_settings.get().get("default_install_term") or "Free within Phnom Penh"
 
 
 @quote_bp.route("/submit", methods=["POST"])
@@ -53,8 +62,8 @@ def submit():
     # keep typing their own. Contact person stays client-supplied either way - that
     # one genuinely is the buyer's own detail.
     if is_customer():
-        payment_term = CUSTOMER_PAYMENT_TERM
-        install_term = CUSTOMER_INSTALL_TERM
+        payment_term = customer_payment_term()
+        install_term = customer_install_term()
     else:
         payment_term = body.get("payment_term") or None
         install_term = body.get("install_term") or None

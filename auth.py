@@ -47,6 +47,19 @@ def has_permission(name):
     return bool(current_account().get("permissions", {}).get(name))
 
 
+def has_any_permission(*names):
+    """True when the staff member holds AT LEAST ONE of `names`.
+
+    The Orders area is the case this exists for: sales staff reach it through
+    `price_listing`, the owner through `admin` (which is "runs this store", not a job,
+    so it is deliberately not implied by the other four). Same UX-only status as
+    has_permission - store-api re-checks with require_any_permission on every call."""
+    if not is_staff():
+        return False
+    permissions = current_account().get("permissions", {})
+    return any(bool(permissions.get(name)) for name in names)
+
+
 def can_view_prices():
     """Mirrors store-api's own get_price_visibility (app/core/deps.py): any active
     staff member regardless of which permissions they hold, or a customer with
@@ -123,6 +136,25 @@ def permission_required(*names):
     return decorator
 
 
+def any_permission_required(*names):
+    """Like permission_required, but ANY one of `names` is enough - the OR to its AND.
+
+    Used by the Orders screen, which both `price_listing` (sales staff) and `admin`
+    (the owner) must be able to open. Mirrors store-api's require_any_permission, which
+    is the actual authority; this only decides whether the page renders."""
+
+    def decorator(view):
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            if not has_any_permission(*names):
+                abort(403)
+            return view(*args, **kwargs)
+
+        return wrapped
+
+    return decorator
+
+
 def register_auth_context(app):
     """Same pattern as this app's existing inject_brands/inject_promotions context
     processors - makes these helpers available in every template automatically."""
@@ -135,6 +167,7 @@ def register_auth_context(app):
             "is_staff": is_staff,
             "is_customer": is_customer,
             "has_permission": has_permission,
+            "has_any_permission": has_any_permission,
             "can_view_prices": can_view_prices,
             "can_quote": can_quote,
         }

@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{# One order, as its own page (auth.my_order_detail).
+
+   The line items and totals are rendered in the browser, not here, and deliberately so:
+   printedItemAmount()/deriveOldUnitPrice()/printedCashDiscountTotal() in main.js are the
+   single implementation of the printed-document rules ($ discounts roll into the
+   Discount row and the line shows its pre-discount price, % discounts print inline), and
+   this page has to agree with the PDF the same button downloads. Restating that
+   arithmetic in Jinja would be a fourth copy - see the eb-quote-parity skill. #}
+{% set paid = order.payment_status == 'paid' %}
+{% set cancelled = order.status == 'cancelled' %}
+{% set doc_word = 'Invoice' if paid else ('Quote' if (order.order_type or 'order') == 'quote' else 'Order') %}
+
+{% block title %}{{ doc_word }} {{ order.order_number }}{% endblock %}
+
+{% block content %}
+<div class="eb-orders-page">
+    <div class="container">
+
+        <a class="orders-back" href="{{ url_for('auth.my_orders') }}">
+            <i class="fas fa-arrow-left"></i> Back to {{ "my quotes" if is_staff() else "my orders" }}
+        </a>
+
+        <div class="order-detail-card reveal">
+            <div class="order-detail-head">
+                <div>
+                    <div class="order-detail-tags">
+                        <span class="order-doc-tag {{ 'invoice' if paid else ((order.order_type or 'order')) }}">{{ doc_word }}</span>
+                        {% if cancelled %}<span class="order-state-tag cancelled">Cancelled</span>
+                        {% elif not paid %}<span class="order-state-tag unpaid">Awaiting payment</span>
+                        {% endif %}
+                        <span class="order-state-tag">{{ order.status }}</span>
+                    </div>
+                    <h1>{{ doc_word }} #{{ order.order_number }}</h1>
+                    <p>{{ format_date(order.created_at) }}{% if order.quote_code %} · C. Code {{ order.quote_code }}{% endif %}</p>
+                </div>
+                <div class="order-detail-total">
+                    <span>Grand total</span>
+                    <strong>{{ price(order.grand_total) }}</strong>
+                </div>
+            </div>
+
+            {# Why there is no document to download. A cancelled order that was paid is
+               also money owed back, and saying so in a sentence is the whole reason this
+               page never shows "Paid" and "Cancelled" as two equal badges - the customer
+               needs the explanation, not a contradiction. #}
+            {% if cancelled %}
+            <div class="order-detail-note">
+                <i class="fas fa-circle-info"></i>
+                <span>
+                    This order was cancelled, so there is no invoice for it.
+                    {% if paid %}
+                    A payment had already been recorded against it — please contact us about a refund if you have not already been in touch.
+                    {% endif %}
+                </span>
+            </div>
+            {% endif %}
+
+            <div class="order-detail-grid">
+                <div><span>Clinic</span><strong>{{ order.clinic_name or '—' }}</strong></div>
+                <div><span>Contact</span><strong>{{ order.contact_person or '—' }}</strong></div>
+                <div><span>Phone</span><strong>{{ order.phone or '—' }}</strong></div>
+                <div><span>Address</span><strong>{{ order.address or '—' }}</strong></div>
+                <div>
+                    <span>Payment</span>
+                    <strong>
+                        {%- if cancelled -%}
+                            Cancelled{% if paid %} (was paid{% if order.payment_method == 'khqr' %} by KHQR{% endif %}){% endif %}
+                        {%- elif paid -%}
+                            Paid{% if order.payment_method == 'khqr' %} by KHQR{% endif %}
+                        {%- elif order.payment_method == 'khqr' -%}
+                            KHQR — awaiting payment
+                        {%- elif order.payment_method == 'cash' -%}
+                            Cash
+                        {%- else -%}
+                            —
+                        {%- endif -%}
+                    </strong>
+                </div>
+                <div><span>Payment term</span><strong>{{ order.payment_term or '—' }}</strong></div>
+                <div><span>Installation</span><strong>{{ order.install_term or '—' }}</strong></div>
+                <div><span>Salesperson</span><strong>{{ order.salesperson or '—' }}</strong></div>
+            </div>
+
+            <div class="order-items-wrap">
+                <table class="order-items-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th class="num">Qty</th>
+                            <th class="num">Unit price</th>
+                            <th class="num">Discount</th>
+                            <th class="num">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody id="orderItemsBody"></tbody>
+                </table>
+            </div>
+
+            <div class="order-totals" id="orderTotals"></div>
+
+            <div class="order-detail-actions">
+                {# No document for a cancelled order. The rule is enforced in the builders
+                   themselves too (document_title() in store-api, docTitle in main.js -
+                   both print "Cancelled Order", never "Invoice"), but there is no reason
+                   to offer the download at all: a cancelled sale has no invoice to give. #}
+                {% if not cancelled %}
+                <button type="button" class="btn-primary" id="orderPdfBtn">
+                    <i class="fas fa-file-arrow-down"></i> Download {{ 'Invoice' if paid else 'Quotation' }} PDF
+                </button>
+                {% endif %}
+                <a class="btn-outline" href="{{ url_for('main.contact') }}">
+                    <i class="fas fa-headset"></i> Need help with this {{ doc_word|lower }}?
+                </a>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // The whole order, exactly as store-api returned it (money already coerced to
+    // numbers by adapt_order) - the same payload shape buildPrintTemplate() expects,
+    // so the table below and the downloaded PDF are built from one object.
+    const EB_ORDER = {{ order|tojson }};
+
+    (function renderOrderLines() {
+        const body = document.getElementById('orderItemsBody');
+        // Component lines ($0 bundle contents and freebies) sit under the line they
+        // came with, indented and priced as Free - never as separate purchases.
+        body.innerHTML = EB_ORDER.items.map(item => item.parent_item_id ? `
+            <tr class="component">
+                <td>• ${ebEscapeHtml(item.product_name)}</td>
+                <td class="num">${item.qty}</td>
+                <td class="num">—</td>
+                <td class="num">—</td>
+                <td class="num">Free</td>
+            </tr>` : `
+            <tr>
+                <td>
+                    ${ebEscapeHtml(item.product_name)}
+                    ${item.product_code ? `<span class="order-item-code">${ebEscapeHtml(item.product_code)}</span>` : ''}
+                </td>
+                <td class="num">${item.qty}</td>
+                <td class="num">${formatPrice(deriveOldUnitPrice(item))}</td>
+                <td class="num">${printedItemDiscountText(item) || '—'}</td>
+                <td class="num">${formatPrice(printedItemAmount(item))}</td>
+            </tr>`).join('');
+
+        const undiscountedSubtotal = EB_ORDER.items.reduce(
+            (sum, item) => sum + deriveOldUnitPrice(item) * item.qty, 0
+        );
+        const specialDiscountLabel = EB_ORDER.discount_type === 'cash'
+            ? 'Special Discount (Cash)'
+            : `Special Discount (${Number(EB_ORDER.discount_value || 0)}%)`;
+
+        document.getElementById('orderTotals').innerHTML = `
+            <div class="order-total-row"><span>Sub-Total</span><span>${formatPrice(undiscountedSubtotal)}</span></div>
+            <div class="order-total-row"><span>Discount</span><span>${formatPrice(printedCashDiscountTotal(EB_ORDER.items))}</span></div>
+            <div class="order-total-row"><span>${specialDiscountLabel}</span><span>${formatPrice(Number(EB_ORDER.discount_amount || 0))}</span></div>
+            <div class="order-total-row grand"><span>Grand Total</span><span>${formatPrice(Number(EB_ORDER.grand_total || 0))}</span></div>`;
+    })();
+
+    // Rebuilt in the browser from the order on record, the same two calls the admin
+    // Orders page and the account drawer make. Nothing is resubmitted and no PDF is
+    // stored anywhere.
+    // Absent on a cancelled order - see the guard around the button above.
+    document.getElementById('orderPdfBtn')?.addEventListener('click', async function () {
+        const original = this.innerHTML;
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating…';
+        try {
+            QuoteCart.buildPrintTemplate(EB_ORDER);
+            await QuoteCart.exportPDF(
+                EB_ORDER.quote_code, EB_ORDER.payment_status === 'paid' ? 'Invoice' : 'Quotation'
+            );
+        } catch (err) {
+            await ebAlert('Sorry, the PDF could not be generated. Please try again.', { tone: 'error' });
+        } finally {
+            this.disabled = false;
+            this.innerHTML = original;
+        }
+    });
+</script>
+{% endblock %}

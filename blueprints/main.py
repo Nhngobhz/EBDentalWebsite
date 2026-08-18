@@ -1,6 +1,7 @@
 import os
 import re
 
+import site_cache
 from flask import Blueprint, current_app, render_template, url_for
 
 from formatting import resolve_image_url
@@ -8,6 +9,11 @@ from special_products import SPECIAL_PRODUCTS
 from store_api import StoreAPIError, get_api_client
 
 main_bp = Blueprint("main", __name__)
+
+# site_cache entry the contact page's QR cards live in. Shared with
+# blueprints/admin/qr_codes.py, which clears it after every save so an admin doesn't
+# stare at an unchanged contact page for up to a TTL wondering what went wrong.
+QR_CODES_CACHE_KEY = ("qr_codes", "all")
 
 # Logo files the About page's brand marquee falls back to for brands the
 # catalogue doesn't know (or knows without an image). Drop a new file in
@@ -174,7 +180,19 @@ def about():
 
 @main_bp.route("/contact")
 def contact():
-    return render_template("contact.html")
+    # The department QR cards (Admin → Settings → Department QR Codes). Public and
+    # identical for every visitor, so one copy is shared across requests for
+    # site_cache.TTL seconds; the
+    # admin screen clears this key on save so an edit shows up immediately. An
+    # unreachable store-api hides the section rather than failing the page - the same
+    # thing an empty list already means.
+    try:
+        qr_codes = site_cache.cached(
+            QR_CODES_CACHE_KEY, lambda: get_api_client().get("/qr-codes/", params={"limit": 200})
+        )
+    except StoreAPIError:
+        qr_codes = []
+    return render_template("contact.html", qr_codes=qr_codes)
 
 
 @main_bp.route("/donut")

@@ -1332,3 +1332,32 @@ a.sidebar-brand:hover {
         gap: 6px;
     }
 }
+
+/* QR Codes screen: a pill showing how a card's badge will look on the contact
+   page. The storefront's own .qr-badge rules are scoped under .eb-contact-page,
+   which this table isn't inside - so the four colours are restated here rather
+   than widening those selectors and letting admin styling leak into the site. */
+.qr-badge-preview {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(6, 182, 212, 0.08);
+    color: var(--accent);
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 99px;
+    white-space: nowrap;
+}
+.qr-badge-preview.machinery {
+    background: rgba(24, 119, 242, 0.08);
+    color: #1877f2;
+}
+.qr-badge-preview.materials {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+}
+.qr-badge-preview.implants {
+    background: rgba(139, 92, 246, 0.1);
+    color: #8b5cf6;
+}

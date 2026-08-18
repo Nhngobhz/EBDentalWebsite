@@ -65,6 +65,14 @@
         <i class="fas {{ group.icon }}"></i> {{ group.label }}
     </button>
     {% endfor %}
+    {# Two tabs that aren't spec groups: the QR cards (a real table - see the panel) and
+       the read-only integrations panel. Both are declared here by hand precisely because
+       neither is a key/value setting; everything that IS one still comes from the spec
+       loop above. #}
+    <button type="button" class="btn-dash sm {{ 'primary' if active_group == 'qr' }}"
+            data-settings-tab="qr" onclick="showSettingsGroup('qr')">
+        <i class="fas fa-qrcode"></i> Department QR Codes
+    </button>
     <button type="button" class="btn-dash sm {{ 'primary' if active_group == 'integrations' }}"
             data-settings-tab="integrations" onclick="showSettingsGroup('integrations')">
         <i class="fas fa-plug"></i> Integrations
@@ -103,6 +111,17 @@
 </div>
 {% endfor %}
 
+<div class="settings-panel" data-settings-panel="qr" {{ 'hidden' if active_group != 'qr' }}>
+    <p class="settings-blurb" style="margin-bottom:14px;">
+        The cards under “Scan to Connect” on the
+        <a href="{{ url_for('main.contact') }}" target="_blank" rel="noopener">contact page</a>.
+        Add as many departments as you need — they appear in the order below. Unlike the
+        other tabs these are records, so each one saves on its own; there is nothing to
+        “Save changes” or reset here.
+    </p>
+    {% include "admin/_qr_codes_panel.html" %}
+</div>
+
 <div class="settings-panel" data-settings-panel="integrations" {{ 'hidden' if active_group != 'integrations' }}>
     <div class="dash-card">
         <div class="card-header">
@@ -121,15 +140,16 @@
                                status.environment ~ (' (debug on)' if status.debug else ''),
                                'production with debug on') }}
 
+                {# Merchant name and QR expiry aren't shown here any more - they live in
+                   the editable KHQR Payments tab. This panel is for the things that can
+                   only change via the server's environment. #}
                 {{ status_chip('KHQR payments',
                                status.khqr.configured,
-                               (status.khqr.provider or '—')|capitalize ~ ' · ' ~ status.khqr.merchant_name,
+                               (status.khqr.provider or '—')|capitalize,
                                'Disabled — customers must pay cash') }}
 
                 {{ status_chip('Payment auto-confirm', status.khqr.auto_confirm,
                                'Automatic', 'Manual — staff use “Mark as Paid”') }}
-
-                {{ status_chip('QR expiry', true, status.khqr.expiry_minutes ~ ' minutes') }}
 
                 {{ status_chip('Telegram alerts', status.telegram.configured, 'Connected') }}
 

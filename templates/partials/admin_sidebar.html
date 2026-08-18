@@ -66,9 +66,9 @@
         {% endif %}
 
         {# Promotions/Sets are authored by product_management and merely read by
-           price_listing, so both roles need the links; Orders stays price_listing-only,
-           which is what admin.orders itself demands. #}
-        {% if has_permission('price_listing') or has_permission('product_management') %}
+           price_listing, so both roles need the links; Orders answers to price_listing
+           OR admin, which is what admin.orders itself demands. #}
+        {% if has_any_permission('price_listing', 'product_management', 'admin') %}
         <div class="nav-group">
             <div class="group-label" onclick="toggleGroup('group-marketing')">
                 <span>Marketing &amp; Sales</span>
@@ -81,7 +81,7 @@
                 <a class="nav-item {{ 'active' if request.endpoint == 'admin.sets' }}" href="{{ url_for('admin.sets') }}">
                     <i class="fas fa-box-open"></i> Sets <span class="badge-dash">{{ sets|length }}</span>
                 </a>
-                {% if has_permission('price_listing') %}
+                {% if has_any_permission('price_listing', 'admin') %}
                 <a class="nav-item {{ 'active' if request.endpoint == 'admin.orders' }}" href="{{ url_for('admin.orders') }}">
                     <i class="fas fa-shopping-cart"></i> Orders
                 </a>
@@ -110,6 +110,10 @@
                 <i class="fas fa-chevron-right group-icon open"></i>
             </div>
             <div class="group-items open" id="group-system">
+                {# One link, not two: the contact page's QR cards are a tab inside this
+                   screen (Settings → Department QR Codes) rather than a page of their
+                   own - they are part of what the contact page says, which is what the
+                   rest of that screen already covers. #}
                 <a class="nav-item {{ 'active' if request.endpoint == 'admin.settings' }}" href="{{ url_for('admin.settings') }}">
                     <i class="fas fa-cog"></i> Settings
                 </a>

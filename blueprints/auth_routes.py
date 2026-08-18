@@ -1,7 +1,17 @@
 from datetime import date
 from urllib.parse import urlparse
 
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import (
+    Blueprint,
+    abort,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 from auth import account_type, current_account, is_staff, login_required
 from formatting import adapt_order, to_number
 from store_api import StoreAPIError, get_api_client
@@ -280,6 +290,79 @@ def profile_edit():
     return render_template("auth/profile_edit.html", me=me, today=date.today().isoformat())
 
 
+def _order_summary(order):
+    """The fields a list row needs, with money coerced to real numbers.
+
+    Shared by the JSON feed the account drawer polls and the server-rendered orders
+    page, so the two can't describe the same order differently."""
+    return {
+        "id": order["id"],
+        "order_number": order.get("order_number"),
+        "quote_code": order.get("quote_code"),
+        "created_at": order.get("created_at"),
+        "grand_total": to_number(order.get("grand_total")),
+        "status": order.get("status"),
+        "order_type": order.get("order_type"),
+        "payment_method": order.get("payment_method"),
+        "payment_status": order.get("payment_status"),
+        "clinic_name": order.get("clinic_name"),
+        # Component ($0 bundle-content) lines are spelled-out contents of another
+        # line, not things ordered separately - counting them would inflate the
+        # "N items" label on every order containing a promotion/set/freebie.
+        "item_count": sum(1 for i in order.get("items", []) if not i.get("parent_item_id")),
+    }
+
+
+@auth_bp.route("/my-orders", methods=["GET"])
+@login_required
+def my_orders():
+    """The full-page order history - the account drawer's Orders tab given room to
+    breathe: real URLs (so an order can be bookmarked, shared with a colleague and
+    reached with the back button), filter chips and a search box, which a slide-over
+    panel four inches wide has nowhere to put.
+
+    Server-rendered rather than fetched: this page IS the order list, so waiting for
+    JavaScript to ask for it would only add a spinner to a page that has nothing else
+    to show. The drawer keeps its JSON feed - it opens over whatever page you were on
+    and must not reload it.
+
+    Same for staff, whose "orders" are the quotes they raised (/orders/mine is
+    principal-scoped in store-api, so this route never names an account id)."""
+    client = get_api_client()
+    try:
+        raw_orders = client.get("/orders/mine", params={"limit": 100})
+    except StoreAPIError as e:
+        flash(e.detail, "error")
+        raw_orders = []
+
+    return render_template(
+        "auth/orders.html", orders=[_order_summary(o) for o in raw_orders]
+    )
+
+
+@auth_bp.route("/my-orders/<int:order_id>", methods=["GET"])
+@login_required
+def my_order_detail(order_id):
+    """One order in full, as its own page. The line items and totals are rendered in
+    the browser from the embedded payload - by the same printedItemAmount() /
+    deriveOldUnitPrice() helpers the printed document and the admin modal use, so the
+    figures here can't drift from the ones on the PDF (see the eb-quote-parity skill).
+
+    Ownership is store-api's call: /orders/mine/<id> 404s on somebody else's order, and
+    that 404 is passed straight through rather than being turned into a friendlier page
+    that would confirm the order exists."""
+    client = get_api_client()
+    try:
+        order = client.get(f"/orders/mine/{order_id}")
+    except StoreAPIError as e:
+        if e.status_code == 404:
+            abort(404)
+        flash(e.detail, "error")
+        return redirect(url_for("auth.my_orders"))
+
+    return render_template("auth/order_detail.html", order=adapt_order(order))
+
+
 @auth_bp.route("/profile/orders", methods=["GET"])
 @login_required
 def profile_orders():
@@ -298,25 +381,7 @@ def profile_orders():
         # letting `None` blow up Flask's response builder.
         return jsonify({"detail": e.detail}), e.status_code or 503
 
-    return jsonify([
-        {
-            "id": o["id"],
-            "order_number": o.get("order_number"),
-            "quote_code": o.get("quote_code"),
-            "created_at": o.get("created_at"),
-            "grand_total": to_number(o.get("grand_total")),
-            "status": o.get("status"),
-            "order_type": o.get("order_type"),
-            "payment_method": o.get("payment_method"),
-            "payment_status": o.get("payment_status"),
-            "clinic_name": o.get("clinic_name"),
-            # Component ($0 bundle-content) lines are spelled-out contents of another
-            # line, not things ordered separately - counting them would inflate the
-            # "N items" label on every order containing a promotion/set/freebie.
-            "item_count": sum(1 for i in o.get("items", []) if not i.get("parent_item_id")),
-        }
-        for o in raw_orders
-    ])
+    return jsonify([_order_summary(o) for o in raw_orders])
 
 
 @auth_bp.route("/profile/orders/<int:order_id>", methods=["GET"])

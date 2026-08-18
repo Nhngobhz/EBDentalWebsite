@@ -1,0 +1,168 @@
+{#
+  The "Department QR Codes" tab on the Settings screen.
+
+  A real table with an upload rather than key/value settings - the cards are rows in
+  store-api's `qr_codes` table (see app/models.py::QrCode), because a spec of fixed keys
+  can't grow a fifth department. It sits inside Settings rather than on its own sidebar
+  page because this is where an admin looks for "what the contact page says", which is
+  all these are.
+
+  Included once by admin/settings.html, so the ids and functions below stay unique on the
+  page even though they aren't namespaced.
+#}
+<div class="dash-card">
+    <div class="card-header">
+        <h5>All QR Codes ({{ qr_codes|length }})</h5>
+        <div class="card-actions">
+            <button type="button" class="btn-dash primary" onclick="openQrModal()"><i class="fas fa-plus"></i> Add QR Code</button>
+        </div>
+    </div>
+    <div class="card-body" style="padding:0;">
+        {% if qr_codes|length == 0 %}
+        <div class="empty-state"><i class="fas fa-qrcode"></i> No QR codes yet. Add one and it shows up on the contact page.</div>
+        {% else %}
+        <table>
+            <thead>
+                <tr><th>Order</th><th>QR</th><th>Title</th><th>Subtitle</th><th>Badge</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                {% for c in qr_codes %}
+                <tr>
+                    <td>{{ c.sort_order }}</td>
+                    <td>
+                        {% if c.qr_image %}
+                        <img src="{{ img(c.qr_image) }}" loading="lazy"
+                             style="width:44px;height:44px;border-radius:8px;object-fit:contain;background:var(--bg);border:1px solid var(--border);" />
+                        {% else %}
+                        <span style="font-size:0.7rem;color:var(--text-light);">No image</span>
+                        {% endif %}
+                    </td>
+                    <td><strong>{{ c.title }}</strong></td>
+                    <td>{{ c.subtitle or '—' }}</td>
+                    <td>
+                        {% if c.badge_label %}
+                        <span class="qr-badge-preview {{ c.badge_variant or '' }}">
+                            <i class="fas {{ c.badge_icon or 'fa-qrcode' }}"></i> {{ c.badge_label }}
+                        </span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td style="white-space:nowrap;">
+                        <button type="button" data-row-edit class="btn-dash primary sm" onclick="openQrModal({{ c.id }})" title="Edit"><i class="fas fa-edit"></i></button>
+                        <form method="post" action="{{ url_for('admin.qr_codes_delete', qr_id=c.id) }}" style="display:inline;" data-confirm="Delete this QR card? It disappears from the contact page straight away.">
+                            <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add/Edit QR Modal -->
+<div class="dash-modal-overlay" id="qrModalOverlay">
+    <div class="dash-modal-box">
+        <button type="button" class="dash-modal-close" onclick="closeQrModal()"><i class="fas fa-times"></i></button>
+        <h3 class="dash-modal-title" id="qrModalTitle">Add QR Code</h3>
+        <form id="qrForm" method="post" enctype="multipart/form-data">
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Title *</label>
+                <input type="text" name="title" id="qrTitle" required maxlength="150" placeholder="e.g. Technician Support" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Subtitle</label>
+                <input type="text" name="subtitle" id="qrSubtitle" maxlength="200" placeholder="e.g. Technical Support Team" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">QR image</label>
+                <input type="file" name="file" id="qrImageFile" accept="image/png,image/jpeg,image/webp,image/gif" data-preview="qrImagePreview" style="width:100%;font-size:0.8rem;">
+                <div style="font-size:0.68rem;color:var(--text-light);margin-top:4px;">PNG of the QR code. Leave empty when editing to keep the current one.</div>
+                <img id="qrImagePreview" src="" alt="" style="display:none; margin-top:8px; width:90px; height:90px; border-radius:8px; object-fit:contain; background:var(--bg); border:1px solid var(--border);">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Badge text</label>
+                <input type="text" name="badge_label" id="qrBadgeLabel" maxlength="60" placeholder="e.g. Support — leave empty for no badge" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                <div class="form-group">
+                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Badge colour</label>
+                    <select name="badge_variant" id="qrBadgeVariant" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                        <option value="">Default (cyan)</option>
+                        <option value="machinery">Machinery (blue)</option>
+                        <option value="materials">Materials (green)</option>
+                        <option value="implants">Implants (purple)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Badge icon</label>
+                    <select name="badge_icon" id="qrBadgeIcon" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                        <option value="fa-qrcode">QR code</option>
+                        <option value="fa-wrench">Wrench (support)</option>
+                        <option value="fa-gear">Gear (machinery)</option>
+                        <option value="fa-flask">Flask (materials)</option>
+                        <option value="fa-tooth">Tooth (implants)</option>
+                        <option value="fa-headset">Headset</option>
+                        <option value="fa-truck">Truck (delivery)</option>
+                        <option value="fa-user-tie">Person (sales)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Display order</label>
+                <input type="number" name="sort_order" id="qrSortOrder" min="0" step="1" value="0" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                <div style="font-size:0.68rem;color:var(--text-light);margin-top:4px;">Low numbers come first. Cards sharing a number fall back to the order they were created in.</div>
+            </div>
+            <button type="submit" class="btn-dash primary" style="width:100%;padding:10px;font-size:0.9rem;justify-content:center;margin-top:16px;" id="qrModalSubmitBtn">
+                <i class="fas fa-save"></i> Create QR Code
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    {% set qr_json = [] %}
+    {% for c in qr_codes %}
+    {% set _ = qr_json.append(dict(c, image=img(c.qr_image) if c.qr_image else None)) %}
+    {% endfor %}
+    const QR_DATA = {{ qr_json|tojson }};
+    const QR_NEW_URL = {{ url_for('admin.qr_codes_new')|tojson }};
+    // One past the highest position in use, so a new card lands at the end of the row
+    // instead of silently sharing position 0 with whatever is already there.
+    const QR_NEXT_ORDER = QR_DATA.reduce((max, c) => Math.max(max, c.sort_order || 0), 0) + 1;
+
+    function openQrModal(qrId) {
+        const card = qrId ? QR_DATA.find(c => c.id === qrId) : null;
+        const isEdit = !!card;
+
+        document.getElementById('qrModalTitle').textContent = isEdit ? 'Edit QR Code' : 'Add QR Code';
+        document.getElementById('qrModalSubmitBtn').innerHTML =
+            '<i class="fas fa-save"></i> ' + (isEdit ? 'Update QR Code' : 'Create QR Code');
+
+        document.getElementById('qrForm').action = isEdit
+            ? QR_NEW_URL.replace(/\/new$/, '/' + qrId + '/edit')
+            : QR_NEW_URL;
+
+        document.getElementById('qrTitle').value = isEdit ? card.title : '';
+        document.getElementById('qrSubtitle').value = isEdit ? (card.subtitle || '') : '';
+        document.getElementById('qrBadgeLabel').value = isEdit ? (card.badge_label || '') : '';
+        document.getElementById('qrBadgeVariant').value = isEdit ? (card.badge_variant || '') : '';
+        document.getElementById('qrBadgeIcon').value = isEdit ? (card.badge_icon || 'fa-qrcode') : 'fa-qrcode';
+        document.getElementById('qrSortOrder').value = isEdit ? (card.sort_order || 0) : QR_NEXT_ORDER;
+
+        document.getElementById('qrImageFile').value = '';
+        // Seeds the saved picture; picking a file swaps in a preview of it
+        // (data-preview on the input above, handled in main.js).
+        ebSetImagePreview('qrImagePreview', isEdit ? card.image : null);
+
+        document.getElementById('qrModalOverlay').classList.add('active');
+    }
+
+    function closeQrModal() {
+        document.getElementById('qrModalOverlay').classList.remove('active');
+    }
+
+    document.getElementById('qrModalOverlay')?.addEventListener('click', function(e) {
+        if (e.target === this) closeQrModal();
+    });
+</script>

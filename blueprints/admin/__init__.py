@@ -52,6 +52,7 @@ from blueprints.admin import (  # noqa: E402
     orders,
     products,
     promotions,
+    qr_codes,
     sets,
     settings,
     users,

@@ -67,12 +67,16 @@
     <div class="card-header">
         <h5 id="ordersCountLabel">All Orders ({{ orders|length }})</h5>
         <div class="card-actions" style="display:flex; align-items:center; gap:10px;">
-            <!-- Quote/Order separation: client-side row filter, combined with the search
-                 box and the status/date filters below in filterOrdersTable(). -->
+            <!-- Client-side row filter, combined with the search box and the status/date
+                 filters below in filterOrdersTable(). The three are mutually exclusive
+                 and follow the badges: a paid row is an Invoice and shows under
+                 Invoices, so "Quotes" means quotes still waiting to be settled - which
+                 is the list staff actually chase. -->
             <div id="orderTypeTabs" style="display:flex; gap:4px;">
                 <button type="button" class="btn-dash sm primary" data-type-filter="all" onclick="setOrderTypeFilter('all')">All</button>
-                <button type="button" class="btn-dash sm" data-type-filter="order" onclick="setOrderTypeFilter('order')">Orders</button>
                 <button type="button" class="btn-dash sm" data-type-filter="quote" onclick="setOrderTypeFilter('quote')">Quotes</button>
+                <button type="button" class="btn-dash sm" data-type-filter="order" onclick="setOrderTypeFilter('order')">Orders</button>
+                <button type="button" class="btn-dash sm" data-type-filter="invoice" onclick="setOrderTypeFilter('invoice')">Invoices</button>
             </div>
             <div class="search-box-dash">
                 <i class="fas fa-search"></i>
@@ -141,8 +145,16 @@
                 <tr class="row-clickable" onclick="openOrderModal({{ o.id }})"
                     data-order-id="{{ o.id }}" data-search="{{ (o.order_number ~ ' ' ~ o.quote_code ~ ' ' ~ (o.clinic_name or '') ~ ' ' ~ (o.contact_person or ''))|lower }}">
                     <td><strong>{{ o.order_number }}</strong><br><span style="font-size:0.65rem;color:var(--text-light);">{{ o.quote_code }}</span></td>
+                    {# Paid ⇒ Invoice, whatever the row started as: once staff have taken
+                       the money the document IS the invoice for that sale, and it prints
+                       under that title too (buildPrintTemplate / invoice_pdf.py). Mirrored
+                       by documentWord() in the JS below, which titles the two modals.
+                       order_type itself doesn't move - the Quotes/Orders tabs still sort
+                       by how the row was raised. #}
                     <td>
-                        {% if (o.order_type or 'order') == 'quote' %}
+                        {% if o.payment_status == 'paid' %}
+                        <span style="background:#16a34a; color:white; padding:2px 10px; border-radius:99px; font-size:0.65rem; font-weight:600; white-space:nowrap;">🧾 Invoice</span>
+                        {% elif (o.order_type or 'order') == 'quote' %}
                         <span style="background:#f59e0b; color:white; padding:2px 10px; border-radius:99px; font-size:0.65rem; font-weight:600; white-space:nowrap;">📄 Quote</span>
                         {% else %}
                         <span style="background:#2563eb; color:white; padding:2px 10px; border-radius:99px; font-size:0.65rem; font-weight:600; white-space:nowrap;">🛒 Order</span>
@@ -436,6 +448,14 @@
     // and the delete (409). Mirrored here so the buttons that would 409 aren't offered.
     const isPaid = order => order.payment_status === 'paid';
 
+    // What to call the row on screen. Paid ⇒ Invoice, whatever it started life as: a
+    // quote staff took money for is the invoice for that sale, and the printed document
+    // says the same word (buildPrintTemplate in main.js, and store-api's invoice_pdf.py
+    // for the Telegram copy). Unpaid rows keep their type - Quote for a staff quote or a
+    // cash order, Order for a customer KHQR purchase still awaiting payment.
+    // The Quotes/Orders tabs above still filter on order_type, which doesn't move.
+    const documentWord = order => isPaid(order) ? 'Invoice' : (order.order_type === 'quote' ? 'Quote' : 'Order');
+
     // Quote/Order tabs - combined with the text search in filterOrdersTable().
     function setOrderTypeFilter(type) {
         currentTypeFilter = type;
@@ -476,7 +496,7 @@
         currentOrderId = orderId;
 
         document.getElementById('orderModalTitle').textContent =
-            (order.order_type === 'quote' ? 'Quote ' : 'Order ') + order.order_number;
+            documentWord(order) + ' ' + order.order_number;
         document.getElementById('orderQuoteCode').textContent = order.quote_code;
         document.getElementById('orderPayment').textContent = describePayment(order);
 
@@ -547,6 +567,7 @@
     // payment state. Only the two genuinely payment-specific actions still come and go.
     function applyOrderLock(order) {
         const paid = isPaid(order);
+        const cancelled = order.status === 'cancelled';
         // A completed sale's status is final - store-api 409s any change to it once
         // payment is on record, so the control comes off the modal entirely and the
         // note explains why. Everything else about the row stays as it was.
@@ -554,12 +575,23 @@
         document.getElementById('orderStatusForm').style.display = paid ? 'none' : 'flex';
         document.getElementById('orderEditBtn').style.display = '';
         // A QR is only worth showing while there's still something to collect.
-        document.getElementById('orderQrBtn').style.display = paid ? 'none' : '';
+        document.getElementById('orderQrBtn').style.display = (paid || cancelled) ? 'none' : '';
 
-        // "Complete" records the payment, so it disappears once there is one.
+        // "Complete" records the payment, so it disappears once there is one - and off a
+        // cancelled row entirely, since store-api refuses to record a payment against
+        // one (409: reopen it first). Offering a button that can only error is worse
+        // than not offering it.
         const markPaidForm = document.getElementById('orderMarkPaidForm');
-        markPaidForm.style.display = paid ? 'none' : '';
+        markPaidForm.style.display = (paid || cancelled) ? 'none' : '';
         markPaidForm.action = orderUrl(ORDER_MARK_PAID_URL_TEMPLATE, order.id);
+
+        // Print stays available on a cancelled order - staff still need the record - but
+        // what comes out is headed "Cancelled Order", never an invoice (docTitle in
+        // main.js). The button says so, so nobody prints one expecting an invoice.
+        const printBtn = document.getElementById('orderPrintBtn');
+        printBtn.innerHTML = cancelled
+            ? '<i class="fas fa-print"></i> Print (cancelled)'
+            : '<i class="fas fa-print"></i> Print';
     }
 
     function closeOrderModal() {
@@ -579,10 +611,10 @@
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
         try {
             QuoteCart.buildPrintTemplate(order);
-            // Any row with a payment on record reprints as a Receipt - a confirmed
+            // Any row with a payment on record reprints as an Invoice - a confirmed
             // KHQR payment, or a quote staff marked paid after taking cash.
             // buildPrintTemplate() picks the printed title from the same one field.
-            await QuoteCart.exportPDF(order.quote_code, isPaid(order) ? 'Receipt' : 'Quotation');
+            await QuoteCart.exportPDF(order.quote_code, isPaid(order) ? 'Invoice' : 'Quotation');
         } finally {
             btn.disabled = false;
             btn.innerHTML = originalHtml;
@@ -613,7 +645,7 @@
         closeOrderModal();
 
         document.getElementById('orderEditTitle').textContent =
-            'Edit ' + (order.order_type === 'quote' ? 'Quote ' : 'Order ') + order.order_number;
+            'Edit ' + documentWord(order) + ' ' + order.order_number;
         document.getElementById('editClinicName').value = order.clinic_name || '';
         document.getElementById('editContactPerson').value = order.contact_person || '';
         document.getElementById('editPhone').value = order.phone || '';
@@ -939,7 +971,13 @@
 
     function orderMatchesFilters(order, row, f) {
         if (f.query && !(row.dataset.search || '').includes(f.query)) return false;
-        if (f.type !== 'all' && (order.order_type || 'order') !== f.type) return false;
+        // The tabs follow documentWord(), not order_type alone: once a quote is paid it
+        // is badged Invoice, so it belongs under Invoices and not still under Quotes.
+        if (f.type === 'invoice') {
+            if (!isPaid(order)) return false;
+        } else if (f.type !== 'all') {
+            if (isPaid(order) || (order.order_type || 'order') !== f.type) return false;
+        }
         if (f.status !== 'all' && order.status !== f.status) return false;
         // created_at is an ISO 8601 string, so its leading YYYY-MM-DD compares correctly
         // against the date inputs (also YYYY-MM-DD) with a plain string comparison.

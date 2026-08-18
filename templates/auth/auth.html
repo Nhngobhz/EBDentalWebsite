@@ -127,6 +127,9 @@
     const LOGIN_URL = {{ url_for('auth.login')|tojson }};
     const REGISTER_URL = {{ url_for('auth.register')|tojson }};
     const TITLES = { login: 'Sign In', register: 'Register' };
+    {# Parenthesised in full: without the outer brackets `| tojson` would bind to the
+       else-branch alone and the tagline would be injected unescaped. #}
+    const TITLE_SUFFIX = {{ ((' — ' ~ site_settings().store_tagline) if site_settings().store_tagline else '') | tojson }};
 
     const main = document.getElementById('authMain');
     const waitingScreen = document.getElementById('registerWaitingScreen');
@@ -148,7 +151,9 @@
         document.querySelectorAll('[data-auth-text]').forEach((el) => {
             el.hidden = el.dataset.authText !== mode;
         });
-        document.title = TITLES[mode] + ' — Partner in Dentistry Since 1985';
+        // Same suffix base.html renders server-side, from the same setting - this page
+        // swaps tabs without a reload, so it has to rebuild the title itself.
+        document.title = TITLES[mode] + TITLE_SUFFIX;
         if (push) history.pushState({ authMode: mode }, '', urlFor(mode));
 
         const first = document.querySelector('[data-auth-panel].active input');

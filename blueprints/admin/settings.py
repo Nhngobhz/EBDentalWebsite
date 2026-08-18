@@ -40,12 +40,24 @@ def _checkbox_keys(group):
 def settings():
     client = get_api_client()
     data = client.get("/settings/")
+    # The contact page's QR cards are a table, not settings, but they are edited from the
+    # "Department QR Codes" tab of this screen - so this page loads them too. Fetched
+    # unconditionally rather than only when ?group=qr: the tabs switch client-side, so a
+    # panel that was empty until a reload would be a worse surprise than one small call.
+    # Writes go to the admin.qr_codes_* routes (blueprints/admin/qr_codes.py).
+    try:
+        qr_codes = client.get("/qr-codes/", params={"limit": 200})
+    except StoreAPIError as e:
+        flash(e.detail, "error")
+        qr_codes = []
+
     return render_template(
         "admin/settings.html",
         groups=data["groups"],
         values=data["values"],
         defaults=data["defaults"],
         status=data["status"],
+        qr_codes=qr_codes,
         # Which tab to reopen after a save redirect, so an admin who saves the
         # "Quote & Invoice" group isn't bounced back to "Store & Contact".
         active_group=request.args.get("group") or data["groups"][0]["id"],

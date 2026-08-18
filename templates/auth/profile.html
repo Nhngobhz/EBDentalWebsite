@@ -59,7 +59,11 @@
         </div>
         {% endif %}
 
-        <a href="{{ url_for('auth.profile_edit') }}" class="edit-profile-save-btn" style="display:block; text-align:center; text-decoration:none; margin-top:20px;">
+        <a href="{{ url_for('auth.my_orders') }}" class="edit-profile-save-btn" style="display:block; text-align:center; text-decoration:none; margin-top:20px;">
+            <i class="fas fa-receipt"></i> {{ "My Quotes" if is_staff() else "My Orders" }}
+        </a>
+
+        <a href="{{ url_for('auth.profile_edit') }}" class="edit-profile-save-btn secondary" style="display:block; text-align:center; text-decoration:none; margin-top:10px;">
             <i class="fas fa-pen"></i> Edit Profile
         </a>
 

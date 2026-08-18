@@ -1482,6 +1482,45 @@ table.qpt-table td.qpt-right { text-align: right; }
     flex-direction: column;
     gap: 4px;
 }
+/* "See all orders" at the foot of the drawer's Orders tab - the way out to the
+   full page (auth.my_orders), which has the search and filters this panel can't fit. */
+/* Stands in for the Download PDF button on a cancelled order - see
+   AccountDrawer.renderOrderDetail(). */
+.account-cancelled-note {
+    margin-top: 14px;
+    padding: 11px 14px;
+    border-radius: 10px;
+    background: rgba(220, 38, 38, 0.06);
+    border: 1px solid rgba(220, 38, 38, 0.18);
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: var(--text-soft);
+}
+
+.account-see-all {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 14px;
+    padding: 11px 12px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    text-decoration: none;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-soft);
+    transition: var(--transition);
+}
+.account-see-all:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.account-see-all i:last-child {
+    font-size: 0.65rem;
+    opacity: 0.7;
+}
+
 .account-links a {
     display: flex;
     align-items: center;

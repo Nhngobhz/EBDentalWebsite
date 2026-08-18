@@ -64,11 +64,11 @@
                        its own terms onto the printed quote either. #}
                     <div class="quote-info-static">
                         <span>Payment Term</span>
-                        <strong>{{ CUSTOMER_PAYMENT_TERM }}</strong>
+                        <strong>{{ site_settings().default_payment_term }}</strong>
                     </div>
                     <div class="quote-info-static">
                         <span>Installation Term</span>
-                        <strong>{{ CUSTOMER_INSTALL_TERM }}</strong>
+                        <strong>{{ site_settings().default_install_term }}</strong>
                     </div>
                     {% else %}
                     <label>Payment Term

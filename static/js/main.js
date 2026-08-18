@@ -739,21 +739,33 @@ const QuoteCart = {
     // clinic name is markup, and it would execute in a staff member's session the
     // moment they hit Print on the admin Orders page.
     buildPrintTemplate(order) {
-        // Anything with a payment on record prints as a Receipt - a confirmed KHQR
-        // payment, or a quote staff marked paid after taking the money at the counter.
-        // Everything still awaiting payment stays a Quotation. Deliberately keyed on
-        // payment_status alone, NOT on payment_method/order_type: a paid quote is a
-        // completed sale and the customer is owed a receipt for it. Mirrored by
-        // store-api's fallback PDF (services/invoice_pdf.py).
-        const isReceipt = order.payment_status === 'paid';
-        const docTitle = isReceipt ? 'Receipt' : 'Quotation';
+        // Three outcomes, in this order - the mirror of document_title() in store-api's
+        // services/invoice_pdf.py, which must agree with this line for line:
+        //   1. A CANCELLED order is never an invoice, paid or not. It prints as
+        //      "Cancelled Order": a cancelled sale that had been paid is money owed
+        //      back, and a page headed "Invoice" claims that sale still stands.
+        //   2. Anything with a payment on record is an Invoice - a confirmed KHQR
+        //      payment, or a quote staff marked paid after taking cash at the counter.
+        //      Keyed on payment_status, NOT payment_method/order_type: a paid quote IS
+        //      the sale, and the document the customer keeps should say so.
+        //   3. Everything else stays a Quotation.
+        //
+        // (2) said "Receipt" until 2026-08-17; renamed to Invoice throughout on the
+        // owner's instruction. The `receipt_note_*` setting keys kept their names.
+        const isCancelled = order.status === 'cancelled';
+        const isPaidDocument = order.payment_status === 'paid' && !isCancelled;
+        const docTitle = isCancelled ? 'Cancelled Order' : (isPaidDocument ? 'Invoice' : 'Quotation');
         // Letterhead and wording are admin-editable (Settings -> Quote & Invoice),
         // delivered as EB_SETTINGS by base.html / _admin_base.html. The fallbacks below
         // are only reached if that blob is missing entirely - store-api's spec holds the
         // real defaults, and its own PDF builder (services/invoice_pdf.py) reads the
         // same keys. Changing wording here means changing it there too.
         const cfg = (typeof EB_SETTINGS !== 'undefined' && EB_SETTINGS) || {};
-        const validityNote = isReceipt
+        // The cancelled line is a literal in both engines (CANCELLED_NOTE there): it
+        // states a fact about the row rather than wording the shop picks.
+        const validityNote = isCancelled
+            ? 'This order was cancelled. It is not an invoice and is not payable.'
+            : isPaidDocument
             ? (order.payment_method === 'khqr'
                 ? (cfg.receipt_note_khqr || 'Paid via KHQR. Thank you for your purchase.')
                 : (cfg.receipt_note_cash || 'Paid in full. Thank you for your purchase.'))
@@ -929,7 +941,7 @@ const QuoteCart = {
     // so confirmPurchase() can also hand it to store-api for the Telegram order alert
     // - see uploadQuotationPDF(). The admin reprint button (admin/orders.html) calls
     // this too and just ignores the return value. `docName` is the filename word only
-    // ("Quotation"/"Receipt") - the printed title inside the document comes from
+    // ("Quotation"/"Invoice") - the printed title inside the document comes from
     // buildPrintTemplate(), which must already have been called.
     async exportPDF(filenameSuffix, docName = 'Quotation') {
         await this._ensurePdfLibs();
@@ -1070,7 +1082,7 @@ const QuoteCart = {
 
         // KHQR: NO order exists yet, and none will until the payment is confirmed -
         // store-api returns a checkout (the QR to render and an id to poll) instead.
-        // The order, and with it the receipt, comes into existence in _finishPaidOrder.
+        // The order, and with it the invoice, comes into existence in _finishPaidOrder.
         if (order.checkout) {
             resetBtn();
             this.clearDraft();
@@ -1189,26 +1201,26 @@ const QuoteCart = {
         if (overlay) overlay.style.display = 'none';
     },
 
-    // Payment confirmed - the ONLY place a receipt is ever produced for a KHQR order.
+    // Payment confirmed - the ONLY place an invoice is ever produced for a KHQR order.
     // `order` is the one the server has just created off the back of the payment (the
     // poll returns it on the transition to paid); it did not exist a moment ago. Also
-    // hands the receipt to store-api so the paid-order Telegram alert (already waiting
+    // hands the invoice to store-api so the paid-order Telegram alert (already waiting
     // server-side) carries the real client-rendered document.
     async _finishPaidOrder(order) {
         const statusRow = document.getElementById('khqrStatusRow');
         if (statusRow) {
-            statusRow.innerHTML = '<i class="fas fa-circle-check" style="color:#16a34a;"></i> Payment received — generating your receipt…';
+            statusRow.innerHTML = '<i class="fas fa-circle-check" style="color:#16a34a;"></i> Payment received — generating your invoice…';
         }
 
         try {
             this.buildPrintTemplate(order);
-            const pdfBlob = await this.exportPDF(order.quote_code, 'Receipt');
+            const pdfBlob = await this.exportPDF(order.quote_code, 'Invoice');
             this.uploadQuotationPDF(order.id, pdfBlob);
         } catch (err) {
             // The payment itself is complete - never let a PDF hiccup mask that.
         }
         this.hideKhqrModal();
-        await ebAlert('Payment received — thank you! Your receipt has been downloaded.', {
+        await ebAlert('Payment received — thank you! Your invoice has been downloaded.', {
             title: 'Payment complete',
             tone: 'success',
             confirmText: 'Done',
@@ -1228,7 +1240,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // stray tap can't kill the payment screen mid-scan.
     document.getElementById('khqrModalClose')?.addEventListener('click', async () => {
         const confirmed = await ebConfirm(
-            'Your order stays reserved as awaiting payment. If you have already paid, your receipt will be issued as soon as the payment is confirmed.',
+            'Your order stays reserved as awaiting payment. If you have already paid, your invoice will be issued as soon as the payment is confirmed.',
             { title: 'Close the payment window?', tone: 'warning', confirmText: 'Close' }
         );
         if (confirmed) QuoteCart.hideKhqrModal();
@@ -1713,14 +1725,22 @@ const AccountDrawer = {
                 ? new Date(o.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
                 : '';
             const tags = [];
-            // "quote" vs "order" is the real distinction here (staff quotes and
-            // customer cash orders are quotes; only KHQR produces a paid order) -
-            // see Order.order_type in store-api.
-            tags.push(`<span class="account-tag ${o.order_type === 'order' ? 'order' : ''}">${o.order_type === 'order' ? 'Order' : 'Quote'}</span>`);
-            // payment_status only means anything on a KHQR order.
-            if (o.payment_status) {
-                const paid = o.payment_status === 'paid';
-                tags.push(`<span class="account-tag ${paid ? 'paid' : 'unpaid'}">${paid ? 'Paid' : 'Awaiting payment'}</span>`);
+            const paid = o.payment_status === 'paid';
+            const cancelled = o.status === 'cancelled';
+            // What the row IS: a Quote until it's paid, an Invoice once it is - the same
+            // single-field rule the printed document uses (see buildPrintTemplate). Only
+            // an unpaid customer KHQR row is a plain "Order": it has been placed but not
+            // yet settled. See Order.order_type in store-api.
+            const docWord = paid ? 'Invoice' : (o.order_type === 'order' ? 'Order' : 'Quote');
+            tags.push(`<span class="account-tag ${paid ? 'paid' : (o.order_type === 'order' ? 'order' : '')}">${docWord}</span>`);
+            // Payment state, but never on a cancelled row: "Paid" beside "Cancelled" read
+            // as a live sale that no longer exists, which is what the admin table already
+            // avoids by showing cancelled rows as cancelled and nothing else. A cancelled
+            // row that WAS paid is money owed back - staff see that spelled out in the
+            // admin modal ("Cancelled (was paid by KHQR)"), which is where a refund is
+            // actually handled.
+            if (!cancelled && o.payment_status && !paid) {
+                tags.push('<span class="account-tag unpaid">Awaiting payment</span>');
             }
             if (o.status) tags.push(`<span class="account-tag">${ebEscapeHtml(o.status)}</span>`);
             // A <button>, not a <div>: the whole card opens the order, so it has to be
@@ -1790,8 +1810,9 @@ const AccountDrawer = {
     // snapshots and the clinic/address came from a checkout form, i.e. free text.
     renderOrderDetail(order) {
         const body = document.getElementById('accountOrderDetail');
-        // Same single-field rule as buildPrintTemplate() - see the comment there.
-        const isReceipt = order.payment_status === 'paid';
+        // Same rules as buildPrintTemplate() - see the comment there, including why a
+        // cancelled order is never treated as a paid document.
+        const isPaidDocument = order.payment_status === 'paid' && order.status !== 'cancelled';
         // Sub-Total/Discount are derived the same way the printed quote and the admin
         // modal derive them - from each line's snapshotted list_price vs the unit_price
         // actually charged - so all three always agree.
@@ -1840,11 +1861,18 @@ const AccountDrawer = {
             <div class="account-detail-row"><span>${specialDiscountLabel}</span><strong>${formatPrice(Number(order.discount_amount))}</strong></div>
             <div class="account-detail-row grand"><span>Grand Total</span><strong>${formatPrice(Number(order.grand_total))}</strong></div>
 
+            ${order.status === 'cancelled' ? `
+            <div class="account-cancelled-note">
+                This order was cancelled, so there is no invoice for it.
+            </div>` : `
             <button type="button" class="account-pdf-btn" id="accountOrderPdfBtn">
-                <i class="fas fa-file-arrow-down"></i> Download ${isReceipt ? 'Receipt' : 'Quotation'} PDF
-            </button>`;
+                <i class="fas fa-file-arrow-down"></i> Download ${isPaidDocument ? 'Invoice' : 'Quotation'} PDF
+            </button>`}`;
 
-        document.getElementById('accountOrderPdfBtn').addEventListener('click', () => this.downloadOrderPDF(order));
+        // Absent on a cancelled order: a cancelled sale has no invoice to hand over, and
+        // both document builders refuse to title one that way anyway (docTitle above /
+        // document_title() in store-api).
+        document.getElementById('accountOrderPdfBtn')?.addEventListener('click', () => this.downloadOrderPDF(order));
     },
 
     // Re-generates the original document from the order that's on record - the same
@@ -1859,7 +1887,7 @@ const AccountDrawer = {
         try {
             QuoteCart.buildPrintTemplate(order);
             await QuoteCart.exportPDF(
-                order.quote_code, order.payment_status === 'paid' ? 'Receipt' : 'Quotation'
+                order.quote_code, order.payment_status === 'paid' ? 'Invoice' : 'Quotation'
             );
         } catch (err) {
             await ebAlert('Sorry, the PDF could not be generated. Please try again.', { tone: 'error' });
