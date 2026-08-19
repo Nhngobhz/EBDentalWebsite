@@ -1,0 +1,231 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block title %}Hero Slider{% endblock %}
+{% block admin_page_title %}Hero Slider{% endblock %}
+
+{% block admin_content %}
+{#
+  CRUD for the storefront's rotating banner (templates/partials/hero_slider.html).
+  Rows in store-api's `hero_slides` table; writes go to the admin.hero_slides_* routes
+  in blueprints/admin/hero_slides.py.
+
+  Lists parked slides alongside live ones — switching one back on is half of what this
+  screen is for, so hiding them would hide the way back.
+#}
+<div class="page-title"><i class="fas fa-images"></i> Hero Slider</div>
+<p class="page-sub">The rotating banner at the top of the home page and the products catalog. Slides play in display order.</p>
+
+<div class="dash-card">
+    <div class="card-header">
+        <h5>All Slides ({{ hero_slides|length }})</h5>
+        <div class="card-actions">
+            {% if has_permission('product_management') %}
+            <button type="button" class="btn-dash primary" onclick="openHeroModal()"><i class="fas fa-plus"></i> Add Slide</button>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body" style="padding:0;">
+        {% if hero_slides|length == 0 %}
+        <div class="empty-state"><i class="fas fa-images"></i> No slides yet. Add one and it appears in the banner straight away.</div>
+        {% else %}
+        <table>
+            <thead>
+                <tr><th>Order</th><th>Artwork</th><th>Heading</th><th>Badge</th><th>Button</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                {% for s in hero_slides %}
+                {# A parked slide is dimmed rather than hidden or moved to the bottom:
+                   it keeps its place in the running order, which is what it comes back
+                   to when someone switches it on again. #}
+                <tr style="{{ 'opacity:0.55;' if not s.is_active }}">
+                    <td>{{ s.sort_order }}</td>
+                    <td>
+                        {% if s.slide_image %}
+                        <img src="{{ img(s.slide_image) }}" loading="lazy"
+                             style="width:84px;height:48px;border-radius:6px;object-fit:cover;background:var(--bg);border:1px solid var(--border);" />
+                        {% else %}
+                        <span style="font-size:0.7rem;color:var(--text-light);">No image</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <strong>{{ s.heading }}{% if s.heading_highlight %} {{ s.heading_highlight }}{% endif %}</strong>
+                        {% if s.subheading %}
+                        <div style="font-size:0.72rem;color:var(--text-light);max-width:320px;">{{ s.subheading|truncate(90) }}</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if s.badge_label %}
+                        <span style="font-size:0.72rem;"><i class="fas {{ s.badge_icon or 'fa-tooth' }}"></i> {{ s.badge_label }}</span>
+                        {% else %}&mdash;{% endif %}
+                    </td>
+                    <td style="font-size:0.72rem;">
+                        {% if s.button_label and s.button_url %}
+                        {{ s.button_label }}<div style="color:var(--text-light);">{{ s.button_url|truncate(34) }}</div>
+                        {% else %}&mdash;{% endif %}
+                    </td>
+                    <td>
+                        {% if s.is_active %}
+                        <span style="background:#059669; color:white; padding:2px 10px; border-radius:99px; font-size:0.65rem; font-weight:600;">Live</span>
+                        {% else %}
+                        <span style="background:#6b7280; color:white; padding:2px 10px; border-radius:99px; font-size:0.65rem; font-weight:600;">Hidden</span>
+                        {% endif %}
+                    </td>
+                    <td style="white-space:nowrap;">
+                        {% if has_permission('product_management') %}
+                        {# One-click show/hide: the field an admin flips most often, and
+                           the only one worth its own button next to Edit. #}
+                        <form method="post" action="{{ url_for('admin.hero_slides_toggle', slide_id=s.id) }}" style="display:inline;">
+                            <input type="hidden" name="is_active" value="{{ '0' if s.is_active else '1' }}">
+                            <button type="submit" class="btn-dash sm" title="{{ 'Hide from the storefront' if s.is_active else 'Show on the storefront' }}">
+                                <i class="fas {{ 'fa-eye-slash' if s.is_active else 'fa-eye' }}"></i>
+                            </button>
+                        </form>
+                        <button type="button" data-row-edit class="btn-dash primary sm" onclick="openHeroModal({{ s.id }})" title="Edit"><i class="fas fa-edit"></i></button>
+                        <form method="post" action="{{ url_for('admin.hero_slides_delete', slide_id=s.id) }}" style="display:inline;" data-confirm="Delete this slide? It disappears from the banner straight away.">
+                            <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add/Edit Slide Modal -->
+<div class="dash-modal-overlay" id="heroModalOverlay">
+    <div class="dash-modal-box">
+        <button type="button" class="dash-modal-close" onclick="closeHeroModal()"><i class="fas fa-times"></i></button>
+        <h3 class="dash-modal-title" id="heroModalTitle">Add Slide</h3>
+        <form id="heroForm" method="post" enctype="multipart/form-data">
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:6px;">
+                <div class="form-group">
+                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Heading *</label>
+                    <input type="text" name="heading" id="heroHeading" required maxlength="200" placeholder="e.g. Equip Your Practice with" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                </div>
+                <div class="form-group">
+                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Highlighted tail</label>
+                    <input type="text" name="heading_highlight" id="heroHighlight" maxlength="120" placeholder="e.g. Excellence" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                </div>
+            </div>
+            <div style="font-size:0.68rem;color:var(--text-light);margin-bottom:12px;">The tail is shown in the accent colour, straight after the heading. Leave it empty for a plain heading.</div>
+
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Description</label>
+                <textarea name="subheading" id="heroSubheading" maxlength="400" rows="2" placeholder="One or two lines under the heading." style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);resize:vertical;"></textarea>
+            </div>
+
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Background image</label>
+                <input type="file" name="file" id="heroImageFile" accept="image/png,image/jpeg,image/webp,image/gif" data-preview="heroImagePreview" style="width:100%;font-size:0.8rem;">
+                <div style="font-size:0.68rem;color:var(--text-light);margin-top:4px;">A wide landscape photo, around 1400x900. Leave empty when editing to keep the current one.</div>
+                <img id="heroImagePreview" src="" alt="" style="display:none; margin-top:8px; width:180px; height:104px; border-radius:8px; object-fit:cover; background:var(--bg); border:1px solid var(--border);">
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                <div class="form-group">
+                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Badge text</label>
+                    <input type="text" name="badge_label" id="heroBadgeLabel" maxlength="60" placeholder="Leave empty for no badge" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                </div>
+                <div class="form-group">
+                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Badge icon</label>
+                    <select name="badge_icon" id="heroBadgeIcon" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                        <option value="fa-tooth">Tooth</option>
+                        <option value="fa-microscope">Microscope</option>
+                        <option value="fa-medal">Medal</option>
+                        <option value="fa-fire">Fire (deal)</option>
+                        <option value="fa-star">Star</option>
+                        <option value="fa-truck">Truck (delivery)</option>
+                        <option value="fa-gear">Gear (machinery)</option>
+                        <option value="fa-flask">Flask (materials)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:6px;">
+                <div class="form-group">
+                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Button text</label>
+                    <input type="text" name="button_label" id="heroButtonLabel" maxlength="60" placeholder="e.g. Explore Products" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                </div>
+                <div class="form-group">
+                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Button link</label>
+                    <input type="text" name="button_url" id="heroButtonUrl" maxlength="500" placeholder="/products" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                </div>
+            </div>
+            <div style="font-size:0.68rem;color:var(--text-light);margin-bottom:12px;">A path on this site (/products, /promotions, /contact) or a full https:// address. The button only appears when both boxes are filled in.</div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;align-items:start;">
+                <div class="form-group">
+                    <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Display order</label>
+                    <input type="number" name="sort_order" id="heroSortOrder" min="0" step="1" value="0" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                    <div style="font-size:0.68rem;color:var(--text-light);margin-top:4px;">Low numbers play first.</div>
+                </div>
+                <div class="form-group">
+                    <label style="font-size:0.8rem;display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:4px;">
+                        <input type="checkbox" name="is_active" id="heroIsActive" value="1" checked>
+                        Show on the storefront
+                    </label>
+                    <div style="font-size:0.68rem;color:var(--text-light);">Unticked keeps the slide here but out of the banner.</div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-dash primary" style="width:100%;padding:10px;font-size:0.9rem;justify-content:center;margin-top:16px;" id="heroModalSubmitBtn">
+                <i class="fas fa-save"></i> Create Slide
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    {% set hero_json = [] %}
+    {% for s in hero_slides %}
+    {% set _ = hero_json.append(dict(s, image=img(s.slide_image) if s.slide_image else None)) %}
+    {% endfor %}
+    const HERO_DATA = {{ hero_json|tojson }};
+    const HERO_NEW_URL = {{ url_for('admin.hero_slides_new')|tojson }};
+    // One past the highest position in use, so a new slide plays last instead of
+    // silently sharing position 0 with whatever is already there.
+    const HERO_NEXT_ORDER = HERO_DATA.reduce((max, s) => Math.max(max, s.sort_order || 0), 0) + 1;
+
+    function openHeroModal(slideId) {
+        const slide = slideId ? HERO_DATA.find(s => s.id === slideId) : null;
+        const isEdit = !!slide;
+
+        document.getElementById('heroModalTitle').textContent = isEdit ? 'Edit Slide' : 'Add Slide';
+        document.getElementById('heroModalSubmitBtn').innerHTML =
+            '<i class="fas fa-save"></i> ' + (isEdit ? 'Update Slide' : 'Create Slide');
+
+        document.getElementById('heroForm').action = isEdit
+            ? HERO_NEW_URL.replace(/\/new$/, '/' + slideId + '/edit')
+            : HERO_NEW_URL;
+
+        document.getElementById('heroHeading').value = isEdit ? slide.heading : '';
+        document.getElementById('heroHighlight').value = isEdit ? (slide.heading_highlight || '') : '';
+        document.getElementById('heroSubheading').value = isEdit ? (slide.subheading || '') : '';
+        document.getElementById('heroBadgeLabel').value = isEdit ? (slide.badge_label || '') : '';
+        document.getElementById('heroBadgeIcon').value = isEdit ? (slide.badge_icon || 'fa-tooth') : 'fa-tooth';
+        document.getElementById('heroButtonLabel').value = isEdit ? (slide.button_label || '') : '';
+        document.getElementById('heroButtonUrl').value = isEdit ? (slide.button_url || '') : '';
+        document.getElementById('heroSortOrder').value = isEdit ? (slide.sort_order || 0) : HERO_NEXT_ORDER;
+        // A new slide defaults to visible; an existing one keeps whatever it is.
+        document.getElementById('heroIsActive').checked = isEdit ? !!slide.is_active : true;
+
+        document.getElementById('heroImageFile').value = '';
+        // Seeds the saved artwork; picking a file swaps in a preview of it
+        // (data-preview on the input above, handled in main.js).
+        ebSetImagePreview('heroImagePreview', isEdit ? slide.image : null);
+
+        document.getElementById('heroModalOverlay').classList.add('active');
+    }
+
+    function closeHeroModal() {
+        document.getElementById('heroModalOverlay').classList.remove('active');
+    }
+
+    document.getElementById('heroModalOverlay')?.addEventListener('click', function(e) {
+        if (e.target === this) closeHeroModal();
+    });
+</script>
+{% endblock %}

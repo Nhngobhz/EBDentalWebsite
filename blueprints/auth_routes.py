@@ -1,3 +1,4 @@
+import time
 from datetime import date
 from urllib.parse import urlparse
 
@@ -14,7 +15,7 @@ from flask import (
 )
 from auth import account_type, current_account, is_staff, login_required
 from formatting import adapt_order, to_number
-from store_api import StoreAPIError, get_api_client
+from store_api import StoreAPIError, get_api_client, token_expires_at
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -79,7 +80,21 @@ def _establish_session(result):
     was proven - a password (POST /login) or a Google ID token (POST /auth/google).
     Both get back the same store-api LoginResponse shape. Returns where to send the
     browser next."""
+    # Marks this a permanent session so PERMANENT_SESSION_LIFETIME (24h in app.py, set
+    # to match the token's own lifetime) actually applies. Without it Flask writes a
+    # *browser-session* cookie, which that config never touches - and which Chrome and
+    # Edge restore on relaunch under "continue where you left off", so the cookie
+    # happily outlived the token it was carrying.
+    session.permanent = True
     session["token"] = result["access_token"]
+    # When store-api will stop accepting the token above. Read back by app.py's
+    # expired_session_gate so this app stops showing a signed-in UI at the same moment
+    # store-api stops honouring the session - see token_expires_at in store_api.py for
+    # why reading the claim unverified is safe here.
+    session["token_expires_at"] = token_expires_at(result["access_token"])
+    # Starts the clock app.py's slide_customer_session works from, so a customer who
+    # just signed in isn't asked to refresh a token that's one second old.
+    session["token_refreshed_at"] = time.time()
     session["account_type"] = result["account_type"]
     session["account"] = _build_session_account(
         result["account_type"], user=result.get("user"), customer=result.get("customer")

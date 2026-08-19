@@ -50,6 +50,33 @@ def resolve_file_url(path):
     return path
 
 
+def resolve_link_url(url):
+    """An admin-entered destination, or None if it isn't one a link may safely carry.
+
+    Hero slides (and anything else that stores a free-text href) let staff point a
+    button anywhere, including off-site at a campaign page - so unlike `?next=`
+    (see blueprints/auth_routes.py::_safe_next_url) this deliberately allows other
+    origins. What it does not allow is a scheme that executes: `javascript:`,
+    `data:` and friends would run in the page the moment a visitor clicked, turning
+    "edit the home page banner" into stored XSS. Jinja's autoescaping does NOT help
+    here - it escapes the characters, and `javascript:alert(1)` needs none.
+
+    Returning None rather than a placeholder is deliberate: the caller renders no
+    button at all, which is a visible "that field is wrong" instead of a dead link.
+    """
+    url = (url or "").strip()
+    if not url:
+        return None
+    # Site-relative paths only, so "//evil.example" - which is protocol-relative, not
+    # a path - is rejected along with every scheme below.
+    if url.startswith("/"):
+        return None if url.startswith("//") else url
+    lowered = url.lower()
+    if lowered.startswith("http://") or lowered.startswith("https://"):
+        return url
+    return None
+
+
 def is_masked(value):
     return value == MASKED_PRICE
 
@@ -125,6 +152,10 @@ def adapt_product(product):
     # code / uom / qty only - see BundleItemOut in store-api), so unlike every
     # other field here it needs no numeric coercion, just a guaranteed list.
     product["free_items"] = list(product.get("free_items") or [])
+    # Guaranteed present so templates can branch on it without a default. True
+    # unless store-api says otherwise - a product that predates the flag, or any
+    # payload that omits it, is an ordinary sellable one.
+    product["is_purchasable"] = product.get("is_purchasable", True)
     return product
 
 
@@ -143,6 +174,25 @@ def adapt_set(set_):
     set_["price"] = to_number(set_.get("price"))
     set_["old_price"] = to_number(set_.get("old_price"))
     set_["items"] = list(set_.get("items") or [])
+    # Swappable slots. Each choice's upcharge goes through to_number for the same
+    # string-Decimal reason as every price here - the set page adds it to the base
+    # price in JS, and "2000" + "294.50" would concatenate rather than add.
+    # effective_delta is the figure to price from; price_delta is only the stored
+    # override, kept so the admin form can tell "derived" from "typed in".
+    set_["option_groups"] = [
+        {
+            **group,
+            "choices": [
+                {
+                    **choice,
+                    "effective_delta": to_number(choice.get("effective_delta")),
+                    "price_delta": to_number(choice.get("price_delta")),
+                }
+                for choice in (group.get("choices") or [])
+            ],
+        }
+        for group in (set_.get("option_groups") or [])
+    ]
     return set_
 
 

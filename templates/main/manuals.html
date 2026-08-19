@@ -27,6 +27,11 @@
                         <i class="fas fa-book"></i>
                         {{ manual.product.product_name if manual.product else 'General Manual' }}
                     </h3>
+                    {# The document's own name, so a product with several of them
+                       doesn't show as three identical-looking cards. #}
+                    <div style="font-size:0.8rem; font-weight:600; color:var(--text-soft); margin-bottom:8px;">
+                        {{ manual.title or 'Product Manual' }}
+                    </div>
                     {% if manual.description %}
                     <p style="color:var(--text-light); margin-bottom:16px;">{{ manual.description }}</p>
                     {% endif %}

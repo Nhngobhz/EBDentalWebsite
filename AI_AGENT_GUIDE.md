@@ -29,6 +29,24 @@ follows.
   `session["account"]`) - see `auth.py`'s module docstring for the exact
   shape. This session token is a store-api JWT; it is attached to every
   outbound store-api call automatically (see section 2).
+- **Sessions end when their token does, and the two lengths differ.**
+  store-api issues staff tokens good for 24h and customer tokens good for
+  14 days. `_establish_session` records the token's `exp` as
+  `session["token_expires_at"]`, and `expired_session_gate` (app.py) clears
+  the whole session once it passes - so no screen ever renders as
+  signed-in while holding a token store-api would reject. The backstop is
+  `SessionExpired` (store_api.py), raised on any 401 to a call we signed
+  with the session's token; it is deliberately **not** a `StoreAPIError`
+  subclass, because every admin route catches that and would swallow it.
+  Both paths land in one handler that ends the session and asks for a fresh
+  sign-in.
+- **A customer's 14 days are 14 days of inactivity.**
+  `slide_customer_session` (app.py) re-mints a browsing customer's token via
+  `POST /auth/refresh` at most once a day, so an active customer is never
+  logged out. Staff are excluded on purpose and store-api refuses to extend
+  a staff token anyway - their 24h ends the session whether they were active
+  or not. Don't "fix" that asymmetry without reading the note in
+  `store-api/app/config.py`.
 - **No route touches store-api directly with `requests`.** Every call goes
   through `store_api.get_api_client()` (section 2) so token attachment and
   error normalization stay in one place. If you find yourself importing

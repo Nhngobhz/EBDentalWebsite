@@ -61,7 +61,8 @@ def promotions():
         promo["end_date_short"] = _iso_to_date(promo["end_date"])
         promos.append(promo)
     # The full catalog feeds the modal's "Included Products" picker.
-    products = client.get("/products/", params={"limit": 500})
+    # include_unpurchasable: a bundle may legitimately contain a gift-only product.
+    products = client.get("/products/", params={"limit": 500, "include_unpurchasable": "true"})
     return render_template(
         "admin/promotions.html",
         promotions=promos,

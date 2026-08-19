@@ -81,6 +81,14 @@
                 <a class="nav-item {{ 'active' if request.endpoint == 'admin.sets' }}" href="{{ url_for('admin.sets') }}">
                     <i class="fas fa-box-open"></i> Sets <span class="badge-dash">{{ sets|length }}</span>
                 </a>
+                {# The home/catalog banner. Here rather than under Catalog because a
+                   hero slide is shop-window copy, written by whoever writes the
+                   promotions - product_management, the same gate store-api applies. #}
+                {% if has_permission('product_management') %}
+                <a class="nav-item {{ 'active' if request.endpoint == 'admin.hero_slides' }}" href="{{ url_for('admin.hero_slides') }}">
+                    <i class="fas fa-images"></i> Hero Slider
+                </a>
+                {% endif %}
                 {% if has_any_permission('price_listing', 'admin') %}
                 <a class="nav-item {{ 'active' if request.endpoint == 'admin.orders' }}" href="{{ url_for('admin.orders') }}">
                     <i class="fas fa-shopping-cart"></i> Orders

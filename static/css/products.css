@@ -1287,6 +1287,22 @@
     padding: 22px 26px;
     margin-top: 24px;
 }
+/* A product's documents: one .pd-manual-card each (user guide, quick-start,
+   service manual...). The heading only appears when there is more than one, so a
+   single-manual product looks exactly as it did before. */
+.pd-manual-list-title {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--text);
+    margin-top: 24px;
+    margin-bottom: -6px;
+}
+/* Stacked cards space themselves off the card's own margin-top; scroll-margin so
+   the buy-box "N Documents" jump doesn't tuck the list under a sticky header. */
+.pd-manual-list {
+    scroll-margin-top: 90px;
+}
+
 .pd-manual-icon {
     width: 46px;
     height: 46px;
@@ -1405,6 +1421,64 @@
     border-radius: 5px;
     padding: 1px 6px;
 }
+/* ---- Configurable set slots (bundle_detail.html) ----------------------
+   One fieldset per swappable slot, one row per alternative. Deliberately
+   built on the same tokens as .pd-bundle-list above so a configurable set
+   reads as the same page furniture as a fixed one. */
+.bundle-options {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 4px;
+}
+.bundle-option-group {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 12px 4px;
+    margin: 0;
+}
+.bundle-option-legend {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #f97316;
+    padding: 0 4px;
+}
+.bundle-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 4px;
+    font-size: 0.82rem;
+    color: var(--text-soft);
+    border-bottom: 1px dashed var(--border);
+    cursor: pointer;
+}
+.bundle-option:last-child {
+    border-bottom: none;
+}
+.bundle-option input {
+    flex-shrink: 0;
+    accent-color: #f97316;
+    cursor: pointer;
+}
+.bundle-option-name {
+    flex: 1;
+}
+/* The upcharge sits hard right so a column of them can be compared at a glance. */
+.bundle-option-delta {
+    flex-shrink: 0;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-light);
+    white-space: nowrap;
+}
+.bundle-option input:checked ~ .bundle-option-name {
+    color: var(--text);
+    font-weight: 600;
+}
+
 .pd-bundle-note {
     display: flex;
     align-items: flex-start;

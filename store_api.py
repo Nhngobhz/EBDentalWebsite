@@ -5,6 +5,10 @@ normalization stay in one place.
 
 See store-api/AI_AGENT_GUIDE.md for the full endpoint reference this client wraps.
 """
+import base64
+import json
+import time
+
 import requests
 from flask import current_app, g, session
 
@@ -28,6 +32,45 @@ class StoreAPIUnavailable(StoreAPIError):
 
     def __init__(self):
         super().__init__(None, "The store service is temporarily unavailable. Please try again shortly.")
+
+
+class SessionExpired(Exception):
+    """The bearer token this session was carrying got a 401 from store-api - it passed
+    its 24h expiry, or the account behind it was disabled/deleted mid-session.
+
+    Deliberately NOT a StoreAPIError subclass. Every admin route wraps its calls in
+    `except StoreAPIError: flash(e.detail, "error")`, so as a subclass this would land
+    as a red "Could not validate credentials" banner on the form and leave the browser
+    sitting in an admin UI it can no longer write anything through. Living outside that
+    hierarchy, it sails past all of those handlers to the app-level handler in app.py,
+    which clears the dead session and sends the user to the login page."""
+
+
+def token_expires_at(token):
+    """The `exp` claim (unix seconds) out of a store-api JWT, or None if it can't be
+    read.
+
+    The signature is NOT verified - this app doesn't hold store-api's SECRET_KEY and
+    shouldn't. That's fine because nothing is *granted* on the strength of this number:
+    store-api verifies the token properly on every single call and stays the only
+    authority. It's read here purely so this app can stop rendering a signed-in UI at
+    the same moment store-api stops honouring the token, rather than finding out one
+    failed write at a time. A token whose exp can't be read just falls back to the
+    SessionExpired path."""
+    try:
+        payload = token.split(".")[1]
+        # JWT segments are base64url with the padding stripped; put it back.
+        claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+    except Exception:
+        return None
+    exp = claims.get("exp")
+    return exp if isinstance(exp, (int, float)) else None
+
+
+def session_token_expired():
+    """True when the session holds a token we already know store-api will reject."""
+    expires_at = session.get("token_expires_at")
+    return bool(expires_at) and time.time() >= expires_at
 
 
 def _extract_detail(payload):
@@ -86,7 +129,7 @@ class StoreAPIClient:
             headers["Authorization"] = f"Bearer {self.token}"
         return headers
 
-    def _request(self, method, path, headers=None, **kwargs):
+    def _request(self, method, path, headers=None, session_auth=True, **kwargs):
         try:
             response = self.session.request(
                 method,
@@ -98,6 +141,13 @@ class StoreAPIClient:
         except requests.exceptions.RequestException as exc:
             raise StoreAPIUnavailable() from exc
 
+        # A 401 on a call we signed with the session's own token means that token is
+        # no longer good - not that the user got something wrong on this form. Raised
+        # as SessionExpired so app.py can end the session cleanly instead of every
+        # caller flashing "Could not validate credentials" at a form. `session_auth`
+        # is False on the auth endpoints, where a 401 really is "wrong password".
+        if response.status_code == 401 and self.token and session_auth:
+            raise SessionExpired()
         if response.status_code >= 400:
             _raise_for_error(response)
         if response.status_code == 204 or not response.content:
@@ -132,6 +182,7 @@ class StoreAPIClient:
             "POST",
             "/auth/login",
             data={"username": email, "password": password},
+            session_auth=False,
         )
 
     def google_login(self, credential):
@@ -139,7 +190,13 @@ class StoreAPIClient:
         handed the browser. store-api verifies it against Google's public keys and
         answers with the same shape as login(), signing in an existing staff/customer
         account with that email or creating a customer for it."""
-        return self.post_json("/auth/google", {"credential": credential})
+        return self._request("POST", "/auth/google", json={"credential": credential}, session_auth=False)
+
+    def refresh_token(self):
+        """POST /auth/refresh - trades the token this client is carrying for a new one
+        with a full lifetime ahead of it. Customers only; store-api answers 403 for a
+        staff token, whose 24h is deliberately not extendable."""
+        return self.post_json("/auth/refresh")
 
     def register_customer(self, payload):
         return self.post_json("/auth/customer/register", payload)

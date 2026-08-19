@@ -71,6 +71,11 @@ def _product_form_payload():
         "uom": request.form.get("uom", "").strip() or None,
         "brand_id": request.form.get("brand_id", type=int),
         "category_id": request.form.get("category_id", type=int),
+        # An unticked checkbox sends nothing at all, so this can't use the
+        # "blank means leave alone" pattern the optional text fields use - absent
+        # genuinely means False here, and the key is always sent so unticking it
+        # actually clears the flag.
+        "is_purchasable": "is_purchasable" in request.form,
         # Other products this one comes with for free - each lands on the quote
         # as a $0 line under this product (store-api's create_order expands them).
         "free_items": bundle_items_from_form(),
@@ -93,7 +98,12 @@ def _product_form_payload():
 @admin_bp.route("/products")
 def products():
     client = get_api_client()
-    raw_products = client.get("/products/", params={"limit": 500})
+    # include_unpurchasable: the admin table is the one place gift-only products
+    # have to stay visible - it's where they're created, edited and picked from
+    # when building another product's free-item list.
+    raw_products = client.get(
+        "/products/", params={"limit": 500, "include_unpurchasable": "true"}
+    )
     products_list = [adapt_product(p) for p in raw_products]
     brands = client.get("/brands/", params={"limit": 200})
     categories = client.get("/categories/", params={"limit": 500})

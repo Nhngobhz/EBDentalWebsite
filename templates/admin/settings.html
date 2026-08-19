@@ -166,6 +166,9 @@
 
                 {{ status_chip('Staff session length', true,
                                (status.session.token_expire_minutes // 60) ~ ' hours') }}
+
+                {{ status_chip('Customer session length', true,
+                               (status.session.customer_token_expire_minutes // 1440) ~ ' days') }}
             </div>
         </div>
     </div>

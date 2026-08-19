@@ -84,7 +84,20 @@ def submit():
         "items": [
             {"promotion_id": item["id"], "qty": item["qty"]}
             if item.get("kind") == "promotion"
-            else {"set_id": item["id"], "qty": item["qty"]}
+            else {
+                "set_id": item["id"],
+                "qty": item["qty"],
+                # Which alternative each swappable slot landed on. Rebuilt from
+                # ints rather than forwarded verbatim so a hand-edited localStorage
+                # cart can't post arbitrary JSON into the order payload; store-api
+                # validates the ids themselves against the set.
+                "options": [
+                    {"group_id": int(o["group_id"]), "choice_id": int(o["choice_id"])}
+                    for o in (item.get("options") or [])
+                    if str(o.get("group_id", "")).isdigit()
+                    and str(o.get("choice_id", "")).isdigit()
+                ],
+            }
             if item.get("kind") == "set"
             else {"product_id": item["id"], "qty": item["qty"]}
             for item in items

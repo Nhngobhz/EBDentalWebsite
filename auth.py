@@ -8,6 +8,10 @@ the two.
 After a successful login (see blueprints/auth_routes.py), the session holds:
   session["token"]        - the store-api bearer token, attached to every outbound
                              request by store_api.get_api_client()
+  session["token_expires_at"] - unix seconds; when that token stops being accepted.
+                             app.py's expired_session_gate clears the whole session
+                             once it passes, so no screen here ever renders as
+                             signed-in while holding a token store-api would reject.
   session["account_type"] - "user" (staff) or "customer"
   session["account"]      - {id, name, email, permissions: {...}} for staff, or
                              {id, name, email, access_permission} for customers

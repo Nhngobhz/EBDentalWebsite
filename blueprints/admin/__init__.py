@@ -48,6 +48,7 @@ from blueprints.admin import (  # noqa: E402
     categories,
     customers,
     dashboard,
+    hero_slides,
     manuals,
     orders,
     products,

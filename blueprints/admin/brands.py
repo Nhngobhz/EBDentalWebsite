@@ -27,7 +27,8 @@ def brands():
     # per-brand counts here specifically, so fetch it again to compute those.
     client = get_api_client()
     brand_list = client.get("/brands/", params={"limit": 200})
-    raw_products = client.get("/products/", params={"limit": 500})
+    # Gift-only products still belong to a brand, so they count here.
+    raw_products = client.get("/products/", params={"limit": 500, "include_unpurchasable": "true"})
     counts = _product_counts_by_brand(raw_products)
     for b in brand_list:
         b["product_count"] = counts.get(b["id"], 0)

@@ -670,6 +670,12 @@
             // The snapshot price, shown so the row isn't blank; the catalogue price is
             // preferred where we have one, since that is what saving will charge.
             unitPrice: Number(item.unit_price) || 0,
+            // Which alternative each of a configurable set's slots landed on. Carried
+            // through untouched so saving an unrelated edit - a corrected phone number,
+            // a quantity - re-prices the line AS CONFIGURED. Drop this and store-api
+            // rebuilds the line from {set_id, qty} alone and the upgrade silently
+            // reverts to the set's defaults (see OrderItem.set_options).
+            options: item.set_options || [],
         }));
 
         document.getElementById('editProductSearch').value = '';
@@ -836,7 +842,9 @@
             payment_term: document.getElementById('editPaymentTerm').value.trim() || null,
             install_term: document.getElementById('editInstallTerm').value.trim() || null,
             status: document.getElementById('editStatus').value,
-            items: editItems.map(line => ({ kind: line.kind, id: line.id, qty: line.qty })),
+            items: editItems.map(line => ({
+                kind: line.kind, id: line.id, qty: line.qty, options: line.options || [],
+            })),
         };
         if (CAN_DISCOUNT) {
             payload.discount_type = document.getElementById('editDiscountType').value;

@@ -71,8 +71,20 @@ def product_detail(product_id):
         raise
     product = adapt_product(raw_product)
 
-    manuals = client.get("/manuals/", params={"product_id": product_id, "limit": 1})
-    manual = manuals[0] if manuals else None
+    # Gift-only products are filtered out of the catalog listing by store-api, but
+    # GET /products/{id} still serves them (the admin screens need it). Without
+    # this, a stale or guessed link would reach a full product page - price, buy
+    # box and all - for something store-api will refuse to put on an order.
+    if not product.get("is_purchasable", True):
+        abort(404)
+
+    # ALL of the product's documents, not just the first. A product can carry a
+    # user guide, a quick-start sheet and a service manual, each with its own
+    # title (see Manual.title) - fetching one row silently hid the rest.
+    manuals = client.get("/manuals/", params={"product_id": product_id, "limit": 50})
+    # Only documents that actually have a file attached are worth listing - a
+    # Manual row with no PDF yet would render as a download link to nothing.
+    manuals = [m for m in manuals if m.get("pdf")]
 
     # The detail page's image gallery: the main picture first, then the extra photos
     # (store-api's ProductImage rows, which never repeat the main one). Resolved to
@@ -99,7 +111,7 @@ def product_detail(product_id):
     return render_template(
         "products/detail.html",
         product=product,
-        manual=manual,
+        manuals=manuals,
         gallery=gallery,
         related=related,
     )
@@ -186,6 +198,8 @@ def _bundle_detail(kind, path, adapt, name_field, image_field, extra_images=()):
         name=item.get(name_field),
         gallery=gallery,
         contents=item.get("items") or [],
+        # Only a Set ever has these; a Promotion renders the page without them.
+        option_groups=item.get("option_groups") or [],
     )
 
 

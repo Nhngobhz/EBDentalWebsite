@@ -24,7 +24,8 @@ def _image_from_request():
 def manuals():
     client = get_api_client()
     manual_list = client.get("/manuals/", params={"limit": 500})
-    products = client.get("/products/", params={"limit": 500})
+    # A gift-only product can still have a manual, so it stays pickable.
+    products = client.get("/products/", params={"limit": 500, "include_unpurchasable": "true"})
     return render_template("admin/manuals.html", manuals=manual_list, products=products)
 
 
@@ -37,6 +38,11 @@ def manuals_new():
         return redirect(url_for("admin.manuals"))
 
     data = {"product_id": product_id}
+    # Sent only when filled in: POST /manuals/ is multipart, and an empty string
+    # would store "" rather than leaving the title unset.
+    title = request.form.get("title", "").strip()
+    if title:
+        data["title"] = title
     description = request.form.get("description", "").strip()
     if description:
         data["description"] = description
@@ -59,13 +65,21 @@ def manuals_new():
 @permission_required("product_management")
 def manuals_edit(manual_id):
     product_id = request.form.get("product_id", type=int)
+    title = request.form.get("title", "").strip()
     description = request.form.get("description", "").strip()
 
     client = get_api_client()
     try:
         client.put_json(
             f"/manuals/{manual_id}",
-            {"product_id": product_id, "description": description or None},
+            {
+                "product_id": product_id,
+                # Explicit null, not omission: clearing the box has to actually
+                # clear the title, the same rule the other optional text fields
+                # in this admin follow.
+                "title": title or None,
+                "description": description or None,
+            },
         )
         pdf_files = _pdf_from_request()
         if pdf_files:

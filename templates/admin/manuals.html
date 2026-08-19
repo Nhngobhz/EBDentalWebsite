@@ -24,16 +24,19 @@
         {% else %}
         <table>
             <thead>
-                <tr><th>Thumbnail</th><th>Product</th><th>Description</th><th>PDF</th><th>Actions</th></tr>
+                <tr><th>Thumbnail</th><th>Product</th><th>Title</th><th>Description</th><th>PDF</th><th>Actions</th></tr>
             </thead>
             <tbody id="manualsTableBody">
                 {% for m in manuals %}
-                <tr data-search="{{ ((m.product.product_name if m.product else '') ~ ' ' ~ (m.description or ''))|lower }}">
+                <tr data-search="{{ ((m.product.product_name if m.product else '') ~ ' ' ~ (m.title or '') ~ ' ' ~ (m.description or ''))|lower }}">
                     <td>
                         <img src="{{ img(m.manual_image) }}" loading="lazy"
                              style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid var(--border);" />
                     </td>
                     <td><strong>{{ m.product.product_name if m.product else '—' }}</strong></td>
+                    {# Untitled manuals predate the column and show as the storefront
+                       captions them, so the table matches what a visitor sees. #}
+                    <td style="font-size:0.8rem;">{{ m.title or 'Product Manual' }}</td>
                     <td style="font-size:0.75rem; color:var(--text-light); max-width:280px;">{{ m.description or '—' }}</td>
                     <td style="font-size:0.75rem;">
                         {% if m.pdf %}
@@ -71,6 +74,15 @@
                     <option value="{{ p.id }}">{{ p.product_name }}</option>
                     {% endfor %}
                 </select>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Title</label>
+                <div style="font-size:0.7rem;color:var(--text-light);margin-bottom:6px;">
+                    What this document is called — "User Manual", "Quick Start Guide", "Service Manual". A product can
+                    have as many as you like; each one is listed separately on its product page. Left blank, it shows as
+                    "Product Manual".
+                </div>
+                <input type="text" name="title" id="manualTitle" maxlength="200" placeholder="e.g. User Manual" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
             </div>
             <div class="form-group" style="margin-bottom:12px;">
                 <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Description</label>
@@ -117,6 +129,7 @@
             : MANUAL_NEW_URL;
 
         document.getElementById('manualProduct').value = isEdit && manual.product ? manual.product.id : '';
+        document.getElementById('manualTitle').value = isEdit ? (manual.title || '') : '';
         document.getElementById('manualDescription').value = isEdit ? (manual.description || '') : '';
         document.getElementById('manualPdfFile').value = '';
         document.getElementById('manualImageFile').value = '';

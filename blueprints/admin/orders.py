@@ -121,10 +121,24 @@ def orders_edit(order_id):
         kinds = {"product": "product_id", "promotion": "promotion_id", "set": "set_id"}
         try:
             payload["items"] = [
-                {kinds[item.get("kind") or "product"]: item["id"], "qty": item["qty"]}
+                {
+                    kinds[item.get("kind") or "product"]: item["id"],
+                    "qty": item["qty"],
+                    # Only a set line carries these. Rebuilt from ints rather than
+                    # forwarded verbatim, same as the storefront's /quote/submit -
+                    # store-api validates the ids themselves against the set.
+                    **(
+                        {"options": [
+                            {"group_id": int(o["group_id"]), "choice_id": int(o["choice_id"])}
+                            for o in (item.get("options") or [])
+                        ]}
+                        if (item.get("kind") == "set" and item.get("options"))
+                        else {}
+                    ),
+                }
                 for item in items
             ]
-        except (KeyError, TypeError):
+        except (KeyError, TypeError, ValueError):
             return jsonify({"detail": "Malformed item list."}), 400
 
     client = get_api_client()

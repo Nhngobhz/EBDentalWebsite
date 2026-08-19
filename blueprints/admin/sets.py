@@ -1,9 +1,61 @@
+import json
+
 from flask import flash, redirect, render_template, request, url_for
 
 from auth import permission_required
 from blueprints.admin import admin_bp, bundle_items_from_form
 from formatting import adapt_product, adapt_set
 from store_api import StoreAPIError, get_api_client
+
+
+def option_groups_from_form(field="option_groups_json"):
+    """Reads the Set upgrade-slot editor (ebOptionGroupPicker in main.js) into
+    store-api's `option_groups` shape.
+
+    A hidden JSON field rather than the parallel inputs bundle_items_from_form
+    reads, because this structure is two levels deep - a flat
+    item_product_id[]/item_qty[] pair has nowhere to record which choice belongs
+    to which slot.
+
+    Always returns a list, never None, for the same reason as the contents
+    picker: an admin who deletes every slot must send [] ("this set is fixed
+    again") rather than omitting the field ("leave the slots alone").
+
+    Rebuilt field by field instead of forwarded as-parsed. The value arrives from
+    a browser form, so it is untrusted input that reaches store-api as JSON - and
+    a bad `price_delta` should be a flash message here, not a 422 from the API.
+    """
+    raw = request.form.get(field)
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(parsed, list):
+        return []
+
+    groups = []
+    for group in parsed:
+        if not isinstance(group, dict):
+            continue
+        name = str(group.get("name") or "").strip()
+        choices = []
+        for choice in group.get("choices") or []:
+            if not isinstance(choice, dict) or not choice.get("product_id"):
+                continue
+            delta = choice.get("price_delta")
+            choices.append({
+                "product_id": int(choice["product_id"]),
+                "qty": int(choice.get("qty") or 1),
+                # None is meaningful and must survive: it is what tells store-api
+                # to derive the upcharge instead of storing one.
+                "price_delta": None if delta in (None, "") else float(delta),
+                "is_default": bool(choice.get("is_default")),
+            })
+        if name and choices:
+            groups.append({"name": name, "choices": choices})
+    return groups
 
 
 def _set_form_payload():
@@ -20,6 +72,8 @@ def _set_form_payload():
         # A set is a collection of products - these are what the customer
         # actually receives, listed at $0 under the set on the quote.
         "items": bundle_items_from_form(),
+        # The swappable slots - see option_groups_from_form above.
+        "option_groups": option_groups_from_form(),
     }
 
 
@@ -48,7 +102,8 @@ def sets():
     client = get_api_client()
     raw_sets = client.get("/sets/", params={"limit": 200})
     # The full catalog feeds the modal's "Included Products" picker.
-    products = client.get("/products/", params={"limit": 500})
+    # include_unpurchasable: a bundle may legitimately contain a gift-only product.
+    products = client.get("/products/", params={"limit": 500, "include_unpurchasable": "true"})
     brands = client.get("/brands/", params={"limit": 200})
     return render_template(
         "admin/sets.html",

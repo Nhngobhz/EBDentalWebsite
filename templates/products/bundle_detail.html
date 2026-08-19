@@ -102,8 +102,53 @@
                     Everything above is included in the {{ accent_label|lower }} price - each piece is listed on your
                     quote at $0.00 under this line.
                 </p>
-                {% else %}
+                {% elif not option_groups %}
                 <p class="pd-desc">Contact us for the full contents of this {{ accent_label|lower }}.</p>
+                {% endif %}
+
+                {# ---------- Configurable slots ----------
+                   Only a Set ever has these (see SetOptionGroup in store-api). Each
+                   group is one radio set; picking a non-default choice adds its
+                   upcharge to the price shown in the buy box and travels with the
+                   cart line so store-api can re-price it server-side. #}
+                {% if option_groups %}
+                <div class="pd-section-title">Choose your configuration</div>
+                <div class="bundle-options" id="bundleOptions">
+                    {% for group in option_groups %}
+                    <fieldset class="bundle-option-group" data-group-id="{{ group.id }}">
+                        <legend class="bundle-option-legend">{{ group.name }}</legend>
+                        {% for choice in group.choices %}
+                        <label class="bundle-option">
+                            <input type="radio"
+                                   name="bundle-group-{{ group.id }}"
+                                   value="{{ choice.id }}"
+                                   data-delta="{{ choice.effective_delta if choice.effective_delta is number else 0 }}"
+                                   data-product-name="{{ choice.product_name }}"
+                                   data-qty="{{ choice.qty }}"
+                                   {% if choice.is_default %}checked{% endif %}>
+                            <span class="bundle-option-name">
+                                {{ choice.product_name }}
+                                {% if choice.qty > 1 %}<span class="bundle-qty">×{{ choice.qty }}</span>{% endif %}
+                            </span>
+                            <span class="bundle-option-delta">
+                                {% if choice.effective_delta is number and choice.effective_delta > 0 %}
+                                    +{{ price(choice.effective_delta) }}
+                                {% elif choice.effective_delta is number and choice.effective_delta < 0 %}
+                                    −{{ price(-choice.effective_delta) }}
+                                {% elif choice.is_default %}
+                                    Standard
+                                {% endif %}
+                            </span>
+                        </label>
+                        {% endfor %}
+                    </fieldset>
+                    {% endfor %}
+                </div>
+                <p class="pd-bundle-note">
+                    <i class="fas fa-circle-info"></i>
+                    Upgrades are included in the single {{ accent_label|lower }} price above - your quote shows one
+                    line, with everything it contains listed beneath it at $0.00.
+                </p>
                 {% endif %}
 
                 {% if is_promo and bundle.start_date %}
@@ -194,10 +239,54 @@
     });
     pdQtyInput.addEventListener('change', () => { pdQtyInput.value = pdReadQty(); });
 
+    {# ---- Configurable slots: live pricing ----------------------------------
+       BASE_PRICE is the set as standard (its default choices already priced in),
+       so each group contributes only the delta of whatever is currently selected.
+       The default's delta is 0 by construction, which is why an untouched page
+       shows exactly the server's price. #}
+    const BASE_PRICE = {{ bundle.price|tojson }};
+    const optionsRoot = document.getElementById('bundleOptions');
+
+    function pdSelectedOptions() {
+        if (!optionsRoot) return [];
+        return Array.from(optionsRoot.querySelectorAll('.bundle-option-group')).map(group => {
+            const picked = group.querySelector('input[type=radio]:checked');
+            return picked ? {
+                group_id: parseInt(group.dataset.groupId, 10),
+                choice_id: parseInt(picked.value, 10),
+                delta: parseFloat(picked.dataset.delta) || 0,
+                product_name: picked.dataset.productName,
+                qty: parseInt(picked.dataset.qty, 10) || 1,
+            } : null;
+        }).filter(Boolean);
+    }
+
+    function pdConfiguredPrice() {
+        if (typeof BASE_PRICE !== 'number') return BASE_PRICE;
+        return pdSelectedOptions().reduce((total, o) => total + o.delta, BASE_PRICE);
+    }
+
+    function pdRefreshConfiguredPrice() {
+        const total = pdConfiguredPrice();
+        if (typeof total !== 'number') return;
+        const text = '$' + total.toLocaleString(undefined, {
+            minimumFractionDigits: 2, maximumFractionDigits: 2,
+        });
+        document.querySelectorAll('.pd-buybox-price, .pd-price').forEach(el => {
+            el.textContent = text;
+        });
+    }
+
+    if (optionsRoot) {
+        optionsRoot.addEventListener('change', pdRefreshConfiguredPrice);
+        pdRefreshConfiguredPrice();
+    }
+
     document.getElementById('bundleAddToCartBtn').addEventListener('click', () => {
         {# Same two cart methods the Promotions page used to call from its cards;
            `contents` is passed as `items` so the drawer can list what's inside
            before the order exists (store-api re-expands it authoritatively). #}
+        const chosen = pdSelectedOptions();
         const payload = {
             id: {{ bundle.id|tojson }},
             price: {{ bundle.price|tojson }},
@@ -208,7 +297,22 @@
         {% if is_promo %}
         QuoteCart.addPromotion({ ...payload, promotion_name: {{ name|tojson }} }, pdReadQty());
         {% else %}
-        QuoteCart.addSet({ ...payload, set_name: {{ name|tojson }} }, pdReadQty());
+        {# The cart line carries the configured price and the configured contents,
+           so the drawer reads correctly before any order exists. store-api
+           recomputes both from the choice ids when the quote is submitted. #}
+        const configuredItems = {{ contents|tojson }}.concat(
+            chosen.map(o => ({ product_name: o.product_name, qty: o.qty }))
+        );
+        QuoteCart.addSet(
+            {
+                ...payload,
+                set_name: {{ name|tojson }},
+                price: pdConfiguredPrice(),
+                items: configuredItems,
+            },
+            pdReadQty(),
+            chosen.map(o => ({ group_id: o.group_id, choice_id: o.choice_id })),
+        );
         {% endif %}
         showToast('Added to cart successfully');
     });

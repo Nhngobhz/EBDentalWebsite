@@ -15,6 +15,16 @@ main_bp = Blueprint("main", __name__)
 # stare at an unchanged contact page for up to a TTL wondering what went wrong.
 QR_CODES_CACHE_KEY = ("qr_codes", "all")
 
+# The hero carousel's slides. Unlike the QR cards this app doesn't fetch them itself -
+# they arrive through the sitewide lazy global in app.py, because the slider partial is
+# included from two different blueprints. The name lives here rather than there so that
+# blueprints/admin/hero_slides.py can clear the entry after a save without importing
+# app.py (which imports the blueprints, and would be circular). app.py builds the global
+# under HERO_SLIDES_CACHE_VAR; site_cache then keys it by (var, scope), which is the
+# pair spelled out in HERO_SLIDES_CACHE_KEY.
+HERO_SLIDES_CACHE_VAR = "_cp_hero_slides"
+HERO_SLIDES_CACHE_KEY = (HERO_SLIDES_CACHE_VAR, "all")
+
 # Logo files the About page's brand marquee falls back to for brands the
 # catalogue doesn't know (or knows without an image). Drop a new file in
 # static/images/brands/ and it shows up on the next request - no code change.

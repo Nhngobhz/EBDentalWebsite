@@ -429,14 +429,25 @@ const QuoteCart = {
     // A Set (Promotions-page bundle deal) is bought the same way a Promotion is - see
     // set.id, which lives in a separate table from Product.id/Promotion.id and can
     // collide with either, hence 'kind' to disambiguate cart lookups.
-    addSet(set, qty = 1) {
+    // `options` is [{group_id, choice_id}] for a configurable set - which
+    // alternative each swappable slot landed on (see SetOptionGroup in store-api).
+    // `set.price` must ALREADY include the chosen upcharges: the set page adds
+    // them up as the radios are clicked, and store-api recomputes the same figure
+    // from the ids server-side, so a tampered price here changes nothing.
+    addSet(set, qty = 1, options = []) {
         if (typeof CAN_QUOTE !== 'undefined' && !CAN_QUOTE) return;
         if (typeof set.price !== 'number') return;
 
         qty = Math.max(1, Math.floor(Number(qty) || 1));
+        const optKey = QuoteCart.optionsKey(options);
 
         const items = this.getItems();
-        const existing = items.find(i => i.id === set.id && i.kind === 'set');
+        // Same set at a DIFFERENT configuration is a different line - merging a
+        // $2,000 standard build into an upgraded one would quietly overcharge for
+        // the first and undercharge for the second.
+        const existing = items.find(
+            i => i.id === set.id && i.kind === 'set' && (i.optKey || '') === optKey
+        );
         if (existing) {
             existing.qty += qty;
         } else {
@@ -455,15 +466,32 @@ const QuoteCart = {
                 image: set.image || '',
                 qty,
                 components: normalizeBundleComponents(set.items),
+                options: options || [],
+                optKey,
             });
         }
         this.saveItems(items);
         this.render();
     },
 
-    removeItem(id, kind) {
+    // A stable signature for one configuration, so two carts lines can be told
+    // apart (and matched again on qty/remove) without comparing arrays by hand.
+    // Sorted so the same picks made in a different order collapse to one key.
+    optionsKey(options) {
+        return (options || [])
+            .map(o => `${o.group_id}:${o.choice_id}`)
+            .sort()
+            .join('|');
+    },
+
+    // optKey narrows to ONE configuration of a set (see addSet). Omitted by the
+    // product/promotion callers, where it is always '' on both sides.
+    removeItem(id, kind, optKey) {
         kind = kind || 'product';
-        this.saveItems(this.getItems().filter(i => !(i.id === id && i.kind === kind)));
+        optKey = optKey || '';
+        this.saveItems(this.getItems().filter(
+            i => !(i.id === id && i.kind === kind && (i.optKey || '') === optKey)
+        ));
         this.render();
     },
 
@@ -471,10 +499,13 @@ const QuoteCart = {
     // price, and discount are all admin-set on the product/promotion and shown
     // read-only here. Updates the row's amount + totals directly via the
     // DOM rather than a full render(), so nothing else in the drawer flickers.
-    changeQty(id, delta, kind) {
+    changeQty(id, delta, kind, optKey) {
         kind = kind || 'product';
+        optKey = optKey || '';
         const items = this.getItems();
-        const item = items.find(i => i.id === id && i.kind === kind);
+        const item = items.find(
+            i => i.id === id && i.kind === kind && (i.optKey || '') === optKey
+        );
         if (!item) return;
         item.qty = Math.max(1, item.qty + delta);
         this.saveItems(items);
@@ -689,12 +720,12 @@ const QuoteCart = {
                     </div>
                     <div class="quote-item-row-footer">
                         <div class="quote-item-controls">
-                            <button type="button" class="quote-qty-btn" onclick="QuoteCart.changeQty(${item.id}, -1, '${item.kind}')"><i class="fas fa-minus"></i></button>
+                            <button type="button" class="quote-qty-btn" onclick="QuoteCart.changeQty(${item.id}, -1, '${item.kind}', '${ebEscapeHtml(item.optKey || '')}')"><i class="fas fa-minus"></i></button>
                             <span class="quote-qty-value">${item.qty}</span>
-                            <button type="button" class="quote-qty-btn" onclick="QuoteCart.changeQty(${item.id}, 1, '${item.kind}')"><i class="fas fa-plus"></i></button>
+                            <button type="button" class="quote-qty-btn" onclick="QuoteCart.changeQty(${item.id}, 1, '${item.kind}', '${ebEscapeHtml(item.optKey || '')}')"><i class="fas fa-plus"></i></button>
                         </div>
                         <span class="quote-item-amount">$${this.lineAmount(item).toFixed(2)}</span>
-                        <button type="button" class="quote-item-remove" onclick="QuoteCart.removeItem(${item.id}, '${item.kind}')"><i class="fas fa-trash"></i></button>
+                        <button type="button" class="quote-item-remove" onclick="QuoteCart.removeItem(${item.id}, '${item.kind}', '${ebEscapeHtml(item.optKey || '')}')"><i class="fas fa-trash"></i></button>
                     </div>
                     ${this.renderIncluded(item)}
                 </div>
@@ -1055,7 +1086,12 @@ const QuoteCart = {
                     payment_method: paymentMethod || null,
                     discount_type: this.getDiscountType(),
                     discount_value: this.getDiscountValue(),
-                    items: items.map(item => ({ id: item.id, qty: item.qty, kind: item.kind })),
+                    // `options` rides along on a configured set line so store-api can
+                    // re-price the upgrades; it is [] for every other kind of line.
+                    items: items.map(item => ({
+                        id: item.id, qty: item.qty, kind: item.kind,
+                        options: item.options || [],
+                    })),
                 }),
             });
             order = await response.json();
@@ -1608,6 +1644,209 @@ const ebBundlePicker = {
         });
         container.appendChild(row);
         this._syncEmptyHint(container);
+    },
+
+    _syncEmptyHint(container) {
+        const hint = document.getElementById(container.id + 'Empty');
+        if (hint) hint.style.display = container.children.length ? 'none' : 'block';
+    },
+};
+
+/* ------------------------------------------------------------
+   OPTION GROUP PICKER (admin) — a Set's swappable slots: "Laptop",
+   "X-ray model", each offering several products where picking a
+   dearer one adds to the set price (see SetOptionGroup in store-api).
+
+   Two levels, so unlike ebBundlePicker above this can NOT post flat
+   parallel inputs — "which choice belongs to which group" has
+   nowhere to live in item_product_id[]/item_qty[]. Instead the whole
+   structure is serialized into one hidden field on submit and parsed
+   by option_groups_from_form() in blueprints/admin/sets.py.
+
+   Needs BUNDLE_PRODUCTS, and uses each entry's `price` (when the page
+   supplies one) to show what an upcharge WOULD be if left on auto.
+
+   Leaving Upcharge blank stores NULL, which means "derive it from the
+   price gap at order time" — the recommended state, because it can't
+   go stale when either product is repriced.
+------------------------------------------------------------- */
+const ebOptionGroupPicker = {
+    /* Which container holds the "Included Products" list this editor upgrades.
+       A slot's standard choice is normally one of those products - store-api
+       treats the two as the same slot rather than two separate items (see
+       set_contents), so an upgrade REPLACES the included product instead of
+       sitting next to it. */
+    itemsContainerId: 'setItemsPicker',
+
+    _priceOf(productId) {
+        const products = (typeof BUNDLE_PRODUCTS !== 'undefined' && BUNDLE_PRODUCTS) || [];
+        const found = products.find(p => String(p.id) === String(productId));
+        return found && typeof found.price === 'number' ? found.price : null;
+    },
+
+    // What is currently listed under "Included Products", in their order, as
+    // {product_id, qty} - the qty comes along so upgrading a "×2" item doesn't
+    // silently become ×1.
+    _includedProducts() {
+        const items = document.getElementById(this.itemsContainerId);
+        if (!items) return [];
+        return Array.from(items.querySelectorAll('.bundle-row'))
+            .map(row => ({
+                product_id: row.querySelector('.bundle-row-product').value,
+                qty: parseInt(row.querySelector('.bundle-row-qty').value, 10) || 1,
+            }))
+            .filter(item => item.product_id);
+    },
+
+    // Included products already taken as the standard choice of some slot, so a
+    // second slot doesn't propose upgrading the same item twice.
+    _claimedProductIds(container) {
+        return Array.from(container.querySelectorAll('.option-choice'))
+            .filter(row => row.querySelector('.option-choice-default').checked)
+            .map(row => row.querySelector('.option-choice-product').value)
+            .filter(Boolean);
+    },
+
+    render(containerId, groups) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+        (groups || []).forEach(group => this.addGroup(containerId, group));
+        this._syncEmptyHint(container);
+    },
+
+    addGroup(containerId, group) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        const box = document.createElement('div');
+        box.className = 'option-group';
+        box.innerHTML = `
+            <div class="option-group-head">
+                <input type="text" class="option-group-name" placeholder="Slot name, e.g. Laptop"
+                       value="${ebEscapeHtml((group && group.name) || '')}">
+                <button type="button" class="bundle-row-remove option-group-remove" title="Remove this slot"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="option-choices"></div>
+            <button type="button" class="btn-dash sm option-add-choice"><i class="fas fa-plus"></i> Add choice</button>`;
+
+        box.querySelector('.option-group-remove').addEventListener('click', () => {
+            box.remove();
+            this._syncEmptyHint(container);
+        });
+        box.querySelector('.option-add-choice').addEventListener('click', () => {
+            this._addChoice(box.querySelector('.option-choices'));
+        });
+
+        container.appendChild(box);
+        const choicesEl = box.querySelector('.option-choices');
+        const choices = (group && group.choices) || [];
+        if (choices.length) {
+            choices.forEach(c => this._addChoice(choicesEl, c));
+        } else {
+            // A brand-new slot starts with its standard choice already filled in
+            // from "Included Products" - that is what the slot upgrades, so
+            // making the admin re-pick a product they just listed above is both
+            // busywork and the easy way to end up with a set that lists the same
+            // machine twice. First included product not already claimed by
+            // another slot; a plain empty row if there is nothing left to claim.
+            const claimed = this._claimedProductIds(container);
+            const available = this._includedProducts()
+                .filter(item => !claimed.includes(String(item.product_id)));
+            this._addChoice(
+                choicesEl,
+                available.length ? { ...available[0], is_default: true } : undefined,
+            );
+            // The second row is the upgrade itself - the whole point of the slot.
+            this._addChoice(choicesEl);
+        }
+        this._syncEmptyHint(container);
+    },
+
+    _addChoice(choicesEl, choice) {
+        const row = document.createElement('div');
+        row.className = 'option-choice';
+        // Radio names are per-group so exactly one choice per slot can be the
+        // default — the same rule the partial unique index enforces server-side.
+        const groupKey = choicesEl.dataset.key
+            || (choicesEl.dataset.key = 'og' + Math.random().toString(36).slice(2));
+        const storedDelta = (choice && choice.price_delta !== null && choice.price_delta !== undefined)
+            ? choice.price_delta : '';
+        row.innerHTML = `
+            <input type="radio" name="${groupKey}-default" class="option-choice-default" title="The standard choice, already covered by the set price"${choice && choice.is_default ? ' checked' : ''}>
+            <select class="option-choice-product">${ebBundlePicker._optionsHtml(choice && choice.product_id)}</select>
+            <input type="number" class="option-choice-qty" min="1" step="1" value="${(choice && choice.qty) || 1}" title="Quantity">
+            <input type="number" class="option-choice-delta" step="0.01" placeholder="auto" value="${storedDelta}" title="Upcharge vs the standard choice. Leave blank to work it out from the products' prices.">
+            <button type="button" class="bundle-row-remove" title="Remove"><i class="fas fa-times"></i></button>`;
+
+        row.querySelector('.bundle-row-remove').addEventListener('click', () => {
+            row.remove();
+            this._refreshHints(choicesEl);
+        });
+        row.querySelector('.option-choice-product').addEventListener('change', () => this._refreshHints(choicesEl));
+        row.querySelector('.option-choice-qty').addEventListener('change', () => this._refreshHints(choicesEl));
+        row.querySelector('.option-choice-default').addEventListener('change', () => this._refreshHints(choicesEl));
+
+        choicesEl.appendChild(row);
+        // First row in a fresh group is the default until told otherwise.
+        if (!choicesEl.querySelector('.option-choice-default:checked')) {
+            row.querySelector('.option-choice-default').checked = true;
+        }
+        this._refreshHints(choicesEl);
+    },
+
+    /* Shows what an "auto" upcharge currently works out to, so the admin can see
+       the number they are choosing not to override. Purely informational — the
+       field still posts blank, i.e. NULL, i.e. derive it again at order time. */
+    _refreshHints(choicesEl) {
+        const rows = Array.from(choicesEl.querySelectorAll('.option-choice'));
+        const defaultRow = rows.find(r => r.querySelector('.option-choice-default').checked);
+        const basePrice = defaultRow
+            ? this._priceOf(defaultRow.querySelector('.option-choice-product').value)
+            : null;
+        const baseQty = defaultRow
+            ? (parseInt(defaultRow.querySelector('.option-choice-qty').value, 10) || 1)
+            : 1;
+
+        rows.forEach(row => {
+            const delta = row.querySelector('.option-choice-delta');
+            if (row === defaultRow) {
+                // The baseline cannot be an upcharge on itself.
+                delta.placeholder = 'standard';
+                delta.disabled = true;
+                delta.value = '';
+                return;
+            }
+            delta.disabled = false;
+            const price = this._priceOf(row.querySelector('.option-choice-product').value);
+            const qty = parseInt(row.querySelector('.option-choice-qty').value, 10) || 1;
+            delta.placeholder = (price !== null && basePrice !== null)
+                ? 'auto (' + (price * qty - basePrice * baseQty).toFixed(2) + ')'
+                : 'auto';
+        });
+    },
+
+    /* The editor's state as store-api's option_groups payload. Called on submit
+       and written into the hidden field. A group with no name, or with no chosen
+       product in any row, is dropped rather than posted half-built. */
+    serialize(containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) return [];
+        return Array.from(container.querySelectorAll('.option-group')).map(box => {
+            const name = box.querySelector('.option-group-name').value.trim();
+            const choices = Array.from(box.querySelectorAll('.option-choice')).map(row => {
+                const productId = row.querySelector('.option-choice-product').value;
+                if (!productId) return null;
+                const rawDelta = row.querySelector('.option-choice-delta').value.trim();
+                return {
+                    product_id: parseInt(productId, 10),
+                    qty: parseInt(row.querySelector('.option-choice-qty').value, 10) || 1,
+                    // Blank -> null -> derived at order time.
+                    price_delta: rawDelta === '' ? null : parseFloat(rawDelta),
+                    is_default: row.querySelector('.option-choice-default').checked,
+                };
+            }).filter(Boolean);
+            return name && choices.length ? { name, choices } : null;
+        }).filter(Boolean);
     },
 
     _syncEmptyHint(container) {

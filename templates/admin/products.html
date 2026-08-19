@@ -40,6 +40,10 @@
                     </td>
                     <td>
                         <strong>{{ p.product_name }}</strong>
+                        {% if not p.is_purchasable %}
+                        <span style="font-size:0.65rem;font-weight:600;padding:1px 6px;border-radius:999px;background:var(--border);color:var(--text-soft);margin-left:4px;white-space:nowrap;"
+                              title="Gift-only: hidden from the storefront and cannot be ordered on its own">Gift only</span>
+                        {% endif %}
                         {% if p.free_items %}
                         <div style="font-size:0.7rem;color:var(--text-light);margin-top:2px;">
                             <i class="fas fa-gift"></i> Free: {% for i in p.free_items %}{{ i.product_name }}{% if i.qty > 1 %} ×{{ i.qty }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
@@ -146,6 +150,17 @@
                     <option value="new">New</option>
                     <option value="hot">Hot</option>
                 </select>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">
+                    <input type="checkbox" name="is_purchasable" id="prodPurchasable" checked style="margin-top:2px;flex-shrink:0;">
+                    <span>
+                        <span style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;">Can be bought on its own</span>
+                        <span style="font-size:0.7rem;color:var(--text-light);">
+                            Untick for a gift-only item. It still prints at $0.00 as part of whatever it comes with, but it's hidden from the storefront and can't be ordered by itself.
+                        </span>
+                    </span>
+                </label>
             </div>
             <div class="form-group" style="margin-bottom:12px;">
                 <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Comes With (Free)</label>
@@ -324,6 +339,8 @@
         document.getElementById('prodBrand').value = isEdit && product.brand ? product.brand.id : '';
         document.getElementById('prodCategory').value = isEdit && product.category ? product.category.id : '';
         document.getElementById('prodBadge').value = isEdit ? (product.badge || '') : '';
+        // Defaults to ticked on a new product - the common case is something you sell.
+        document.getElementById('prodPurchasable').checked = isEdit ? product.is_purchasable !== false : true;
         document.getElementById('prodImageFile').value = '';
         // Seeds the saved image; picking a file swaps in a preview of it
         // (data-preview on the input above, handled in main.js).

@@ -94,7 +94,7 @@
                         {% if product.category %}<tr><th>Category</th><td>{{ product.category.category_name }}</td></tr>{% endif %}
                         <tr><th>Item code</th><td>{{ product.product_code or '—' }}</td></tr>
                         <tr><th>Unit of measure</th><td>{{ product.uom or 'PCS' }}</td></tr>
-                        {% if manual %}<tr><th>Documentation</th><td>User manual available</td></tr>{% endif %}
+                        {% if manuals %}<tr><th>Documentation</th><td>{{ manuals|length }} document{{ '' if manuals|length == 1 else 's' }} available</td></tr>{% endif %}
                     </tbody>
                 </table>
             </div>
@@ -131,9 +131,15 @@
                 {# The Manual button, moved here from the site header - it belongs with
                    the product it documents, not in the top nav. Only rendered when this
                    product actually has a manual PDF attached (admin > Product Manuals). #}
-                {% if manual and manual.pdf %}
-                <a class="btn-outline pd-cta pd-manual-btn" href="{{ file_url(manual.pdf) }}" target="_blank" rel="noopener">
-                    <i class="fas fa-file-pdf"></i> Product Manual (PDF)
+                {# One document opens straight away; several scroll to the list below,
+                   since the button can't sensibly stand for three different files. #}
+                {% if manuals|length == 1 %}
+                <a class="btn-outline pd-cta pd-manual-btn" href="{{ file_url(manuals[0].pdf) }}" target="_blank" rel="noopener">
+                    <i class="fas fa-file-pdf"></i> {{ manuals[0].title or 'Product Manual' }} (PDF)
+                </a>
+                {% elif manuals %}
+                <a class="btn-outline pd-cta pd-manual-btn" href="#product-manuals">
+                    <i class="fas fa-file-pdf"></i> {{ manuals|length }} Documents
                 </a>
                 {% endif %}
 
@@ -145,19 +151,28 @@
             </aside>
         </div>
 
-        {% if manual %}
-        <section class="pd-manual-card">
-            <div class="pd-manual-icon"><i class="fas fa-book"></i></div>
-            <div class="pd-manual-body">
-                <h3>Product Manual</h3>
-                <p>{{ manual.description or 'Setup guide and instructions for ' ~ product.product_name ~ '.' }}</p>
-            </div>
-            {% if manual.pdf %}
-            <a class="btn-primary" href="{{ file_url(manual.pdf) }}" target="_blank" rel="noopener">
-                <i class="fas fa-file-pdf"></i> View Manual
-            </a>
+        {# One card per document. A product can carry a user guide, a quick-start
+           sheet and a service manual - each is its own Manual row with its own
+           title (admin > Product Manuals). The id is the buy-box button's target
+           when there is more than one. #}
+        {% if manuals %}
+        <div id="product-manuals" class="pd-manual-list">
+            {% if manuals|length > 1 %}
+            <h2 class="pd-manual-list-title">Documents</h2>
             {% endif %}
-        </section>
+            {% for manual in manuals %}
+            <section class="pd-manual-card">
+                <div class="pd-manual-icon"><i class="fas fa-book"></i></div>
+                <div class="pd-manual-body">
+                    <h3>{{ manual.title or 'Product Manual' }}</h3>
+                    <p>{{ manual.description or 'Setup guide and instructions for ' ~ product.product_name ~ '.' }}</p>
+                </div>
+                <a class="btn-primary" href="{{ file_url(manual.pdf) }}" target="_blank" rel="noopener">
+                    <i class="fas fa-file-pdf"></i> View
+                </a>
+            </section>
+            {% endfor %}
+        </div>
         {% endif %}
 
         {% if related %}

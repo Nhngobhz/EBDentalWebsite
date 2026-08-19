@@ -119,6 +119,26 @@
                 </button>
             </div>
             <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Upgrade Options</label>
+                <div style="font-size:0.7rem;color:var(--text-light);margin-bottom:6px;">
+                    Swappable slots the customer chooses from — a laptop, an x-ray model. A new slot starts with its
+                    standard choice taken from Included Products above, because a slot <em>upgrades</em> one of the
+                    included items: the one marked <i class="fas fa-circle-dot"></i> is what the Price already covers,
+                    and picking another <strong>replaces</strong> it on the quote rather than adding a second machine.
+                    Leave an upcharge blank to work it out from the products' own prices, so it stays right when either
+                    is repriced.
+                </div>
+                <div class="option-group-picker" id="setOptionsPicker"></div>
+                <div class="bundle-picker-empty" id="setOptionsPickerEmpty">No upgrade options — this set is sold in one fixed configuration.</div>
+                <button type="button" class="btn-dash sm bundle-add-btn" onclick="ebOptionGroupPicker.addGroup('setOptionsPicker')">
+                    <i class="fas fa-plus"></i> Add upgrade slot
+                </button>
+                {# The editor is two levels deep, so it can't post flat parallel
+                   inputs the way the contents picker does - it serializes into
+                   this hidden field on submit instead. #}
+                <input type="hidden" name="option_groups_json" id="setOptionsJson">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
                 <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Set Image</label>
                 <div style="font-size:0.7rem;color:var(--text-light);margin-bottom:6px;">The main image on the Promotions page set card.</div>
                 <input type="file" name="file" id="setImageFile" accept="image/png,image/jpeg,image/webp,image/gif" data-preview="setImagePreview" style="width:100%;font-size:0.8rem;">
@@ -154,7 +174,9 @@
        Slimmed to what the dropdown labels need; prices/images aren't wanted here. #}
     {% set product_options = [] %}
     {% for p in products %}
-    {% set _ = product_options.append({'id': p.id, 'product_name': p.product_name, 'product_code': p.product_code}) %}
+    {# `price` is extra on this page only: the upgrade editor shows what an
+       "auto" upcharge currently works out to (see ebOptionGroupPicker). #}
+    {% set _ = product_options.append({'id': p.id, 'product_name': p.product_name, 'product_code': p.product_code, 'price': p.price}) %}
     {% endfor %}
     const BUNDLE_PRODUCTS = {{ product_options|tojson }};
 
@@ -192,12 +214,23 @@
         // all is what clears a set's contents - see bundle_items_from_form().
         ebBundlePicker.render('setItemsPicker', isEdit ? set_.items : []);
 
+        // Upgrade slots (empty when creating). Submitting with none is what
+        // turns a configurable set back into a fixed one.
+        ebOptionGroupPicker.render('setOptionsPicker', isEdit ? set_.option_groups : []);
+
         document.getElementById('setModalOverlay').classList.add('active');
     }
 
     function closeSetModal() {
         document.getElementById('setModalOverlay')?.classList.remove('active');
     }
+
+    {# Serialized at submit time rather than kept in sync on every keystroke -
+       there is exactly one moment the value has to be right. #}
+    document.getElementById('setForm').addEventListener('submit', () => {
+        document.getElementById('setOptionsJson').value =
+            JSON.stringify(ebOptionGroupPicker.serialize('setOptionsPicker'));
+    });
 
     // Optional-chained: without product_management the modal isn't rendered at all.
     document.getElementById('setModalOverlay')?.addEventListener('click', function(e) {

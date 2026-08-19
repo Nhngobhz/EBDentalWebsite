@@ -25,7 +25,8 @@ def _file_from_request():
 def categories():
     client = get_api_client()
     category_list = client.get("/categories/", params={"limit": 500})
-    raw_products = client.get("/products/", params={"limit": 500})
+    # Gift-only products still belong to a category, so they count here.
+    raw_products = client.get("/products/", params={"limit": 500, "include_unpurchasable": "true"})
     counts = _product_counts_by_category(raw_products)
     for c in category_list:
         c["product_count"] = counts.get(c["id"], 0)

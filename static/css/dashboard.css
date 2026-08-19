@@ -1089,6 +1089,77 @@ a.sidebar-brand:hover {
     gap: 6px;
     align-items: center;
 }
+
+/* ---- Set upgrade slots (ebOptionGroupPicker) --------------------------
+   Two levels rather than the flat .bundle-row above: a bordered box per
+   swappable slot, one row per alternative inside it. Same control sizing
+   as .bundle-row-* so the two pickers sit together in one modal without
+   looking like separate features. */
+.option-group-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.option-group {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    background: var(--bg);
+}
+.option-group-head {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.option-group-name {
+    flex: 1;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 0.82rem;
+    font-weight: 600;
+    font-family: inherit;
+    background: var(--surface);
+    color: var(--text);
+}
+.option-choices {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+.option-choice {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.option-choice-default {
+    flex-shrink: 0;
+    accent-color: var(--primary, #f97316);
+    cursor: pointer;
+}
+.option-choice-product,
+.option-choice-qty,
+.option-choice-delta {
+    padding: 7px 9px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 0.8rem;
+    font-family: inherit;
+    background: var(--surface);
+    color: var(--text);
+}
+.option-choice-product { flex: 1; min-width: 0; }
+.option-choice-qty { width: 62px; }
+.option-choice-delta { width: 104px; }
+/* The standard choice cannot be an upcharge on itself, so its field is
+   disabled rather than hidden - the column stays aligned. */
+.option-choice-delta:disabled {
+    background: var(--bg);
+    color: var(--text-light);
+    cursor: not-allowed;
+}
 .bundle-row-product,
 .bundle-row-qty {
     padding: 8px 10px;

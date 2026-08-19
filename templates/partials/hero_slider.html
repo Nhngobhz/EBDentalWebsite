@@ -1,52 +1,65 @@
-<!-- Hero Slider — shared across all main content pages -->
+{#
+  Hero Slider — shared across all main content pages (home + products catalog).
+
+  The slides are rows in store-api's `hero_slides` table, edited at
+  Admin → Marketing & Sales → Hero Slider. They used to be three hard-coded blocks
+  right here; the three seeded rows (migration b8c3f5079e14) are those same slides, so
+  what renders is unchanged until someone edits them.
+
+  `hero_slides` comes from the sitewide context processor in app.py (already filtered to
+  active_only and sorted by sort_order), which is why this partial can be included from
+  two different blueprints without either route fetching anything.
+
+  The first active promotion still contributes an automatic slide ahead of them — it's
+  generated from that deal's own artwork rather than authored, so it isn't a row.
+#}
+{% set promo = active_promotions[0] if active_promotions else None %}
+{# Nothing to show means no carousel at all: an empty .slides with arrows and no dots
+   is a broken-looking box, not an empty state. #}
+{% if promo or hero_slides %}
 <section class="hero-slider" id="heroSlider">
     <div class="slides" id="slides">
-        {% if active_promotions %}
-        {% set promo = active_promotions[0] %}
-        {% set promo_img = img(promo.promotion_image) %}
-
+        {% if promo %}
         {# The slide IS this promotion's artwork, so it opens that deal's page
            rather than the list it happens to be first in. #}
         <a class="slide no-overlay" href="{{ url_for('catalog.promotion_detail', promotion_id=promo.id) }}"
-          style="background-image: url('{{ promo_img }}'); cursor: pointer;">
+          style="background-image: url('{{ img(promo.promotion_image) }}'); cursor: pointer;">
             <div class="slide-content">
-
-
                 <span class="btn-hero"><i class="fas fa-fire"></i> View This Deal</span>
             </div>
         </a>
         {% endif %}
-        <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=1400&h=900&fit=crop&auto=format');">
+
+        {% for slide in hero_slides %}
+        <div class="slide" style="background-image: url('{{ img(slide.slide_image) }}');">
             <div class="slide-content">
-                <div class="badge"><i class="fas fa-tooth"></i> Premium Dental Supply</div>
-                <h2>Equip Your Practice with <span>Excellence</span></h2>
-                <p>Discover high-quality dental instruments and equipment from world-class brands trusted by professionals.</p>
-                <a class="btn-hero" href="{{ url_for('catalog.products_catalog') }}"><i class="fas fa-arrow-down"></i> Explore Products</a>
+                {% if slide.badge_label %}
+                <div class="badge"><i class="fas {{ slide.badge_icon or 'fa-tooth' }}"></i> {{ slide.badge_label }}</div>
+                {% endif %}
+                <h2>{{ slide.heading }}{% if slide.heading_highlight %} <span>{{ slide.heading_highlight }}</span>{% endif %}</h2>
+                {% if slide.subheading %}<p>{{ slide.subheading }}</p>{% endif %}
+                {# Both halves required, and the href re-checked by link_url() — an
+                   admin-entered "javascript:..." renders no button rather than a
+                   working one (see formatting.py::resolve_link_url). #}
+                {% set href = link_url(slide.button_url) %}
+                {% if slide.button_label and href %}
+                <a class="btn-hero" href="{{ href }}"><i class="fas fa-arrow-down"></i> {{ slide.button_label }}</a>
+                {% endif %}
             </div>
         </div>
-        <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1584017911766-d451b3d0e0de?w=1400&h=900&fit=crop&auto=format');">
-            <div class="slide-content">
-                <div class="badge"><i class="fas fa-microscope"></i> Precision Instruments</div>
-                <h2>Advanced Technology for <span>Better Outcomes</span></h2>
-                <p>From endodontic motors to digital X-ray systems — we bring you the latest in dental innovation.</p>
-                <a class="btn-hero" href="{{ url_for('catalog.products_catalog') }}"><i class="fas fa-arrow-down"></i> View Collection</a>
-            </div>
-        </div>
-        <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1587825140708-dfaf72ae4b04?w=1400&h=900&fit=crop&auto=format');">
-            <div class="slide-content">
-                <div class="badge"><i class="fas fa-medal"></i> Trusted Brands</div>
-                <h2>Partner with <span>Industry Leaders</span></h2>
-                <p>Woodpecker, NSK, KaVo, Dentsply, and more — curated for performance and reliability.</p>
-                <a class="btn-hero" href="{{ url_for('catalog.products_catalog') }}"><i class="fas fa-arrow-down"></i> Browse Brands</a>
-            </div>
-        </div>
+        {% endfor %}
     </div>
+
+    {% set total_slides = hero_slides|length + (1 if promo else 0) %}
+    {# One slide needs no way to move between slides. #}
+    {% if total_slides > 1 %}
     <button class="arrow prev" id="prevSlide"><i class="fas fa-chevron-left"></i></button>
     <button class="arrow next" id="nextSlide"><i class="fas fa-chevron-right"></i></button>
     <div class="controls" id="dotControls">
-        {% set total_slides = 3 + (1 if active_promotions else 0) %}
         {% for i in range(total_slides) %}
         <button class="dot {{ 'active' if i == 0 }}" data-index="{{ i }}"></button>
         {% endfor %}
     </div>
+    {% endif %}
 </section>
+{% endif %}
