@@ -1,3 +1,4 @@
+import maps
 import site_settings
 from flask import Blueprint, jsonify, request
 
@@ -25,6 +26,53 @@ def customer_payment_term():
 
 def customer_install_term():
     return site_settings.get().get("default_install_term") or "Free within Phnom Penh"
+
+
+def _saved_customer():
+    """The signed-in customer's own record, or None.
+
+    Best-effort by design: every caller here is decorating an order with
+    convenience data, and a store-api hiccup while fetching it must not be the
+    reason a purchase fails.
+    """
+    if not is_customer():
+        return None
+    try:
+        return get_api_client().get("/customers/me")
+    except StoreAPIError:
+        return None
+
+
+@quote_bp.route("/prefill", methods=["GET"])
+def prefill():
+    """What the cart drawer should start with for a signed-in customer.
+
+    Read straight off their profile rather than out of the session, because the
+    session caches only a name/email/permission triple and would go stale the
+    moment they edited their address - which is exactly the field this exists to
+    fill in.
+
+    Staff get an empty object: their cart is a quoting tool for *other people's*
+    clinics, so seeding it with the salesperson's own address would be wrong
+    every single time.
+    """
+    customer = _saved_customer()
+    if not customer:
+        return jsonify({})
+    return jsonify({
+        # The cart calls this field "Clinic"; for a storefront customer that is
+        # simply who they are, which is the name on their account.
+        "clinic": customer.get("customer_name") or "",
+        "tel": customer.get("phone_num") or "",
+        "address": customer.get("address") or "",
+        # Not editable in the cart - shown there only so a customer can see WHICH
+        # saved location their order is about to be delivered to, with a link to
+        # go change it. The order gets its copy server-side in submit(), never
+        # from the browser.
+        "map_url": maps.location_link(
+            customer.get("latitude"), customer.get("longitude"), customer.get("map_link")
+        ),
+    })
 
 
 @quote_bp.route("/submit", methods=["POST"])
@@ -103,6 +151,18 @@ def submit():
             for item in items
         ],
     }
+
+    # The delivery pin is read off the customer's own record rather than accepted
+    # from the request. Not for safety - a buyer's location is their own detail,
+    # like contact_person - but for correctness: the cart lives in localStorage
+    # and can be days older than the profile, so trusting the copy it carries is
+    # how an order ends up pointing at an address the customer already corrected.
+    # Staff quotes get nothing: there is no customer record behind a walk-in.
+    saved = _saved_customer()
+    if saved:
+        payload["latitude"] = saved.get("latitude")
+        payload["longitude"] = saved.get("longitude")
+        payload["map_link"] = saved.get("map_link")
 
     client = get_api_client()
 

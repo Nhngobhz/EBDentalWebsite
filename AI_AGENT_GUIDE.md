@@ -51,6 +51,11 @@ follows.
   through `store_api.get_api_client()` (section 2) so token attachment and
   error normalization stay in one place. If you find yourself importing
   `requests` in a blueprint, stop - that's the wrong pattern here.
+  **One module legitimately imports `requests` and is not a violation of
+  this**: `maps.py`, which follows a shortened Google Maps link to read the
+  coordinates out of it. It never calls store-api - it calls Google - and it
+  is the only thing in this app that fetches a URL a *user* supplied, which
+  is why it vets the host before every hop (see section 7).
 - **Decimal-as-string quirk**: store-api serializes `Decimal` fields
   (`price`, `subtotal`, `discount_value`, ...) as JSON *strings*
   (`"209.00"`), not numbers - and the masked-price sentinel is also a
@@ -421,7 +426,54 @@ Exposed as Jinja globals in `app.py` (`img`, `file_url`, `price`,
 | `format_price` (Jinja `price()`) | Safe to call on anything `to_number()` may have produced - real number → `"$1,234.56"`, masked → `"Login to view price"`, `None` → `""`. |
 | `format_date` | ISO 8601 string (or `datetime`) → `"Jul 21, 2026"` by default. |
 | `adapt_product` / `adapt_promotion` / `adapt_set` / `adapt_order` | Per-entity adapters - run **once**, immediately after fetching from store-api, before the dict reaches a template or a `tojson` blob. If you fetch a new list of orders/products/promotions/sets somewhere, run it through the matching adapter before doing anything else with it. |
+| `location_link(lat, lng, map_link)` (Jinja `location_link()`) | Lives in `maps.py`, registered as a Jinja global beside the others. The best "open this location" URL for a stored pin: the customer's own pasted link if there is one, otherwise a Google Maps URL built from the coordinates, otherwise `None`. Returning `None` is load-bearing - the caller renders no link rather than a dead one, so every call site needs an `{% if %}`. |
 | `was_price(list_price, price)` | The struck-through "was $X", or `None` when there's nothing to strike (no discount, or a masked viewer). `adapt_product` sets `product["was_price"]` from it, which is what templates render and what a cart line stores as `oldPrice`. Replaced `derive_old_price()`, which reconstructed the figure by division - see section 4. |
+
+## 5b. Delivery locations (`maps.py` + the location picker)
+
+A customer's address is free text and always has been; since 2026-08-19 they
+can also mark **where** that is. Four moving parts:
+
+- **`maps.py`** - all the URL work. `parse_coordinates()` reads a lat/lng out
+  of every Google Maps URL shape (note it prefers the `!3d..!4d..` pair over
+  the `@lat,lng` one: on a place page the `@` values are the map's viewport
+  centre, not the pin). `expand_short_link()` follows a
+  `maps.app.goo.gl/...` link server-side, because that shape carries no
+  coordinates at all until the redirect is followed and the browser can't
+  follow it (no CORS headers). `location_link()` is the display helper
+  (section 5).
+- **`blueprints/maps_routes.py`** - `POST /maps/resolve`, login-required, the
+  only reason any of this needs a server round trip. **This is the one place
+  in the app that fetches a URL a user typed**, so it is deliberately narrow:
+  `maps.py` allowlists the hosts it will request *and* re-checks the host at
+  every redirect hop, refuses non-80/443 ports, and refuses non-http(s)
+  schemes. Without that it is a plain SSRF - "resolve"
+  `http://169.254.169.254/` and the server fetches it from inside the network.
+  Do not relax the allowlist to "any URL".
+- **`templates/partials/location_picker.html` + `static/js/location-picker.js`** -
+  the picker macro. It renders three hidden inputs (`latitude`, `longitude`,
+  `map_link`) and the UI that fills them; the surrounding `<form>` submits them
+  like any other field. Leaflet/OpenStreetMap tiles, lazy-loaded on first use,
+  rather than the Google Maps JS API - that one needs a billing-enabled key.
+  Two things to know before reusing it:
+    * the `picker_id` must be unique on the page - it's the JS registry key;
+    * a picker inside a **modal** must be told when it becomes visible
+      (`EBLocationPicker.reveal(id)`), or Leaflet measures a hidden container
+      and renders a grey void. See `openCustomerModal()` in
+      `templates/admin/customers.html`.
+- **Cart auto-fill** - `GET /quote/prefill` (`blueprints/quote.py`) returns the
+  signed-in customer's saved clinic/phone/address plus their pin's URL;
+  `QuoteCart.ensurePrefill()` (main.js) calls it on first drawer open and fills
+  **only the blank fields**, so nothing the customer typed is ever overwritten.
+  The pin that lands on the order is **not** taken from that request - `submit()`
+  reads it off `/customers/me` server-side, because the cart lives in
+  localStorage and can be days older than the profile.
+
+Editing surfaces are the customer's own `/profile/edit` and the admin Customers
+screen. Deliberately **not** the cart: the pin belongs to the account, not to
+one order, and an order's copy is a frozen snapshot of it (`Order.latitude` on
+store-api) so it keeps showing where a past delivery went after the customer
+moves their pin.
 
 ## 6. Common agent mistakes to avoid
 

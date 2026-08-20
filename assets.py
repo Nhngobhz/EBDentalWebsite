@@ -38,6 +38,10 @@ CSS_BUNDLES = {
         "auth.css",
         "shell.css",
         "products.css",
+        # The delivery-location picker on /profile/edit. Small, and only the
+        # storefront and admin bundles carry it - the sign-in pages have no
+        # picker on them.
+        "location-picker.css",
         "responsive.css",
         "loader.css",
     ],
@@ -60,6 +64,7 @@ CSS_BUNDLES = {
         "dashboard.css",
         "shell.css",
         "products.css",
+        "location-picker.css",
         "responsive.css",
         "loader.css",
     ],

@@ -37,6 +37,22 @@
                     <label>Address *
                         <input type="text" id="qiAddress" placeholder="Clinic address" required oninput="QuoteCart.saveInfoField('address', this.value)">
                     </label>
+                    {# Which saved pin this order will be delivered to. Read-only on
+                       purpose: the pin belongs to the account, not to one order, so
+                       it is changed where it lives (the profile) rather than being
+                       re-picked in the cart every time. The address box above stays
+                       freely editable - it is what gets PRINTED on the quotation.
+
+                       Hidden until QuoteCart.applyPrefill() has heard back from
+                       /quote/prefill, so it never flashes the wrong state. #}
+                    {% if is_customer() %}
+                    <div class="quote-info-location" id="quoteInfoLocation" hidden>
+                        <i class="fas fa-location-dot"></i>
+                        <span id="quoteInfoLocationText"></span>
+                        <a id="quoteInfoLocationView" href="" target="_blank" rel="noopener" hidden>View</a>
+                        <a href="{{ url_for('auth.profile_edit') }}" id="quoteInfoLocationEdit"></a>
+                    </div>
+                    {% endif %}
                     <label>Contact Person
                         <input type="text" id="qiContactPerson" placeholder="098 882 953" oninput="QuoteCart.saveInfoField('contactPerson', this.value)">
                     </label>

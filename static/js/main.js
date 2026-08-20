@@ -204,6 +204,196 @@ document.addEventListener('DOMContentLoaded', () => {
     if (nextBtn) nextBtn.addEventListener('click', () => scrollByOneCard(1));
 });
 
+/* ------------------------------------------------------------
+   CATALOG FILTERS — the category strip across the top of
+   /products and the standing category panel down its left side.
+   See templates/products/catalog.html.
+
+   Both controls are plain links/checkboxes that work with the page
+   reloading and no JS at all; everything here is enhancement:
+   folding the long category strip away, and turning a tick in the
+   panel into a navigation so the Apply button isn't needed.
+------------------------------------------------------------- */
+function initCatalogFilters() {
+    const strip = document.getElementById('catStrip');
+    const sidebar = document.getElementById('catalogSidebar');
+
+    if (strip) {
+        const row = document.getElementById('catStripRow');
+        const moreBtn = document.getElementById('catStripMore');
+        // How much of the edge softens where the row runs off the side. Matches
+        // the --fade-l/--fade-r stops in products.css.
+        const FADE = '34px';
+
+        function isOpen() {
+            return strip.classList.contains('is-open');
+        }
+
+        // The width one unwrapped row of names would take. Summed from the
+        // links rather than read off scrollWidth, because scrollWidth answers
+        // the question only while the row is NOT wrapped - and this is asked in
+        // both states, to decide whether the chevron has anything to reveal.
+        // (An earlier version measured height instead and hid the chevron the
+        // moment you used it, because clientHeight mid-animation reported the
+        // strip as already showing everything.)
+        function naturalRowWidth() {
+            const links = row.children;
+            if (!links.length) return 0;
+            const colGap = parseFloat(getComputedStyle(row).columnGap) || 0;
+            let total = colGap * (links.length - 1);
+            for (const link of links) total += link.getBoundingClientRect().width;
+            return total;
+        }
+
+        // Chevron only where it does something: with every category already on
+        // screen there is no "rest" to drop down to.
+        function syncOverflow() {
+            // 4px of slack for sub-pixel widths, which otherwise report a few
+            // hundredths of overflow on a strip that fits perfectly.
+            strip.classList.toggle(
+                'no-overflow', naturalRowWidth() <= row.clientWidth + 4
+            );
+        }
+
+        // The edge fades, in whichever direction the strip currently runs.
+        // Closed that is sideways - one fade per end, each shown only while
+        // there is actually more list past it. Open it is downwards, and the
+        // same reasoning applies to the bottom edge.
+        function syncFades() {
+            if (isOpen()) {
+                const below = row.scrollHeight - row.clientHeight - row.scrollTop;
+                strip.classList.toggle('is-clipped', below > 4);
+                return;
+            }
+            strip.classList.remove('is-clipped');
+            const right = row.scrollWidth - row.clientWidth - row.scrollLeft;
+            row.style.setProperty('--fade-l', row.scrollLeft > 4 ? FADE : '0px');
+            row.style.setProperty('--fade-r', right > 4 ? FADE : '0px');
+        }
+        row.addEventListener('scroll', syncFades, { passive: true });
+
+        // Everything that can't ride along on the class change, because it is
+        // either not an animatable property or would fight the animation:
+        //
+        //  - overflow-y, switched on only once the panel has finished growing.
+        //    Turned on at the start, the scrollbar draws over a panel that is
+        //    still growing and then disappears again if the names turn out to
+        //    fit inside the cap.
+        //  - .is-closing, which holds the wrapped layout until the panel has
+        //    finished folding away. Without it the row snaps back to one line
+        //    immediately and there is nothing left for max-height to animate.
+        //
+        // A timer rather than `transitionend`, because transitionend never
+        // fires when the transition is suppressed (reduced-motion settings, a
+        // background tab) - and the strip would then be stuck wrapped, clipped,
+        // and unscrollable, which is far worse than a slightly early scrollbar.
+        let phaseTimer;
+        function setOpenState(open) {
+            clearTimeout(phaseTimer);
+            if (open) {
+                strip.classList.remove('is-closing');
+                phaseTimer = setTimeout(() => {
+                    strip.classList.add('is-scrollable');
+                    syncFades();
+                }, 360);
+            } else {
+                strip.classList.remove('is-scrollable');
+                strip.classList.add('is-closing');
+                // Back to the top, or the one row left visible after closing is
+                // wherever the reader had scrolled to - the strip would collapse
+                // onto "Intraoral Scanner ... Mobile Cart" with no All link and
+                // no sign it had been scrolled at all.
+                row.scrollTop = 0;
+                phaseTimer = setTimeout(() => {
+                    strip.classList.remove('is-closing');
+                    // Only now is the row one line again, so only now can it be
+                    // asked how far off the side it runs.
+                    syncFades();
+                    revealActive();
+                }, 360);
+            }
+            syncFades();
+        }
+
+        if (moreBtn) {
+            moreBtn.addEventListener('click', () => {
+                const open = strip.classList.toggle('is-open');
+                moreBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                moreBtn.setAttribute(
+                    'aria-label', open ? 'Show fewer categories' : 'Show all categories'
+                );
+                setOpenState(open);
+            });
+        }
+
+        // A ticked category should be on screen without having to hunt for it -
+        // otherwise a filter can be active with no sign of it in the strip. The
+        // STRIP is scrolled, never the window: the shopper is at the top of the
+        // page and should stay there.
+        function revealActive() {
+            const active = row.querySelector('.cat-strip-link.active:not(:first-child)');
+            if (!active || isOpen()) return;
+            const rowBox = row.getBoundingClientRect();
+            const box = active.getBoundingClientRect();
+            // The least scrolling that brings the whole name inside the row -
+            // a category near the end then sits at the right-hand edge rather
+            // than being dragged all the way to the left.
+            if (box.right > rowBox.right) {
+                row.scrollLeft += box.right - rowBox.right + 24;
+            } else if (box.left < rowBox.left) {
+                row.scrollLeft += box.left - rowBox.left - 24;
+            }
+        }
+
+        function syncAll() {
+            syncOverflow();
+            // Smooth scrolling is what the strip wants for a swipe, but not for
+            // a correcting jump - the names would visibly slide past on load.
+            row.style.scrollBehavior = 'auto';
+            revealActive();
+            row.style.scrollBehavior = '';
+            syncFades();
+        }
+
+        syncAll();
+        // ...and again once the web fonts have landed. Every answer above is a
+        // measurement of text, and this runs on DOMContentLoaded, with Inter
+        // still loading: against the fallback metrics the strip measured ~1000px
+        // narrower than it ends up, so the jump to a ticked category stopped
+        // short of it and the chevron was decided on a layout about to change.
+        if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(syncAll);
+        }
+
+        // How many names fit across is a width question, so it has to be
+        // re-asked when the window changes.
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                syncOverflow();
+                syncFades();
+            }, 150);
+        });
+    }
+
+    if (sidebar) {
+        // Ticking a box navigates to that box's toggle URL - the exact same URL
+        // the matching text link in the strip points at, so the two controls
+        // can't disagree about what a category click means. The form around
+        // them stays a real GET form for the no-JS path (.cs-apply, hidden by
+        // CSS once .has-js is on the document).
+        sidebar.querySelectorAll('.cs-item input[type="checkbox"]').forEach((box) => {
+            box.addEventListener('change', () => {
+                const href = box.dataset.href;
+                if (href) window.location.href = href;
+            });
+        });
+    }
+}
+
+document.addEventListener('DOMContentLoaded', initCatalogFilters);
+
 /* NOTE: subcategory add/remove logic now lives inline in brands.html's
    modal (page-specific), not here globally — avoids double-registering
    the same button when the modal script also wires it up. */
@@ -648,6 +838,77 @@ const QuoteCart = {
         localStorage.setItem(this.INFO_KEY, JSON.stringify(info));
     },
 
+    // ---- auto-fill from the customer's own profile ----
+    // The cart's info form is normally restored from localStorage (getInfo).
+    // For a signed-in customer the first fill comes from their account instead,
+    // so buying something doesn't mean retyping the clinic name, phone and
+    // address they already gave us - and so the address the order records is the
+    // same one their delivery pin points at.
+    //
+    // Fetched on first drawer open rather than on page load: a customer who
+    // never opens the cart never pays for the request. Cached in a promise for
+    // the rest of the page's life, exactly like _ensurePdfLibs().
+    _prefillPromise: null,
+    ensurePrefill() {
+        // Staff are quoting for OTHER clinics - seeding their cart from their own
+        // staff record would be wrong every time (see /quote/prefill).
+        if (typeof IS_LOGGED_IN === 'undefined' || !IS_LOGGED_IN) return Promise.resolve(null);
+        if (typeof IS_STAFF !== 'undefined' && IS_STAFF) return Promise.resolve(null);
+        if (this._prefillPromise) return this._prefillPromise;
+
+        this._prefillPromise = fetch(QUOTE_PREFILL_URL, { headers: { 'Accept': 'application/json' } })
+            .then(response => (response.ok ? response.json() : null))
+            .then(data => {
+                this.applyPrefill(data);
+                return data;
+            })
+            // A profile we could not fetch just means the form starts empty, the
+            // way it always used to. Never block opening the cart on it.
+            .catch(() => null);
+        return this._prefillPromise;
+    },
+
+    /* Fills the blanks - and only the blanks. Anything already typed into the
+     * cart is the customer's more recent intent than their stored profile, so a
+     * saved value never overwrites it. */
+    applyPrefill(data) {
+        if (!data) return;
+        const info = this.getInfo();
+        [['clinic', 'qiClinic'], ['tel', 'qiTel'], ['address', 'qiAddress']].forEach(([key, id]) => {
+            if (info[key] || !data[key]) return;
+            const el = document.getElementById(id);
+            if (el) el.value = data[key];
+            // Written through saveInfoField because setting .value from script
+            // fires no `input` event, and submit() reads localStorage, not the DOM.
+            this.saveInfoField(key, data[key]);
+        });
+        this.renderSavedLocation(data.map_url || '');
+    },
+
+    /* The "we will deliver to your saved pin" line under the address box. Its
+     * job is to make the auto-fill visible: a pin the customer cannot see is one
+     * they will never notice is wrong or missing. */
+    renderSavedLocation(mapUrl) {
+        const wrap = document.getElementById('quoteInfoLocation');
+        if (!wrap) return;   // staff drawer - the block isn't rendered at all
+        const text = document.getElementById('quoteInfoLocationText');
+        const view = document.getElementById('quoteInfoLocationView');
+        const edit = document.getElementById('quoteInfoLocationEdit');
+
+        if (mapUrl) {
+            text.textContent = 'Delivering to your saved location.';
+            view.href = mapUrl;
+            view.hidden = false;
+            edit.textContent = 'Change';
+        } else {
+            text.textContent = 'No delivery location saved yet.';
+            view.hidden = true;
+            edit.textContent = 'Set one';
+        }
+        wrap.classList.toggle('is-missing', !mapUrl);
+        wrap.hidden = false;
+    },
+
     renderInfoForm() {
         const info = this.getInfo();
         const setVal = (id, key) => {
@@ -667,6 +928,9 @@ const QuoteCart = {
     open() {
         document.getElementById('quoteDrawer')?.classList.add('active');
         document.getElementById('quoteDrawerOverlay')?.classList.add('active');
+        // After the drawer is on screen, not before: the fill is a convenience and
+        // must never be something the customer waits on to see their cart.
+        this.ensurePrefill();
     },
 
     close() {

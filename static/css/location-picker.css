@@ -1,0 +1,173 @@
+/* Delivery-location picker (templates/partials/location_picker.html +
+   static/js/location-picker.js).
+
+   Written against the shared custom properties (--border, --surface, --text,
+   --accent, ...) rather than literal colours so the one component works
+   unchanged on the storefront profile page and inside the admin dashboard's
+   modal. They all come from base.css, which is in every bundle. Note --accent
+   (#0891b2) is this site's brand colour; --primary is its near-black TEXT
+   colour, so it is NOT the one to reach for on a link or an icon. */
+
+.loc-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.loc-picker-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.loc-picker-url {
+    flex: 1 1 200px;
+    min-width: 0;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.85rem;
+}
+
+.loc-picker-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text-soft);
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+
+.loc-picker-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.loc-picker-btn i {
+    font-size: 0.8rem;
+}
+
+/* Clearing a location is destructive in a small way, so it reads as the quieter
+   of the two actions until it is hovered. */
+.loc-picker-clear {
+    margin-left: auto;
+}
+
+.loc-picker-clear:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.loc-picker-map {
+    height: 240px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--bg);
+    /* Leaflet stacks its own panes and controls; without this the map's zoom
+       buttons can sit over a modal's close button. */
+    z-index: 0;
+}
+
+/* The fallback when Leaflet itself could not be fetched - the picker keeps
+   working through the paste-a-link field, so this explains rather than hides. */
+.loc-picker-map.is-unavailable {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 16px;
+    font-size: 0.8rem;
+    color: var(--text-light);
+}
+
+.loc-picker-footer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 0.75rem;
+    color: var(--text-light);
+}
+
+.loc-picker-status {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.loc-picker-open {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 600;
+    color: var(--accent);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.loc-picker-open:hover {
+    text-decoration: underline;
+}
+
+.loc-picker-hint {
+    font-size: 0.72rem;
+    color: var(--text-light);
+    line-height: 1.45;
+}
+
+/* The marker. A styled div rather than Leaflet's default PNG - see the note in
+   location-picker.js - drawn as a teardrop by rotating a square with three
+   rounded corners. */
+.loc-pin {
+    background: none;
+    border: 0;
+}
+
+.loc-pin .loc-pin-dot {
+    display: block;
+    width: 22px;
+    height: 22px;
+    margin: 2px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    background: var(--accent, #0891b2);
+    border: 2px solid #fff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+/* A saved location on a read-only page (profile view, admin order detail) -
+   not part of the picker, but the same idea and the same palette. */
+.loc-readout {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.loc-readout:hover {
+    text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+    .loc-picker-map {
+        height: 200px;
+    }
+
+    /* On a narrow screen the two buttons get a row of their own rather than
+       being squeezed next to the link field. */
+    .loc-picker-clear {
+        margin-left: 0;
+    }
+}

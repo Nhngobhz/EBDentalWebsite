@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/location_picker.html" import location_picker %}
 
 {% block title %}Edit Profile{% endblock %}
 
@@ -68,6 +69,16 @@
                 <input type="text" name="address" value="{{ me.address or '' }}" />
             </div>
 
+            {# Customers only. A pin answers "where do we deliver this", which is
+               a question a staff account never gets asked - their address field
+               is just contact detail. #}
+            {% if is_customer() %}
+            <div class="edit-profile-field">
+                <label>Delivery location</label>
+                {{ location_picker('profileLocation', me.latitude, me.longitude, me.map_link) }}
+            </div>
+            {% endif %}
+
             <div class="edit-profile-field">
                 <label>Username <span class="soon-tag">Coming soon</span></label>
                 <input type="text" placeholder="Not available yet" disabled />
@@ -78,6 +89,9 @@
     </div>
 </div>
 
+{% if is_customer() %}
+<script src="{{ url_for('static', filename='js/location-picker.js') }}" defer></script>
+{% endif %}
 <script>
 document.getElementById('profileImageInput')?.addEventListener('change', function () {
     if (this.files && this.files[0]) {

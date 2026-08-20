@@ -1,3 +1,4 @@
+from collections import Counter
 from urllib.parse import urlencode
 
 from flask import Blueprint, abort, render_template, request, url_for
@@ -15,31 +16,102 @@ def products_catalog():
     client = get_api_client()
 
     selected_brand = request.args.get("brand", type=int)
-    selected_category = request.args.get("category", type=int)
+    # Categories are multi-select: the standing filter panel on the left is a list
+    # of checkboxes, and the text strip across the top toggles the same set, so the
+    # parameter repeats - "?category=8&category=19". A one-category link from an
+    # older bookmark still arrives here as a single-element list.
+    selected_categories = request.args.getlist("category", type=int)
     search_query = request.args.get("q", "").strip()
 
     brands = client.get("/brands/", params={"limit": 200})
     categories = client.get("/categories/", params={"limit": 500})
 
+    # Note what is NOT sent: `category_id`. store-api filters on one category at a
+    # time (see routers/products.py::list_products), which can't express "Endo Motor
+    # OR Apex Locator", so the category cut happens here instead - over the
+    # brand/search-filtered set, which is small enough (`limit` covers the whole
+    # catalog) that a second pass in Python is free.
     params = {"limit": 500}
     if selected_brand:
         params["brand_id"] = selected_brand
-    if selected_category:
-        params["category_id"] = selected_category
     if search_query:
         params["q"] = search_query
     raw_products = client.get("/products/", params=params)
     products = [adapt_product(p) for p in raw_products]
 
+    # How many products sit in each category *within the current brand/search
+    # context*, counted before the category cut below - so the number beside a
+    # checkbox says what ticking it would actually yield, and a category that could
+    # only ever produce an empty grid can be left out of the panel entirely.
+    category_counts = Counter(
+        p["category"]["id"] for p in products if p.get("category")
+    )
+
+    if selected_categories:
+        wanted = set(selected_categories)
+        products = [
+            p for p in products if (p.get("category") or {}).get("id") in wanted
+        ]
+
+    # A checked category is always listed even when nothing matches it here (a
+    # brand switch can empty it) - otherwise its box would disappear along with the
+    # only way to untick it.
+    visible_categories = [
+        c
+        for c in categories
+        if category_counts.get(c["id"]) or c["id"] in set(selected_categories)
+    ]
+
+    # Sets share the grid with products now, as cards of their own. A Set has a
+    # brand and a name, so it follows the brand strip and the search box, but it has
+    # no category at all (see store-api's Set model - deliberately, a bundle spans
+    # categories), which is why any category selection hides them rather than
+    # showing bundles the ticked boxes don't describe.
+    sets = []
+    if not selected_categories:
+        sets = [adapt_set(s) for s in client.get("/sets/", params={"limit": 200})]
+        if selected_brand:
+            sets = [s for s in sets if (s.get("brand") or {}).get("id") == selected_brand]
+        if search_query:
+            needle = search_query.lower()
+            sets = [s for s in sets if needle in (s.get("set_name") or "").lower()]
+
     selected_brand_obj = next((b for b in brands if b["id"] == selected_brand), None)
-    page_title = selected_brand_obj["brand_name"] if selected_brand_obj else "All Products"
+    if selected_brand_obj:
+        page_title = selected_brand_obj["brand_name"]
+    elif len(selected_categories) == 1:
+        # One category ticked reads as browsing that category, so name it. Two or
+        # more have no single honest heading.
+        only = next((c for c in categories if c["id"] == selected_categories[0]), None)
+        page_title = only["category_name"] if only else "All Products"
+    else:
+        page_title = "All Products"
 
     def catalog_url(**overrides):
-        query = {"brand": selected_brand, "category": selected_category, "q": search_query or None}
+        # doseq, because `category` is a list - urlencode would otherwise write the
+        # repr of the list ("%5B8%2C+19%5D") as one value.
+        query = {
+            "brand": selected_brand,
+            "category": selected_categories,
+            "q": search_query or None,
+        }
         query.update(overrides)
-        query = {k: v for k, v in query.items() if v not in (None, "")}
+        query = {k: v for k, v in query.items() if v not in (None, "", [])}
         base = url_for("catalog.products_catalog")
-        return f"{base}?{urlencode(query)}" if query else base
+        return f"{base}?{urlencode(query, doseq=True)}" if query else base
+
+    def category_toggle_url(category_id):
+        """This page with `category_id` added to, or removed from, the ticked set.
+
+        Both the text strip and the checkbox panel point at this, so the two
+        controls can't drift apart: a link in the strip is the same action as the
+        box beside that name."""
+        current = list(selected_categories)
+        if category_id in current:
+            current.remove(category_id)
+        else:
+            current.append(category_id)
+        return catalog_url(category=current)
 
     special_products = [
         {"slug": slug, **meta} for slug, meta in SPECIAL_PRODUCTS.items()
@@ -48,14 +120,17 @@ def products_catalog():
     return render_template(
         "products/catalog.html",
         products=products,
+        sets=sets,
         brands=brands,
-        categories=categories,
+        categories=visible_categories,
+        category_counts=category_counts,
         selected_brand=selected_brand,
         selected_brand_obj=selected_brand_obj,
-        selected_category=selected_category,
+        selected_categories=selected_categories,
         search_query=search_query,
         page_title=page_title,
         catalog_url=catalog_url,
+        category_toggle_url=category_toggle_url,
         special_products=special_products,
     )
 
@@ -191,15 +266,36 @@ def _bundle_detail(kind, path, adapt, name_field, image_field, extra_images=()):
         if item.get(field)
     ]
 
+    # Only a Set ever has these; a Promotion renders the page without them.
+    option_groups = item.get("option_groups") or []
+
+    # An option slot takes over the included product its standard choice names -
+    # it upgrades that item rather than adding a second one (the same rule
+    # set_contents applies server-side when the order is priced). Filtering here
+    # rather than in the template keeps ONE definition of "what's included",
+    # which both the visible list and the cart payload below then read: without
+    # it the page lists the standard x-ray under "What's included" AND offers it
+    # as a radio, and the cart shows the machine you replaced next to its
+    # replacement.
+    claimed = {
+        choice["product_id"]
+        for group in option_groups
+        for choice in (group.get("choices") or [])
+        if choice.get("is_default")
+    }
+    contents = [
+        entry for entry in (item.get("items") or [])
+        if entry.get("product_id") not in claimed
+    ]
+
     return render_template(
         "products/bundle_detail.html",
         kind=kind,
         bundle=item,
         name=item.get(name_field),
         gallery=gallery,
-        contents=item.get("items") or [],
-        # Only a Set ever has these; a Promotion renders the page without them.
-        option_groups=item.get("option_groups") or [],
+        contents=contents,
+        option_groups=option_groups,
     )
 
 

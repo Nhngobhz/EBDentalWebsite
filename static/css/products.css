@@ -302,6 +302,366 @@
     white-space: nowrap;
 }
 
+/* ============================================================
+   CATALOG CATEGORY STRIP (.cat-strip)
+   The text row across the top of /products. Deliberately NOT the
+   pill treatment .category-filter-wrap above still gives the
+   Promotions page: with ~40 categories a row of pills reads as a
+   wall of buttons, while plain text with the picked ones in accent
+   colour reads as a nav bar - which is what it is. Clipped to a
+   single line; the chevron on the right opens the rest.
+   ============================================================ */
+.cat-strip {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 22px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+}
+.cat-strip-row {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    /* Closed, the strip is ONE row that scrolls sideways - the same gesture the
+       brand strip above it takes, and the reason the names no longer have to
+       fit the window to all be reachable. The chevron switches it to `wrap`
+       (below) for readers who would rather see the lot at once. */
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    /* No rail. A visible horizontal scrollbar under a single line of text is
+       most of the line's height again, and the edge fades below say the same
+       thing without taking the space. Same choice as .eb-brand-scroll. */
+    scrollbar-width: none;
+    /* Row gap is what makes the clip below land between lines instead of
+       through one; the wide column gap is what keeps the names reading as
+       separate links without any divider. */
+    gap: 6px 24px;
+    /* The link font-size lives HERE, not on the link, so the em below and the
+       link's unitless line-height are measured against the same value - the
+       one-row clip is then exactly one line-height tall and nothing else. */
+    font-size: 0.82rem;
+    max-height: 2.4em;
+    transition: max-height 0.35s cubic-bezier(.4, 0, .2, 1);
+
+    /* Softened edges wherever the row runs past the window, so a strip that
+       continues off to the right looks like it continues. Driven by two
+       variables rather than three combinations of classes, and both default to
+       0 - at 0 each pair of stops sits at the same position, which is a mask
+       that fades nothing. initCatalogFilters() sets them from the scroll
+       position. Masking rather than a gradient overlay because the strip sits
+       directly on the page background rather than on a card of its own: an
+       overlay would have to name that colour and would show as a band the
+       moment the section behind it changed. */
+    --fade-l: 0px;
+    --fade-r: 0px;
+}
+.cat-strip-row::-webkit-scrollbar {
+    display: none;
+}
+.cat-strip:not(.is-open) .cat-strip-row {
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-l),
+                        #000 calc(100% - var(--fade-r)), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-l),
+                #000 calc(100% - var(--fade-r)), transparent 100%);
+}
+/* Open: the row wraps into a panel instead of running off to the side.
+   .is-closing holds the wrap through the closing animation - dropped back to
+   one line at the start of it, the panel would have nothing left to shrink and
+   would snap shut instead of folding away. */
+.cat-strip.is-open .cat-strip-row,
+.cat-strip.is-closing .cat-strip-row {
+    flex-wrap: wrap;
+    overflow-x: hidden;
+}
+.cat-strip.is-open .cat-strip-row {
+    /* Roughly five rows of names. NOT tall enough for all ~40 categories on
+       purpose: opening the strip used to push the first product card most of a
+       screen down, so the control you just used to browse took the browsing
+       away. Past this height the list scrolls inside itself. A fixed value
+       rather than `none`/`fit-content`, so opening and closing still animates. */
+    max-height: 13em;
+    /* Room for the scrollbar, so a long category name doesn't sit under it. */
+    padding-right: 8px;
+}
+/* Vertical scrolling is switched on a beat AFTER the panel opens (see
+   initCatalogFilters), not here on .is-open: overflow can't be transitioned, so
+   turning it on at the start of the growth animation puts a scrollbar over a
+   panel that is still growing - and then takes it away again if the categories
+   turn out to fit. */
+.cat-strip.is-scrollable .cat-strip-row {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    /* Same thin rail as the sidebar's category list - the two controls are the
+       same list, so they scroll looking the same. Overrides the `none` above,
+       which is about the closed row's horizontal bar. */
+    scrollbar-width: thin;
+}
+.cat-strip.is-scrollable .cat-strip-row::-webkit-scrollbar {
+    display: block;
+    width: 6px;
+}
+.cat-strip.is-scrollable .cat-strip-row::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+}
+/* The open panel's own version of the edge fade, along its bottom: overlay
+   scrollbars draw nothing until touched, so a list cut off mid-way needs to
+   look cut off. Set after the horizontal rule above so it wins the mask
+   property - though .is-clipped only ever rides along with .is-open, which
+   that rule excludes anyway. */
+.cat-strip.is-clipped .cat-strip-row {
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent);
+}
+.cat-strip-link {
+    font-size: inherit;
+    line-height: 2.4;
+    font-weight: 500;
+    color: var(--text-soft);
+    white-space: nowrap;
+    position: relative;
+    transition: color var(--transition);
+}
+.cat-strip-link:hover {
+    color: var(--accent);
+}
+.cat-strip-link.active {
+    color: var(--accent);
+    font-weight: 700;
+}
+/* Underline bar under the picked ones. The site accent does the job the red
+   does in a plain nav, and stays clear of --danger, which everywhere else on
+   this site means something went wrong. */
+.cat-strip-link.active::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0.55em;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--accent);
+}
+.cat-strip-more {
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-soft);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    transition: var(--transition);
+}
+.cat-strip-more:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+.cat-strip-more i {
+    transition: transform 0.3s ease;
+}
+.cat-strip.is-open .cat-strip-more i {
+    transform: rotate(180deg);
+}
+/* Nothing to open when every category already fits on the first row - the
+   class is set by initCatalogFilters() in main.js after measuring, so the
+   chevron is never a button that does nothing. */
+.cat-strip.no-overflow .cat-strip-more {
+    display: none;
+}
+
+/* ============================================================
+   CATALOG LAYOUT (.catalog-layout) — standing category filter on
+   the left, product grid on the right. The brand strip and the
+   category strip stay full width above it: those are how a whole
+   section of the catalog gets picked, the panel is how one gets
+   narrowed.
+   ============================================================ */
+.catalog-layout {
+    display: grid;
+    grid-template-columns: 244px minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+
+    /* How far the whole two-column row reaches back out of the 1200px container
+       and into the page's left gutter. At the full 268px (the panel plus the
+       gap) the panel stands entirely in the gutter and the product grid gets the
+       container's full width back - which is the point: the filter is a margin
+       control, and it shouldn't be paid for out of the cards' width.
+
+       Clamped to whatever gutter actually exists, so it can never push the panel
+       off the left edge of a smaller window: the gutter is (100vw - 1200px) / 2,
+       less 12px of breathing room, floored at 0 for windows narrower than the
+       container. min()/max() rather than a breakpoint so the panel slides out
+       smoothly as the window widens instead of jumping at one width. */
+    --cs-outdent: min(268px, max(0px, (100vw - 1200px) / 2 - 12px));
+    margin-left: calc(-1 * var(--cs-outdent));
+}
+.catalog-sidebar {
+    position: sticky;
+    /* Same offset as the product page's gallery rail and buy box - clears the
+       sticky header. */
+    top: 90px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+}
+.catalog-sidebar .cs-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+}
+.catalog-sidebar .cs-title {
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.catalog-sidebar .cs-title i {
+    color: var(--accent);
+    font-size: 0.8rem;
+}
+.catalog-sidebar .cs-clear {
+    margin-left: auto;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--accent);
+}
+.catalog-sidebar .cs-clear:hover {
+    text-decoration: underline;
+}
+.catalog-sidebar .cs-list {
+    list-style: none;
+    margin: 0;
+    padding: 6px;
+    /* Capped so the panel can never grow taller than the screen it is stuck
+       to - past that the list scrolls inside itself and the panel still stands
+       still while the grid moves. */
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+.catalog-sidebar .cs-list::-webkit-scrollbar {
+    width: 6px;
+}
+.catalog-sidebar .cs-list::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+}
+.catalog-sidebar .cs-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 10px;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: background 0.18s ease;
+}
+.catalog-sidebar .cs-item:hover {
+    background: var(--bg);
+}
+.catalog-sidebar .cs-item input[type="checkbox"] {
+    flex: 0 0 auto;
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+.catalog-sidebar .cs-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-soft);
+    line-height: 1.35;
+}
+.catalog-sidebar .cs-item input:checked ~ .cs-name {
+    color: var(--accent);
+    font-weight: 700;
+}
+.catalog-sidebar .cs-count {
+    flex: 0 0 auto;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--text-light);
+    background: var(--bg);
+    border-radius: 99px;
+    padding: 1px 7px;
+}
+.catalog-sidebar .cs-item input:checked ~ .cs-count {
+    background: var(--accent);
+    color: #fff;
+}
+.catalog-sidebar .cs-empty {
+    padding: 16px;
+    font-size: 0.75rem;
+    color: var(--text-light);
+}
+.catalog-sidebar .cs-apply {
+    display: block;
+    width: calc(100% - 20px);
+    margin: 4px 10px 12px;
+    padding: 9px;
+    border: none;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #fff;
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+/* With JS the boxes navigate on change (initCatalogFilters), so Apply is dead
+   weight; without it, it is the only way to submit the form. */
+.has-js .catalog-sidebar .cs-apply {
+    display: none;
+}
+
+/* Desktop only, by design. A standing panel needs a gutter to stand in; on a
+   tablet or phone there isn't one, and folding 40 checkbox rows in above the
+   grid puts a screenful of filter ahead of the first product. Those screens get
+   the category strip across the top instead, which is the same selection state
+   through the same URLs - so nothing is unreachable, it just isn't a column. */
+@media (max-width: 1024px) {
+    .catalog-layout {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 16px;
+        /* The outdent is a desktop-gutter trick; here the container has no
+           gutter and a negative margin would just hang off the screen. */
+        margin-left: 0;
+    }
+    .catalog-sidebar {
+        display: none;
+    }
+}
+@media (max-width: 720px) {
+    .cat-strip {
+        gap: 6px;
+    }
+    .cat-strip-row {
+        font-size: 0.76rem;
+        gap: 4px 18px;
+    }
+}
+
 /* Product Card */
 .product-card .product-image-wrap {
     position: relative;
@@ -798,6 +1158,13 @@
     background: #ef4444;
     color: white;
 }
+/* Sets share the grid with products, so a set card needs one glance-level
+   marker saying it is a bundle. Navy rather than a colour that means "deal" -
+   every set is permanently on sale, so "Sale" would say nothing. */
+.product-card .product-image-wrap .product-badge.set {
+    background: var(--primary);
+    color: var(--surface);
+}
 .product-card .product-image-wrap .product-badge.new {
     background: #10b981;
     color: white;
@@ -851,6 +1218,14 @@
     font-size: 1.1rem;
     font-weight: 800;
     color: var(--text);
+}
+/* One line of context under a set card's price ("4 items included") - what
+   tells a bundle apart from a product once both are cards in the same grid. */
+.product-card .product-body .product-meta {
+    margin-top: 5px;
+    font-size: 0.66rem;
+    font-weight: 600;
+    color: var(--text-light);
 }
 .product-card .product-body .product-price .old {
     font-size: 0.75rem;
@@ -1625,10 +2000,15 @@
     .pd-lightbox-nav.next { right: 8px; }
 }
 
-@media (max-width: 1024px) {
+/* Between the desktop breakpoint and the width where the filter panel has a
+   gutter to sit in, the panel is taking 268px out of the grid's own row - so it
+   steps down one column earlier than it used to. */
+@media (max-width: 1320px) {
     .product-grid {
         grid-template-columns: repeat(3, 1fr);
     }
+}
+@media (max-width: 1024px) {
     .product-card-horizontal {
         grid-template-columns: 1fr 1.2fr;
     }

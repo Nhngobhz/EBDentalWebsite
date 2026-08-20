@@ -76,6 +76,12 @@
         const CONTACT_URL = {{ url_for('main.contact')|tojson }};
         const LOGIN_URL = {{ url_for('auth.login')|tojson }};
         const QUOTE_SUBMIT_URL = {{ url_for('quote.submit')|tojson }};
+        // The signed-in customer's saved clinic/phone/address + delivery pin, used
+        // to auto-fill the cart's info form the first time it is opened. Fetched on
+        // demand (QuoteCart.ensurePrefill) rather than embedded here, so a page a
+        // customer only browses costs nothing extra - and so an address they edited
+        // one tab over can't be served stale from a cached page.
+        const QUOTE_PREFILL_URL = {{ url_for('quote.prefill')|tojson }};
         // "/quote/checkout/0/payment-status" - main.js swaps the 0 for a real checkout
         // id while the KHQR modal waits. A checkout is a pending payment, not an order:
         // the order is only created once that poll reports the money arrived.

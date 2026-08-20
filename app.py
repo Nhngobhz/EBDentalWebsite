@@ -17,6 +17,7 @@ from werkzeug.local import LocalProxy
 load_dotenv()
 
 import assets
+import maps
 import site_cache
 import site_settings
 from auth import can_view_prices, is_staff, register_auth_context
@@ -34,6 +35,7 @@ from blueprints.admin import admin_bp
 from blueprints.auth_routes import auth_bp
 from blueprints.catalog import catalog_bp
 from blueprints.main import HERO_SLIDES_CACHE_VAR, main_bp
+from blueprints.maps_routes import maps_bp
 from blueprints.quote import quote_bp
 
 def _wants_json():
@@ -210,6 +212,7 @@ def create_app():
     app.jinja_env.globals["img"] = resolve_image_url
     app.jinja_env.globals["file_url"] = resolve_file_url
     app.jinja_env.globals["link_url"] = resolve_link_url
+    app.jinja_env.globals["location_link"] = maps.location_link
     app.jinja_env.globals["price"] = format_price
     app.jinja_env.globals["format_date"] = format_date
     register_auth_context(app)
@@ -413,6 +416,7 @@ def create_app():
     app.register_blueprint(catalog_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(quote_bp)
+    app.register_blueprint(maps_bp)
     app.register_blueprint(admin_bp)
 
     @app.after_request

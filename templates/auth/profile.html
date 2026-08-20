@@ -52,6 +52,25 @@
             <label>Address</label>
             <div class="profile-view-value">{{ me.address or "—" }}</div>
         </div>
+        {# Customers only, same as the picker that sets it. location_link() gives
+           back the pasted link when there is one and a Google Maps URL built from
+           the coordinates otherwise - and None when neither exists, which is what
+           makes the em-dash branch reachable rather than a dead link. #}
+        {% if is_customer() %}
+        {% set pin = location_link(me.latitude, me.longitude, me.map_link) %}
+        <div class="profile-view-field">
+            <label>Delivery location</label>
+            <div class="profile-view-value">
+                {% if pin %}
+                <a href="{{ pin }}" target="_blank" rel="noopener" class="loc-readout">
+                    <i class="fas fa-location-dot"></i> View on Google Maps
+                </a>
+                {% else %}
+                —
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
         {% if is_staff() %}
         <div class="profile-view-field">
             <label>Role</label>

@@ -8,7 +8,7 @@
 
         {% include "partials/hero_slider.html" %}
 
-    
+
 
         <!-- Brand Filter -->
         <div class="eb-brand-filter-wrap" id="brandFilterWrap">
@@ -42,76 +42,177 @@
             </div>
         </div>
 
-        <!-- Category Filter - independent of brand (store-api's Category table has no
-             relationship to Brand at all, unlike the old mock's brand-nested subcategories) -->
+        {# Category strip - plain text links, no pills, the ticked ones in accent
+           colour. Clipped to a single row until the chevron opens it, so 39
+           categories don't push the grid off the first screen.
+
+           Every link is category_toggle_url(), the SAME action as the checkbox of
+           that name in the panel below: clicking a name adds it to the selection,
+           clicking it again takes it out. That's why the strip and the panel can
+           never show contradictory state - there is one source of truth for what
+           a category control does. Category is independent of brand (store-api's
+           Category table has no relationship to Brand). #}
         {% if categories %}
-        <div id="categoryFilterWrap" class="category-filter-wrap">
-            <span class="filter-label"><i class="fas fa-filter"></i> Category:</span>
-            <div class="category-filter-scroll">
-                <a class="subcategory-pill {{ 'active' if not selected_category }}"
-                   href="{{ catalog_url(category=None) }}">All Categories</a>
+        <nav class="cat-strip" id="catStrip" aria-label="Product categories">
+            <div class="cat-strip-row" id="catStripRow">
+                <a class="cat-strip-link {{ 'active' if not selected_categories }}"
+                   href="{{ catalog_url(category=None) }}">All</a>
                 {% for cat in categories %}
-                <a class="subcategory-pill {{ 'active' if selected_category == cat.id }}"
-                   href="{{ catalog_url(category=cat.id) }}">{{ cat.category_name }}</a>
+                <a class="cat-strip-link {{ 'active' if cat.id in selected_categories }}"
+                   href="{{ category_toggle_url(cat.id) }}">{{ cat.category_name }}</a>
                 {% endfor %}
             </div>
-        </div>
+            <button type="button" class="cat-strip-more" id="catStripMore"
+                    aria-expanded="false" aria-controls="catStripRow" aria-label="Show all categories">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </nav>
         {% endif %}
 
-        <!-- Product Grid -->
-        <div class="product-grid-container" id="productGridContainer">
-            <div class="product-grid-header reveal">
-                <div class="brand-icon-large"><i class="fas fa-{{ 'tooth' if selected_brand else 'th-large' }}"></i></div>
-                <div class="title-group">
-                    <h2 id="brandTitle">{{ page_title }}</h2>
-                    <span class="product-count" id="productCount">{{ products|length }} products</span>
+        <div class="catalog-layout">
+
+            {# Standing category filter - desktop only (see the 1024px rule in
+               products.css: it stands in the page's left gutter, and narrow
+               screens have no gutter to give it). A real GET form, so it works
+               with no JS at all - tick boxes, press Apply; with JS, changing a
+               box navigates straight to that box's toggle URL and the Apply
+               button is hidden. See initCatalogFilters() in main.js. #}
+            <aside class="catalog-sidebar" id="catalogSidebar">
+                <div class="cs-head">
+                    <span class="cs-title"><i class="fas fa-sliders"></i> Category</span>
+                    {% if selected_categories %}
+                    <a class="cs-clear" href="{{ catalog_url(category=None) }}">Clear{{ ' (%d)' % selected_categories|length }}</a>
+                    {% endif %}
                 </div>
-                {% if selected_brand %}
-                <a class="back-to-all visible" href="{{ catalog_url(brand=None) }}"><i class="fas fa-arrow-left"></i> All Brands</a>
-                {% endif %}
-                <form class="search-wrap" id="productSearchWrap" method="get" action="{{ url_for('catalog.products_catalog') }}">
+
+                <form class="cs-body" id="catalogSidebarBody" method="get"
+                      action="{{ url_for('catalog.products_catalog') }}">
+                    {# The other filters have to survive a category change, and a GET
+                       form submits only its own fields. #}
                     {% if selected_brand %}<input type="hidden" name="brand" value="{{ selected_brand }}">{% endif %}
-                    {% if selected_category %}<input type="hidden" name="category" value="{{ selected_category }}">{% endif %}
-                    <input type="text" name="q" id="productSearchInput" placeholder="Search products..." value="{{ search_query or '' }}" />
-                    <button type="submit" id="productSearchBtn"><i class="fas fa-search"></i></button>
+                    {% if search_query %}<input type="hidden" name="q" value="{{ search_query }}">{% endif %}
+
+                    {% if categories %}
+                    <ul class="cs-list">
+                        {% for cat in categories %}
+                        <li>
+                            <label class="cs-item">
+                                <input type="checkbox" name="category" value="{{ cat.id }}"
+                                       {{ 'checked' if cat.id in selected_categories }}
+                                       data-href="{{ category_toggle_url(cat.id) }}">
+                                <span class="cs-name">{{ cat.category_name }}</span>
+                                <span class="cs-count">{{ category_counts.get(cat.id, 0) }}</span>
+                            </label>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    {# Empty for two different reasons: a brand/search that nothing
+                       in any category matches, or a store with no categories at
+                       all. Saying "none yet" in the first case reads as a broken
+                       page. #}
+                    <p class="cs-empty">{% if selected_brand or search_query %}No categories match this{% if search_query %} search{% else %} brand{% endif %}.{% else %}No categories yet.{% endif %}</p>
+                    {% endif %}
+
+                    <button type="submit" class="cs-apply">Apply filters</button>
                 </form>
-            </div>
+            </aside>
 
-            <div class="product-grid" id="productGrid">
-                {% if products|length == 0 %}
-                <div class="empty-products">
-                    <div class="icon"><i class="fas fa-box-open"></i></div>
-                    <h3>No products found</h3>
-                    <p>{% if search_query %}No results for "{{ search_query }}"{% else %}Try a different brand or category.{% endif %}</p>
+            <!-- Product Grid -->
+            <div class="product-grid-container" id="productGridContainer">
+                <div class="product-grid-header reveal">
+                    <div class="brand-icon-large"><i class="fas fa-{{ 'tooth' if selected_brand else 'th-large' }}"></i></div>
+                    <div class="title-group">
+                        <h2 id="brandTitle">{{ page_title }}</h2>
+                        <span class="product-count" id="productCount">
+                            {{ products|length }} product{{ '' if products|length == 1 else 's' }}{% if sets %} &middot; {{ sets|length }} set{{ '' if sets|length == 1 else 's' }}{% endif %}
+                        </span>
+                    </div>
+                    {% if selected_brand %}
+                    <a class="back-to-all visible" href="{{ catalog_url(brand=None) }}"><i class="fas fa-arrow-left"></i> All Brands</a>
+                    {% endif %}
+                    <form class="search-wrap" id="productSearchWrap" method="get" action="{{ url_for('catalog.products_catalog') }}">
+                        {% if selected_brand %}<input type="hidden" name="brand" value="{{ selected_brand }}">{% endif %}
+                        {# One hidden input per ticked category - searching inside a
+                           multi-category selection has to keep all of it. #}
+                        {% for cid in selected_categories %}<input type="hidden" name="category" value="{{ cid }}">{% endfor %}
+                        <input type="text" name="q" id="productSearchInput" placeholder="Search products..." value="{{ search_query or '' }}" />
+                        <button type="submit" id="productSearchBtn"><i class="fas fa-search"></i></button>
+                    </form>
                 </div>
-                {% endif %}
 
-                {% for p in products %}
-                {# A real link, not an onclick - the card used to pop a modal, and a
-                   product now has a full page of its own worth linking/sharing. #}
-                <a class="product-card product-card-vertical reveal" style="--i: {{ loop.index0 % 4 }};"
-                   href="{{ url_for('catalog.product_detail', product_id=p.id) }}">
-                    <div class="product-image-wrap">
-                        <img class="product-image"
-                             src="{{ img(p.product_image) }}"
-                             alt="{{ p.product_name }}" loading="lazy" />
-                        {% if p.badge == 'sale' %}<div class="product-badge sale">Sale</div>
-                        {% elif p.badge == 'new' %}<div class="product-badge new">New</div>
-                        {% elif p.badge == 'hot' %}<div class="product-badge hot">🔥 Hot</div>{% endif %}
+                <div class="product-grid" id="productGrid">
+                    {% if products|length == 0 and sets|length == 0 %}
+                    <div class="empty-products">
+                        <div class="icon"><i class="fas fa-box-open"></i></div>
+                        <h3>No products found</h3>
+                        <p>{% if search_query %}No results for "{{ search_query }}"{% elif selected_categories %}Nothing in the selected categories from this brand.{% else %}Try a different brand or category.{% endif %}</p>
+                        {% if selected_categories %}<p><a href="{{ catalog_url(category=None) }}">Clear category filter</a></p>{% endif %}
                     </div>
-                    <div class="product-body">
-                        <div class="product-brand-name">{{ p.brand.brand_name if p.brand else '' }}</div>
-                        <h3>{{ p.product_name }}</h3>
-                        <div class="product-desc">{{ p.description }}</div>
-                        <div class="product-price">
-                            {{ price(p.price) }}
-                            {% if p.was_price %}<span class="old">{{ price(p.was_price) }}</span>{% endif %}
+                    {% endif %}
+
+                    {# Sets lead the grid: a bundle is the thing a shopper is most
+                       likely to want and there are only ever a handful of them, so
+                       they sit ahead of the products rather than buried among 100
+                       of them. Same card as a product, plus a badge - the point of
+                       putting them here is that they read as one catalogue. #}
+                    {% for set_ in sets %}
+                    <a class="product-card product-card-vertical product-card-set reveal" style="--i: {{ loop.index0 % 4 }};"
+                       href="{{ url_for('catalog.set_detail', set_id=set_.id) }}">
+                        <div class="product-image-wrap">
+                            <img class="product-image"
+                                 src="{{ img(set_.set_image) }}"
+                                 alt="{{ set_.set_name }}" loading="lazy" />
+                            <div class="product-badge set">Set</div>
                         </div>
-                        <div class="view-detail">View Details <i class="fas fa-arrow-right"></i></div>
-                    </div>
-                </a>
-                {% endfor %}
+                        <div class="product-body">
+                            <div class="product-brand-name">{{ set_.brand.brand_name if set_.brand else 'Bundle' }}</div>
+                            <h3>{{ set_.set_name }}</h3>
+                            <div class="product-desc">{{ set_.description }}</div>
+                            <div class="product-price">
+                                {{ price(set_.price) }}
+                                {% if set_.old_price %}<span class="old">{{ price(set_.old_price) }}</span>{% endif %}
+                            </div>
+                            {# The one line a product card doesn't have, because it's
+                               the thing that makes a set a set. set_['items'], never
+                               set_.items - `items` on a dict is the method, and Jinja
+                               resolves the attribute before the key. #}
+                            {% if set_['items'] %}
+                            <div class="product-meta">{{ set_['items']|length }} item{{ '' if set_['items']|length == 1 else 's' }} included</div>
+                            {% endif %}
+                            <div class="view-detail">View Set <i class="fas fa-arrow-right"></i></div>
+                        </div>
+                    </a>
+                    {% endfor %}
+
+                    {% for p in products %}
+                    {# A real link, not an onclick - the card used to pop a modal, and a
+                       product now has a full page of its own worth linking/sharing. #}
+                    <a class="product-card product-card-vertical reveal" style="--i: {{ loop.index0 % 4 }};"
+                       href="{{ url_for('catalog.product_detail', product_id=p.id) }}">
+                        <div class="product-image-wrap">
+                            <img class="product-image"
+                                 src="{{ img(p.product_image) }}"
+                                 alt="{{ p.product_name }}" loading="lazy" />
+                            {% if p.badge == 'sale' %}<div class="product-badge sale">Sale</div>
+                            {% elif p.badge == 'new' %}<div class="product-badge new">New</div>
+                            {% elif p.badge == 'hot' %}<div class="product-badge hot">🔥 Hot</div>{% endif %}
+                        </div>
+                        <div class="product-body">
+                            <div class="product-brand-name">{{ p.brand.brand_name if p.brand else '' }}</div>
+                            <h3>{{ p.product_name }}</h3>
+                            <div class="product-desc">{{ p.description }}</div>
+                            <div class="product-price">
+                                {{ price(p.price) }}
+                                {% if p.was_price %}<span class="old">{{ price(p.was_price) }}</span>{% endif %}
+                            </div>
+                            <div class="view-detail">View Details <i class="fas fa-arrow-right"></i></div>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
             </div>
+
         </div>
 
     </div>

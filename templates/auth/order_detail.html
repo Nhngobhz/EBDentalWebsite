@@ -61,7 +61,19 @@
                 <div><span>Clinic</span><strong>{{ order.clinic_name or '—' }}</strong></div>
                 <div><span>Contact</span><strong>{{ order.contact_person or '—' }}</strong></div>
                 <div><span>Phone</span><strong>{{ order.phone or '—' }}</strong></div>
-                <div><span>Address</span><strong>{{ order.address or '—' }}</strong></div>
+                <div>
+                    <span>Address</span>
+                    <strong>{{ order.address or '—' }}</strong>
+                    {# The delivery pin this order was placed against - a snapshot,
+                       so it keeps showing where it was sent even after the customer
+                       moves the pin on their profile. #}
+                    {% set pin = location_link(order.latitude, order.longitude, order.map_link) %}
+                    {% if pin %}
+                    <a href="{{ pin }}" target="_blank" rel="noopener" class="loc-readout" style="font-size:0.75rem;">
+                        <i class="fas fa-location-dot"></i> Delivery location
+                    </a>
+                    {% endif %}
+                </div>
                 <div>
                     <span>Payment</span>
                     <strong>

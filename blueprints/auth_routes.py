@@ -13,7 +13,7 @@ from flask import (
     session,
     url_for,
 )
-from auth import account_type, current_account, is_staff, login_required
+from auth import account_type, current_account, is_customer, is_staff, login_required
 from formatting import adapt_order, to_number
 from store_api import StoreAPIError, get_api_client, token_expires_at
 
@@ -243,6 +243,31 @@ def logout():
     flash("You've been logged out.", "success")
     return redirect(url_for("main.home"))
 
+def _location_from_form():
+    """The three location fields as store-api wants them, from a picker's inputs.
+
+    A coordinate that will not parse is dropped rather than rejected: the picker
+    writes these itself and only ever writes valid numbers, so a bad one means a
+    hand-edited or mangled POST, and losing a pin is a better outcome there than
+    a 400 in the middle of someone saving their phone number. The link survives
+    either way - store-api validates its scheme (see MapLink in schemas.py).
+    """
+    def _coord(field):
+        raw = request.form.get(field, "").strip()
+        if not raw:
+            return None
+        try:
+            return float(raw)
+        except ValueError:
+            return None
+
+    return {
+        "latitude": _coord("latitude"),
+        "longitude": _coord("longitude"),
+        "map_link": request.form.get("map_link", "").strip() or None,
+    }
+
+
 @auth_bp.route("/profile", methods=["GET"])
 @login_required
 def profile():
@@ -273,6 +298,13 @@ def profile_edit():
             "date_of_birth": request.form.get("date_of_birth", "").strip() or None,
             "gender": request.form.get("gender", "").strip() or None,
         }
+        # The delivery pin, on the same explicit-null rule: pressing Clear in the
+        # picker posts three empty strings, and they have to reach store-api as
+        # nulls or the old location survives the save. Only customers have the
+        # picker (see the template), so a staff save never carries these keys and
+        # never touches the columns.
+        if is_customer():
+            payload.update(_location_from_form())
         # The only field that differs between the two principal types - everything
         # above exists on both `users` and `customers` under the same name.
         name_field = "user_name" if account_type() == "user" else "customer_name"

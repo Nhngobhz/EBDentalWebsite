@@ -300,6 +300,9 @@
         {# The cart line carries the configured price and the configured contents,
            so the drawer reads correctly before any order exists. store-api
            recomputes both from the choice ids when the quote is submitted. #}
+        {# `contents` arrives with slot-claimed items already removed (see
+           catalog._bundle_detail), so the chosen products complete the list
+           rather than duplicating what they replaced. #}
         const configuredItems = {{ contents|tojson }}.concat(
             chosen.map(o => ({ product_name: o.product_name, qty: o.qty }))
         );

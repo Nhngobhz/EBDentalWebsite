@@ -266,7 +266,17 @@
             <div><span style="color:var(--text-light);"><i class="fas fa-hospital fa-fw"></i> Clinic</span><br><strong id="orderClinic"></strong></div>
             <div><span style="color:var(--text-light);"><i class="fas fa-user fa-fw"></i> Contact</span><br><strong id="orderContact"></strong></div>
             <div><span style="color:var(--text-light);"><i class="fas fa-phone fa-fw"></i> Phone</span><br><strong id="orderPhone"></strong></div>
-            <div><span style="color:var(--text-light);"><i class="fas fa-map-marker-alt fa-fw"></i> Address</span><br><strong id="orderAddress"></strong></div>
+            <div>
+                <span style="color:var(--text-light);"><i class="fas fa-map-marker-alt fa-fw"></i> Address</span><br>
+                <strong id="orderAddress"></strong>
+                {# The pin the buyer's account carried when this order was placed
+                   (Order.latitude/longitude/map_link in store-api - a snapshot, not
+                   a live lookup). Hidden when the order has none, which is every
+                   staff quote and everything placed before the columns existed. #}
+                <a id="orderMapLink" href="" target="_blank" rel="noopener" class="loc-readout" style="font-size:0.75rem; margin-top:4px;" hidden>
+                    <i class="fas fa-location-dot"></i> Open in Google Maps
+                </a>
+            </div>
             <div><span style="color:var(--text-light);"><i class="fas fa-credit-card fa-fw"></i> Payment</span><br><strong id="orderPayment"></strong></div>
             <div><span style="color:var(--text-light);"><i class="fas fa-file-invoice-dollar fa-fw"></i> Payment Term</span><br><strong id="orderPaymentTerm"></strong></div>
             <div><span style="color:var(--text-light);"><i class="fas fa-truck fa-fw"></i> Installation Term</span><br><strong id="orderInstallTerm"></strong></div>
@@ -509,6 +519,7 @@
         document.getElementById('orderContact').textContent = order.contact_person || '—';
         document.getElementById('orderPhone').textContent = order.phone || '—';
         document.getElementById('orderAddress').textContent = order.address || '—';
+        renderOrderMapLink(order);
         document.getElementById('orderPaymentTerm').textContent = order.payment_term || '—';
         document.getElementById('orderInstallTerm').textContent = order.install_term || '—';
         document.getElementById('orderSalesperson').textContent = order.salesperson || '—';
@@ -565,6 +576,28 @@
     // was lifted on 2026-08-11 (see _reject_if_paid): staff need to correct a real order
     // after taking payment, so Edit and the status control stay available whatever the
     // payment state. Only the two genuinely payment-specific actions still come and go.
+    /* "Open in Google Maps" for an order's snapshotted pin.
+       Mirrors location_link() in maps.py: the link the customer saved wins, and a
+       coordinate pair is turned into a Google Maps URL when that is all there is.
+       Kept in JS rather than rendered server-side because this modal is filled
+       entirely from the ORDERS_DATA blob, one row at a time. */
+    function renderOrderMapLink(order) {
+        const el = document.getElementById('orderMapLink');
+        if (!el) return;
+        let href = '';
+        // Same scheme check as resolve_link_url() on the Flask side - this value
+        // goes straight into an href, and javascript:/data: in one is stored XSS.
+        const saved = (order.map_link || '').trim();
+        if (/^https?:\/\//i.test(saved)) {
+            href = saved;
+        } else if (order.latitude !== null && order.latitude !== undefined
+                   && order.longitude !== null && order.longitude !== undefined) {
+            href = 'https://www.google.com/maps?q=' + order.latitude + ',' + order.longitude;
+        }
+        el.href = href;
+        el.hidden = !href;
+    }
+
     function applyOrderLock(order) {
         const paid = isPaid(order);
         const cancelled = order.status === 'cancelled';

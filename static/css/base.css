@@ -555,6 +555,35 @@ img {
     padding: 7px 0;
 }
 
+/* Which saved pin this order is going to (customer carts). Sits directly under
+   the Address box it qualifies, and reads as a quiet aside rather than a field -
+   it is information, not something to fill in. */
+.quote-info-location {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: -4px 0 2px;
+    font-size: 0.68rem;
+    color: var(--text-light);
+}
+.quote-info-location i {
+    color: var(--accent);
+}
+.quote-info-location a {
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+}
+.quote-info-location a:hover {
+    text-decoration: underline;
+}
+/* No pin saved. Warm rather than red: nothing is broken, the delivery team just
+   has less to go on, and the fix is one link away. */
+.quote-info-location.is-missing i {
+    color: #d97706;
+}
+
 /* ---- Delivery terms note (customer carts) ---- */
 .quote-delivery-note {
     display: flex;

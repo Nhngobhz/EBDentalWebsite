@@ -1,0 +1,59 @@
+{# Delivery-location picker, shared by the customer profile page and the admin
+   Customers screen.
+
+   Renders three hidden inputs (latitude / longitude / map_link) plus the UI that
+   fills them, and nothing else - it is a field, not a form, so the surrounding
+   <form> submits it exactly as it submits a text box. static/js/location-picker.js
+   does the work; the page must load that file itself.
+
+   Usage:
+     {% from "partials/location_picker.html" import location_picker %}
+     {{ location_picker('profileLocation', me.latitude, me.longitude, me.map_link) }}
+
+   `picker_id` has to be unique on the page - it is how the JS registry addresses
+   this instance (EBLocationPicker.reveal(id) / .setValue(id, ...)), which is what
+   a picker inside a modal needs once the modal opens. #}
+
+{% macro location_picker(picker_id, latitude=None, longitude=None, map_link=None, name_prefix='') %}
+<div class="loc-picker" id="{{ picker_id }}">
+    {# The values the form actually posts. Blank means "no location" and is sent
+       as an empty string, which the blueprint turns into an explicit null so that
+       clearing a pin really clears it. #}
+    <input type="hidden" data-loc="latitude" name="{{ name_prefix }}latitude" value="{{ latitude if latitude is not none else '' }}">
+    <input type="hidden" data-loc="longitude" name="{{ name_prefix }}longitude" value="{{ longitude if longitude is not none else '' }}">
+    <input type="hidden" data-loc="map_link" name="{{ name_prefix }}map_link" value="{{ map_link or '' }}">
+
+    <div class="loc-picker-row">
+        {# type="text", not type="url": people paste coordinates copied straight
+           out of Google Maps ("11.556374, 104.928207") as often as they paste a
+           link, and type="url" would refuse those before the JS ever sees them. #}
+        <input type="text" class="loc-picker-url" data-loc="url-field"
+               value="{{ map_link or '' }}"
+               placeholder="Paste a Google Maps link, or 11.5564, 104.9282"
+               autocomplete="off" spellcheck="false">
+    </div>
+
+    <div class="loc-picker-row">
+        <button type="button" class="loc-picker-btn" data-loc="locate">
+            <i class="fas fa-location-crosshairs"></i> Use my current location
+        </button>
+        <button type="button" class="loc-picker-btn loc-picker-clear" data-loc="clear">
+            <i class="fas fa-times"></i> Clear
+        </button>
+    </div>
+
+    <div class="loc-picker-map" data-loc="map"></div>
+
+    <div class="loc-picker-footer">
+        <span class="loc-picker-status" data-loc="status">No location set yet.</span>
+        <a class="loc-picker-open" data-loc="open" href="" target="_blank" rel="noopener" hidden>
+            <i class="fab fa-google"></i> Open in Google Maps
+        </a>
+    </div>
+
+    <p class="loc-picker-hint">
+        Tap the map to drop a pin, drag it to fine-tune, or paste a link shared from
+        the Google Maps app. This is what our delivery team uses to find you.
+    </p>
+</div>
+{% endmacro %}
