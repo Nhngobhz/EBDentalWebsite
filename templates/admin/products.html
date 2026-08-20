@@ -122,6 +122,16 @@
                 </div>
             </div>
             <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Storefront section *</label>
+                <select name="section" id="prodSection" required style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                    <option value="machinery">Machinery</option>
+                    <option value="materials">Materials</option>
+                </select>
+                <div style="font-size:0.7rem;color:var(--text-light);margin-top:4px;">
+                    Which half of the site this product appears in. Materials come from SAP Business One.
+                </div>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
                 <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Brand *</label>
                 <select name="brand_id" id="prodBrand" required style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
                     <option value="">Select a brand</option>
@@ -336,6 +346,10 @@
         document.getElementById('prodDiscount').value = isEdit ? (product.discount || 0) : 0;
         document.getElementById('prodCode').value = isEdit ? (product.product_code || '') : '';
         document.getElementById('prodUom').value = isEdit ? (product.uom || '') : '';
+        // Defaults to machinery on a NEW product: that is what almost every
+        // hand-created product is, and materials normally arrive via the SAP sync
+        // rather than this form.
+        document.getElementById('prodSection').value = isEdit ? (product.section || 'machinery') : 'machinery';
         document.getElementById('prodBrand').value = isEdit && product.brand ? product.brand.id : '';
         document.getElementById('prodCategory').value = isEdit && product.category ? product.category.id : '';
         document.getElementById('prodBadge').value = isEdit ? (product.badge || '') : '';

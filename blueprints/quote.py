@@ -2,7 +2,7 @@ import maps
 import site_settings
 from flask import Blueprint, jsonify, request
 
-from auth import can_quote, is_customer, is_logged_in
+from auth import can_quote, has_any_permission, is_customer, is_logged_in, is_staff
 from formatting import adapt_order
 from store_api import StoreAPIError, get_api_client
 
@@ -211,6 +211,89 @@ def upload_pdf(order_id):
         return jsonify({"detail": e.detail}), (e.status_code or 400)
 
     return jsonify({"received": True})
+
+
+# What staff may do to a quote they have just raised, straight from the cart, without
+# going round to the admin Orders page: hand the customer a QR to pay it, or record it as
+# already paid. Both mirror a button that screen already has (Payment QR / Complete), and
+# both go to the same store-api endpoints it calls - this is a second doorway onto the
+# same actions, not a second set of rules.
+#
+# Same pair of permissions store-api gates those endpoints with (price_listing OR admin,
+# see require_any_permission in routers/orders.py). Checked inline rather than with
+# any_permission_required, because these are fetch() endpoints: the decorator's abort(403)
+# would hand JavaScript an HTML error page instead of the {"detail": ...} every other
+# route in this file returns.
+def _staff_order_action_denied():
+    """None if the caller may work an order from the cart, else a JSON error tuple."""
+    if not is_logged_in():
+        return jsonify({"detail": "Please log in to continue."}), 401
+    if not is_staff() or not has_any_permission("price_listing", "admin"):
+        return jsonify({"detail": "Your account isn't able to do this."}), 403
+    return None
+
+
+@quote_bp.route("/<int:order_id>/khqr", methods=["POST"])
+def issue_khqr(order_id):
+    """Puts a scannable KHQR on the quote staff have just created, so it can be handed
+    over at the counter or sent to the customer to pay. Returns the whole order back -
+    the browser draws the QR from khqr_string and downloads it as an image.
+
+    store-api is idempotent here: while the stored QR is still payable it hands the same
+    one back rather than minting a new one, so a customer mid-scan never ends up looking
+    at a code the order no longer expects."""
+    denied = _staff_order_action_denied()
+    if denied:
+        return denied
+
+    client = get_api_client()
+    try:
+        order = client.post_json(f"/orders/{order_id}/khqr")
+    except StoreAPIError as e:
+        return jsonify({"detail": e.detail}), (e.status_code or 400)
+
+    return jsonify(adapt_order(order))
+
+
+@quote_bp.route("/<int:order_id>/invoice", methods=["POST"])
+def mark_invoiced(order_id):
+    """"Just make an invoice" - the money is already in (cash at the counter, a bank
+    transfer), so the quote is recorded as paid and becomes the invoice for that sale.
+    Exactly what the admin Orders page's "Complete" button does, and the same single
+    field: payment_status="paid". store-api stamps paid_at and fires the paid-order
+    Telegram alert; the browser re-renders the document as an Invoice off the order
+    returned here."""
+    denied = _staff_order_action_denied()
+    if denied:
+        return denied
+
+    client = get_api_client()
+    try:
+        order = client.put_json(f"/orders/{order_id}", {"payment_status": "paid"})
+    except StoreAPIError as e:
+        return jsonify({"detail": e.detail}), (e.status_code or 400)
+
+    return jsonify(adapt_order(order))
+
+
+@quote_bp.route("/<int:order_id>/payment-status", methods=["GET"])
+def order_payment_status(order_id):
+    """Polled by the staff QR dialog while the customer scans - the order equivalent of
+    checkout_payment_status below, and the same relay the admin Orders page makes. The
+    order already exists here (staff raised it as a quote), so this only ever flips it
+    from unpaid to paid; store-api does the Bakong/PayWay check and fires the paid-order
+    alert on the first confirmed one."""
+    denied = _staff_order_action_denied()
+    if denied:
+        return denied
+
+    client = get_api_client()
+    try:
+        result = client.get(f"/orders/{order_id}/payment-status")
+    except StoreAPIError as e:
+        return jsonify({"detail": e.detail}), (e.status_code or 400)
+
+    return jsonify(result)
 
 
 @quote_bp.route("/checkout/<int:checkout_id>/payment-status", methods=["GET"])

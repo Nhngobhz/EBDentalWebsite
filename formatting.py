@@ -156,6 +156,10 @@ def adapt_product(product):
     # unless store-api says otherwise - a product that predates the flag, or any
     # payload that omits it, is an ordinary sellable one.
     product["is_purchasable"] = product.get("is_purchasable", True)
+    # Guaranteed present for the same reason is_purchasable is: a payload that
+    # omits it describes a product from before the machinery/materials split,
+    # and everything from before the split is machinery.
+    product["section"] = product.get("section") or "machinery"
     return product
 
 

@@ -76,6 +76,9 @@ def _product_form_payload():
         # genuinely means False here, and the key is always sent so unticking it
         # actually clears the flag.
         "is_purchasable": "is_purchasable" in request.form,
+        # Always sent, never "blank means leave alone": a product belongs to exactly
+        # one half of the storefront and the select always posts one of the two.
+        "section": request.form.get("section") or "machinery",
         # Other products this one comes with for free - each lands on the quote
         # as a $0 line under this product (store-api's create_order expands them).
         "free_items": bundle_items_from_form(),
@@ -101,8 +104,13 @@ def products():
     # include_unpurchasable: the admin table is the one place gift-only products
     # have to stay visible - it's where they're created, edited and picked from
     # when building another product's free-item list.
+    # section=all for the same reason include_unpurchasable is true: this table is
+    # the one screen that has to show every row regardless of which half of the
+    # storefront it belongs to. GET /products/ defaults to machinery on purpose, so
+    # spanning both is always a deliberate opt-in - see SectionFilter in schemas.py.
     raw_products = client.get(
-        "/products/", params={"limit": 500, "include_unpurchasable": "true"}
+        "/products/",
+        params={"limit": 500, "include_unpurchasable": "true", "section": "all"},
     )
     products_list = [adapt_product(p) for p in raw_products]
     brands = client.get("/brands/", params={"limit": 200})

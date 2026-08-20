@@ -186,10 +186,15 @@
                         <span class="status-badge status-{{ o.status }}">{{ o.status }}</span>
                     </td>
                     <td style="font-size:0.7rem; white-space:nowrap;">{{ format_date(o.created_at) }}</td>
-                    <!-- Edit/Delete disappear once the row is paid: a receipt has been
-                         issued against those exact figures, so the order is frozen.
-                         store-api refuses both regardless (409) - this just stops staff
-                         from clicking into a dead end. -->
+                    <!-- Edit disappears once the row is paid: an invoice has been
+                         issued against those exact figures, so the order is frozen and
+                         openOrderEditModal() refuses it anyway.
+
+                         Delete is the owner's exception (2026-08-20). A locked row can
+                         still be deleted, but only by someone holding `admin` - the
+                         same pair of doors store-api's delete_order now checks, where
+                         a price_listing salesperson gets a 403. It destroys the record
+                         of a completed sale outright, so the confirm says so. -->
                     <td style="white-space:nowrap;" onclick="event.stopPropagation();">
                         <button type="button" class="btn-dash primary sm" onclick="openOrderModal({{ o.id }})" title="View"><i class="fas fa-eye"></i></button>
                         {# Delivered but no payment on record is the one state staff act on
@@ -204,7 +209,14 @@
                         </form>
                         {% endif %}
                         {% if o.payment_status == 'paid' %}
-                        <span class="order-locked-chip" title="This order has been paid - it can no longer be edited or deleted."><i class="fas fa-lock"></i> Locked</span>
+                        <span class="order-locked-chip" title="This order has been paid - it can no longer be edited.{% if has_permission('admin') %} As an admin you can still delete it.{% endif %}"><i class="fas fa-lock"></i> Locked</span>
+                        {% if has_permission('admin') %}
+                        <form method="post" action="{{ url_for('admin.orders_delete', order_id=o.id) }}" style="display:inline;"
+                              data-confirm="This order is paid, so deleting it destroys the record of a completed sale - its line items included. There is no way to get it back. Delete it anyway?"
+                              data-confirm-label="Delete anyway">
+                            <button type="submit" class="btn-dash danger sm" title="Delete this paid order"><i class="fas fa-trash"></i></button>
+                        </form>
+                        {% endif %}
                         {% else %}
                         <button type="button" class="btn-dash sm" onclick="openOrderEditModal({{ o.id }})" title="Edit"><i class="fas fa-pen"></i></button>
                         <form method="post" action="{{ url_for('admin.orders_delete', order_id=o.id) }}" style="display:inline;" data-confirm="Delete this order permanently?">
@@ -428,7 +440,14 @@
         <div id="orderQrMeta" style="font-size:0.72rem; color:var(--text-light); margin-bottom:14px;"></div>
         <div id="orderQrBox" class="order-qr-box"></div>
         <div id="orderQrStatus" class="order-qr-status"></div>
-        <button type="button" class="btn-dash outline" style="margin-top:14px;" onclick="closeOrderQrModal()">Close</button>
+        <!-- The QR as a labelled PNG (shop name, amount, order number drawn onto it),
+             for the customer who isn't standing at the counter - it gets sent to them
+             instead. Same QuoteCart.downloadQrImage() the storefront cart's own QR uses,
+             pointed at this dialog's box, so both produce the identical image. -->
+        <div style="display:flex; gap:8px; justify-content:center; margin-top:14px;">
+            <button type="button" class="btn-dash" id="orderQrDownloadBtn" onclick="downloadOrderQr()"><i class="fas fa-download"></i> Download QR</button>
+            <button type="button" class="btn-dash outline" onclick="closeOrderQrModal()">Close</button>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -454,8 +473,9 @@
 
     const orderUrl = (template, orderId) => template.replace('/0/', '/' + orderId + '/');
 
-    // A paid order is a closed record: store-api refuses every edit, the payment flag
-    // and the delete (409). Mirrored here so the buttons that would 409 aren't offered.
+    // A paid order is a closed record: no edit, no status change, and no second
+    // payment. Deleting one is still possible, but only for `admin` (store-api's
+    // delete_order 403s anyone else) - that is the only action the lock lets through.
     const isPaid = order => order.payment_status === 'paid';
 
     // What to call the row on screen. Paid ⇒ Invoice, whatever it started life as: a
@@ -923,6 +943,9 @@
     // Bakong/PayWay marks the order paid and fires the receipt alert on its own.
 
     let qrPollTimer = null;
+    // The order the QR dialog is currently showing, so "Download QR" can label the image
+    // with its amount and number without re-reading the DOM.
+    let qrOrder = null;
 
     function stopQrPolling() {
         if (qrPollTimer) { clearInterval(qrPollTimer); qrPollTimer = null; }
@@ -939,6 +962,8 @@
         document.getElementById('orderQrMeta').textContent =
             'No. ' + order.order_number + ' · Code ' + order.quote_code + ' · ' + (order.clinic_name || '');
         box.innerHTML = '';
+        qrOrder = null;
+        document.getElementById('orderQrDownloadBtn').style.display = 'none';
         statusRow.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing the QR…';
         overlay.classList.add('active');
 
@@ -967,6 +992,9 @@
             statusRow.textContent = 'Could not draw the QR code — please check your connection.';
             return;
         }
+        // Only once there is actually a code in the box to save.
+        qrOrder = paymentOrder;
+        document.getElementById('orderQrDownloadBtn').style.display = '';
         statusRow.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Waiting for the customer to pay…';
 
         // Every 3s, exactly like the storefront modal. Transient failures are ignored -
@@ -988,8 +1016,19 @@
         }, 3000);
     }
 
+    function downloadOrderQr() {
+        if (!qrOrder) return;
+        QuoteCart.downloadQrImage({
+            boxId: 'orderQrBox',
+            amount: qrOrder.grand_total,
+            caption: 'No. ' + qrOrder.order_number + (qrOrder.clinic_name ? ' · ' + qrOrder.clinic_name : ''),
+            filename: 'EB-Dental-KHQR-' + qrOrder.order_number,
+        });
+    }
+
     function closeOrderQrModal() {
         stopQrPolling();
+        qrOrder = null;
         document.getElementById('orderQrOverlay').classList.remove('active');
     }
 

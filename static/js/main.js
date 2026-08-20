@@ -922,6 +922,42 @@ const QuoteCart = {
         setVal('qiInstallTerm', 'installTerm');
         setVal('qiContactPerson', 'contactPerson');
         setVal('qiPaymentMethod', 'paymentMethod'); // customers only - absent for staff
+        // Not setVal(): an unset choice is 'quote', not '', and this <select> has no
+        // empty option to fall into - it would render blank instead of on its default.
+        const staffDoc = document.getElementById('qiStaffDocument');  // staff only
+        if (staffDoc) staffDoc.value = this.staffDocument();
+        this.syncStaffDocumentLabel();
+    },
+
+    // What a staff cart is set to produce: a plain Quotation (the default and the only
+    // thing it could produce before), a Quotation plus a KHQR for the customer to scan,
+    // or an Invoice for money already taken. Read in confirmPurchase().
+    staffDocument() {
+        const canTakePayment = typeof CAN_TAKE_PAYMENT !== 'undefined' && CAN_TAKE_PAYMENT;
+        if (!canTakePayment) return 'quote';
+        const choice = this.getInfo().staffDocument;
+        return (choice === 'khqr' || choice === 'invoice') ? choice : 'quote';
+    },
+
+    // The confirm button says what it is about to do, so the choice above isn't
+    // something staff have to remember they made. main.js re-reads the label out of
+    // data-label whenever it re-enables the button, so both have to be set.
+    STAFF_DOCUMENT_LABELS: {
+        quote: '<i class="fas fa-file-invoice"></i> Generate Quote',
+        khqr: '<i class="fas fa-qrcode"></i> Generate Payment QR',
+        invoice: '<i class="fas fa-file-invoice-dollar"></i> Create Invoice',
+    },
+
+    syncStaffDocumentLabel() {
+        const select = document.getElementById('qiStaffDocument');
+        const btn = document.getElementById('quoteDownloadPdfBtn');
+        if (!select || !btn) return;
+        const label = this.STAFF_DOCUMENT_LABELS[this.staffDocument()];
+        if (!label) return;
+        btn.dataset.label = label;
+        // Not while a submission is in flight - that would wipe the "Saving quote..."
+        // spinner the button is currently showing.
+        if (!btn.disabled) btn.innerHTML = label;
     },
 
     // ---- drawer open/close ----
@@ -1083,15 +1119,19 @@ const QuoteCart = {
         // Component lines (a promotion/set's contents, a product's free gifts -
         // OrderItem.parent_item_id in store-api) come back in the same flat list,
         // ordered right after the line they belong to. They print as $0.00
-        // "Free" sub-rows and don't take a No. of their own, so the numbering
-        // still counts only the lines actually being charged for. Mirrored by
-        // store-api's fallback PDF (services/invoice_pdf.py).
-        let lineNo = 0;
-        const rows = order.items.map(item => {
+        // "Free" sub-rows, but they DO take a No. of their own (owner's call,
+        // 2026-08-20): whoever receives the document counts and ticks off every
+        // physical item on it, and a numbered set followed by eight blank-numbered
+        // rows read as gaps. So the No. is simply the row's position - one run
+        // across paid lines and free ones alike, which is why this is an index
+        // rather than a counter that skips. Mirrored by store-api's fallback PDF
+        // (services/invoice_pdf.py).
+        const rows = order.items.map((item, index) => {
+            const lineNo = index + 1;
             if (item.parent_item_id) {
                 return `
             <tr class="qpt-component-row">
-                <td class="qpt-num"></td>
+                <td class="qpt-num">${lineNo}</td>
                 <td>${ebEscapeHtml(item.product_code || '')}</td>
                 <td class="qpt-component-name">• ${ebEscapeHtml(item.product_name)}</td>
                 <td class="qpt-num">${item.qty}</td>
@@ -1101,7 +1141,6 @@ const QuoteCart = {
                 <td class="qpt-right">$ 0.00</td>
             </tr>`;
             }
-            lineNo += 1;
             return `
             <tr>
                 <td class="qpt-num">${lineNo}</td>
@@ -1162,16 +1201,22 @@ const QuoteCart = {
 
             <table class="qpt-table">
                 <thead>
+                    <!-- One header row, not two. There used to be a second, empty
+                         <th></th><th></th> row under the colspan header, there only to
+                         fill out the grid - and .qpt-table borders every cell, so it
+                         printed as a boxed sliver with a divider down the middle: stray
+                         lines inside the "UP before & After Discount" cell on every
+                         document. Removed on the owner's instruction; store-api's fpdf2
+                         builder (invoice_pdf.py) drops the same row so the two agree. -->
                     <tr>
-                        <th rowspan="2">No.</th>
-                        <th rowspan="2">Code</th>
-                        <th rowspan="2">Description</th>
-                        <th rowspan="2">Qty</th>
-                        <th rowspan="2">UOM</th>
+                        <th>No.</th>
+                        <th>Code</th>
+                        <th>Description</th>
+                        <th>Qty</th>
+                        <th>UOM</th>
                         <th colspan="2">UP before &amp; After Discount</th>
-                        <th rowspan="2">Amount</th>
+                        <th>Amount</th>
                     </tr>
-                    <tr><th></th><th></th></tr>
                 </thead>
                 <tbody>
                     ${rows}
@@ -1255,16 +1300,35 @@ const QuoteCart = {
         const imgWidth = pdfWidth;
         const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-        let heightLeft = imgHeight;
-        let position = 0;
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pdfHeight;
+        // How many A4 pages this snapshot actually needs.
+        //
+        // The template is built to A4's own proportions, so a one-page quotation
+        // lands a hair OVER a page once scaled to points - 843pt of image against
+        // an 841.89pt page, from border rounding and the fractional row heights
+        // html2canvas reports. The previous loop paged on any overflow at all,
+        // which is why every quote came out as two pages with a hairline sliver on
+        // the second (owner's report, 2026-08-20).
+        //
+        // SINGLE_PAGE_SLACK is the margin of overflow treated as "still one page".
+        // Whatever page count that yields, the image is then scaled to fill exactly
+        // that many pages, so the fit is absorbed by an imperceptible shrink instead
+        // of by spilling - and NOTHING is dropped, which is why this scales rather
+        // than simply ignoring a small remainder. A genuinely longer quote (more
+        // items than the form's 22 rows) still slices across real pages.
+        const SINGLE_PAGE_SLACK = 1.05;
+        const pageCount = Math.max(1, Math.ceil(imgHeight / (pdfHeight * SINGLE_PAGE_SLACK)));
+        const fit = Math.min(1, (pageCount * pdfHeight) / imgHeight);
+        const drawWidth = imgWidth * fit;
+        const drawHeight = imgHeight * fit;
+        // Centred, so the sliver of width given up by that shrink shows as an even
+        // margin on both sides rather than a lopsided one on the right.
+        const drawX = (pdfWidth - drawWidth) / 2;
 
-        while (heightLeft > 0) {
-            position = heightLeft - imgHeight;
-            pdf.addPage();
-            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-            heightLeft -= pdfHeight;
+        for (let page = 0; page < pageCount; page++) {
+            if (page > 0) pdf.addPage();
+            // The whole image is placed on every page, shifted up by the pages
+            // already drawn; jsPDF clips it to the page box.
+            pdf.addImage(imgData, 'PNG', drawX, -page * pdfHeight, drawWidth, drawHeight);
         }
 
         pdf.save('EB-Dental-' + docName + '-' + filenameSuffix + '.pdf');
@@ -1392,17 +1456,70 @@ const QuoteCart = {
             return;
         }
 
+        // Staff only, and only for the two non-default choices: the row store-api just
+        // wrote is a quote either way, and this is what happens to it next. Both steps
+        // are best-effort on purpose - the quote EXISTS by now, so a QR that couldn't be
+        // issued or a payment that couldn't be recorded must not swallow it. Either
+        // failure says so and falls through to the ordinary quotation document, which
+        // staff can then finish from the admin Orders page.
+        const staffDocument = isStaff ? this.staffDocument() : 'quote';
+        if (staffDocument === 'invoice') {
+            if (btn) { btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Recording payment...'; }
+            const paid = await this._staffOrderAction(
+                ORDER_INVOICE_URL_TEMPLATE, order.id, "Couldn't record the payment"
+            );
+            if (paid) order = paid;
+        } else if (staffDocument === 'khqr') {
+            if (btn) { btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Issuing the QR...'; }
+            const withQr = await this._staffOrderAction(
+                ORDER_KHQR_URL_TEMPLATE, order.id, "Couldn't issue a payment QR"
+            );
+            if (withQr && withQr.khqr_string) order = withQr;
+        }
+
         if (btn) { btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating PDF...'; }
 
         try {
             this.buildPrintTemplate(order);
-            const pdfBlob = await this.exportPDF(order.quote_code, 'Quotation');
+            // Whichever document the order actually became. "Invoice" is keyed on the
+            // payment flag store-api came back with, never on what was asked for, so a
+            // refused payment can't produce a file named Invoice.
+            const isPaidNow = order.payment_status === 'paid';
+            const pdfBlob = await this.exportPDF(order.quote_code, isPaidNow ? 'Invoice' : 'Quotation');
             this.uploadQuotationPDF(order.id, pdfBlob);
             this.clearDraft();
             this.render();
             this.close();
         } finally {
             resetBtn();
+        }
+
+        // Last, so the cart is already emptied and shut behind it: the QR stays on
+        // screen until staff close it, and it polls for the payment while it's there.
+        if (order.khqr_string && staffDocument === 'khqr') {
+            await this.showOrderQrModal(order);
+        }
+    },
+
+    // POSTs one of the staff-only order actions in blueprints/quote.py (issue a KHQR /
+    // record the order as paid) and returns the updated order, or null after telling
+    // the user why not. Callers treat null as "carry on with the plain quote".
+    async _staffOrderAction(urlTemplate, orderId, failureTitle) {
+        try {
+            const resp = await fetch(urlTemplate.replace('/0/', '/' + orderId + '/'), {
+                method: 'POST',
+                headers: { 'Accept': 'application/json' },
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.detail || 'Please try again from the Orders page.');
+            return data;
+        } catch (err) {
+            await ebAlert(
+                (err && err.message ? err.message : 'Please try again from the Orders page.')
+                + ' The quote itself has been saved.',
+                { title: failureTitle, tone: 'danger' }
+            );
+            return null;
         }
     },
 
@@ -1435,34 +1552,67 @@ const QuoteCart = {
         }
     },
 
-    // `checkout` is a pending payment, NOT an order: it has an id to poll, the QR to
-    // render and the amount owed, and that's all that exists until the money arrives.
-    async showKhqrModal(checkout) {
+    // Paints the KHQR card - amount, the code itself, the caption under it, the status
+    // line. Shared by the only two things that ever put a QR on screen: a customer
+    // paying for their own order (showKhqrModal) and a staff member issuing one against
+    // a quote they have just raised (showOrderQrModal), so the two can't drift into
+    // presenting the same code differently.
+    //
+    // `download` is the filename stem for the "Download QR" button, or null to leave
+    // that button hidden - it exists so staff can send the code to a customer who isn't
+    // standing in front of the screen, which is not something the customer themselves
+    // has any use for. Returns false only when the modal isn't on the page at all;
+    // a code that couldn't be DRAWN leaves its own message in the box and still returns
+    // true, because the payment behind it is live either way and worth polling.
+    async _renderKhqrCard({ amount, caption, khqrString, statusHtml, download }) {
         const overlay = document.getElementById('khqrModalOverlay');
-        if (!overlay) return;
+        if (!overlay) return false;
 
-        document.getElementById('khqrAmount').textContent = '$' + Number(checkout.grand_total).toFixed(2);
-        // No order number to show yet - there is no order. The reference is what the
-        // payment appears as at the bank, which is the useful thing if anything needs
-        // chasing up by hand.
-        document.getElementById('khqrOrderNo').textContent = 'Ref ' + checkout.reference;
-        const statusRow = document.getElementById('khqrStatusRow');
-        statusRow.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scan with your banking app — waiting for payment…';
+        document.getElementById('khqrAmount').textContent = '$' + Number(amount).toFixed(2);
+        document.getElementById('khqrOrderNo').textContent = caption;
+        document.getElementById('khqrStatusRow').innerHTML = statusHtml;
+
+        const downloadBtn = document.getElementById('khqrDownloadBtn');
+        this._qrDownload = download ? { boxId: 'khqrCodeBox', ...download, amount, caption } : null;
+        if (downloadBtn) downloadBtn.style.display = download ? '' : 'none';
 
         const codeBox = document.getElementById('khqrCodeBox');
         codeBox.innerHTML = '';
+        // Up before qrcode.js is fetched, not after: on a slow connection that's a
+        // second or two of the customer looking at the page they just left.
+        overlay.style.display = 'flex';
         try {
             await this._ensureQrLib();
             new QRCode(codeBox, {
-                text: checkout.khqr_string,
+                text: khqrString,
                 width: 220,
                 height: 220,
                 correctLevel: QRCode.CorrectLevel.M,
             });
         } catch (err) {
             codeBox.textContent = 'Could not draw the QR code — please check your connection and try again.';
+            // Nothing to save if nothing was drawn.
+            if (downloadBtn) downloadBtn.style.display = 'none';
+            this._qrDownload = null;
         }
-        overlay.style.display = 'flex';
+        return true;
+    },
+
+    // `checkout` is a pending payment, NOT an order: it has an id to poll, the QR to
+    // render and the amount owed, and that's all that exists until the money arrives.
+    async showKhqrModal(checkout) {
+        this._khqrStaffMode = false;
+        const shown = await this._renderKhqrCard({
+            amount: checkout.grand_total,
+            // No order number to show yet - there is no order. The reference is what the
+            // payment appears as at the bank, which is the useful thing if anything needs
+            // chasing up by hand.
+            caption: 'Ref ' + checkout.reference,
+            khqrString: checkout.khqr_string,
+            statusHtml: '<i class="fas fa-spinner fa-spin"></i> Scan with your banking app — waiting for payment…',
+            download: null,
+        });
+        if (!shown) return;
 
         // Poll every 3s. Transient failures are ignored (just try again next tick); the
         // loop ends on "paid", on "expired", or when the user closes the modal.
@@ -1497,8 +1647,161 @@ const QuoteCart = {
 
     hideKhqrModal() {
         this._stopKhqrPolling();
+        this._khqrStaffMode = false;
+        this._qrDownload = null;
         const overlay = document.getElementById('khqrModalOverlay');
         if (overlay) overlay.style.display = 'none';
+    },
+
+    // ---- staff KHQR (a QR issued against an order that already exists) ----
+    // The staff counterpart to showKhqrModal. Nothing here creates anything: the quote
+    // was written a moment ago by confirmPurchase() and store-api has already put a
+    // KHQR for its exact grand total onto it (POST /quote/<id>/khqr). This shows that
+    // code, offers it as an image to send to whoever is paying, and watches for the
+    // money - at which point the same order's document prints as an Invoice.
+    //
+    // Staff can close it at any time and lose nothing: the QR is stored on the order,
+    // the admin Orders page re-opens that very same one, and store-api's own sweep
+    // records the payment whether or not anybody is watching.
+    async showOrderQrModal(order) {
+        this._khqrStaffMode = true;
+        const shown = await this._renderKhqrCard({
+            amount: order.grand_total,
+            caption: 'No. ' + (order.order_number || order.quote_code || '')
+                + (order.clinic_name ? ' · ' + order.clinic_name : ''),
+            khqrString: order.khqr_string,
+            statusHtml: '<i class="fas fa-spinner fa-spin"></i> Waiting for the customer to pay…',
+            download: { filename: 'EB-Dental-KHQR-' + (order.order_number || order.quote_code || 'order') },
+        });
+        if (!shown) return;
+
+        // Same 3s loop and the same endpoint the admin Orders page's QR dialog polls -
+        // store-api asks Bakong/PayWay, and the first confirmed check is what flips the
+        // order to paid and fires the paid-order alert.
+        const url = ORDER_PAYMENT_STATUS_URL_TEMPLATE.replace('/0/', '/' + order.id + '/');
+        this._stopKhqrPolling();
+        this._khqrPollTimer = setInterval(async () => {
+            let data;
+            try {
+                const resp = await fetch(url);
+                if (!resp.ok) return;
+                data = await resp.json();
+            } catch {
+                return;
+            }
+            if (data.payment_status === 'paid') {
+                this._stopKhqrPolling();
+                await this._finishStaffPaidOrder(order);
+            }
+        }, 3000);
+    },
+
+    // The staff mirror of _finishPaidOrder: a customer has just paid a QR staff issued
+    // at the counter, so the document that comes out is the Invoice for that sale.
+    async _finishStaffPaidOrder(order) {
+        const statusRow = document.getElementById('khqrStatusRow');
+        if (statusRow) {
+            statusRow.innerHTML = '<i class="fas fa-circle-check" style="color:#16a34a;"></i> Payment received — generating the invoice…';
+        }
+        // The poll reports one flag, and payment_status is the single field both document
+        // builders key on (docTitle in buildPrintTemplate here, document_title() in
+        // store-api) - so it is set locally rather than re-fetching the whole order to
+        // learn one boolean. Everything else on it is still current.
+        const paidOrder = { ...order, payment_status: 'paid' };
+        try {
+            this.buildPrintTemplate(paidOrder);
+            const pdfBlob = await this.exportPDF(paidOrder.quote_code, 'Invoice');
+            this.uploadQuotationPDF(paidOrder.id, pdfBlob);
+        } catch (err) {
+            // The payment is on record server-side either way - a PDF hiccup must never
+            // read as a failed payment.
+        }
+        this.hideKhqrModal();
+        await ebAlert('Payment received. The invoice has been downloaded.', {
+            title: 'Payment complete',
+            tone: 'success',
+            confirmText: 'Done',
+        });
+    },
+
+    // Saves the code on screen as a PNG that still makes sense once it leaves this page:
+    // the shop name, the amount and the order number are drawn onto the image, so a
+    // customer who receives it in a chat can see what they are about to pay for.
+    // Composed on a fresh canvas rather than saving qrcode.js's own, which is 220px of
+    // unlabelled squares. Staff only - the button is hidden in the customer flow.
+    //
+    // `meta` is {boxId, amount, caption, filename}; it defaults to whatever the cart's
+    // own KHQR modal last drew, and the admin Orders page passes its own dialog's box in
+    // so both "Download QR" buttons produce the identical image.
+    downloadQrImage(meta) {
+        meta = meta || this._qrDownload;
+        const box = meta && document.getElementById(meta.boxId || 'khqrCodeBox');
+        // qrcode.js draws a <canvas> and keeps an <img> copy of it for the browsers that
+        // can't use one; either is a valid source for drawImage, and that img's src is a
+        // data: URL off the same canvas, so neither taints this one.
+        const source = box && (box.querySelector('canvas') || box.querySelector('img'));
+        if (!meta || !source) return;
+
+        const cfg = (typeof EB_SETTINGS !== 'undefined' && EB_SETTINGS) || {};
+        const FONT = '"Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+        const W = 560, QR = 360;
+        const canvas = document.createElement('canvas');
+        canvas.width = W;
+        canvas.height = 700;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, W, canvas.height);
+
+        // KHQR's own red band, so the saved image still reads as a KHQR code rather than
+        // as a random square somebody pasted into a chat.
+        ctx.fillStyle = '#e21836';
+        ctx.fillRect(0, 0, W, 84);
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 32px ' + FONT;
+        ctx.fillText('KHQR', 32, 44);
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 26px ' + FONT;
+        ctx.fillText(cfg.document_brand_name || 'EB DENTAL', W / 2, 132);
+        ctx.font = 'bold 44px ' + FONT;
+        ctx.fillText('$' + Number(meta.amount).toFixed(2), W / 2, 186);
+
+        const qrX = (W - QR) / 2, qrY = 224;
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(qrX - 14, qrY - 14, QR + 28, QR + 28);
+        // A QR is a grid of hard-edged squares; smoothing it on the way from 220px up to
+        // 360px is how a code ends up blurry enough for a scanner to refuse it.
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(source, qrX, qrY, QR, QR);
+
+        // The caption carries the clinic name, i.e. free text, so it is measured and
+        // stepped down rather than allowed to run off both edges of the image.
+        ctx.fillStyle = '#334155';
+        let captionSize = 21;
+        do {
+            captionSize -= 1;
+            ctx.font = '600 ' + captionSize + 'px ' + FONT;
+        } while (captionSize > 12 && ctx.measureText(meta.caption).width > W - 64);
+        ctx.fillText(meta.caption, W / 2, 628);
+
+        ctx.fillStyle = '#64748b';
+        ctx.font = '17px ' + FONT;
+        ctx.fillText('Scan with any Bakong-enabled banking app', W / 2, 664);
+
+        canvas.toBlob((blob) => {
+            if (!blob) return;
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = meta.filename + '.png';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        }, 'image/png');
     },
 
     // Payment confirmed - the ONLY place an invoice is ever produced for a KHQR order.
@@ -1538,13 +1841,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // Closing the KHQR modal early keeps the order awaiting payment server-side -
     // deliberately confirm-gated, and the overlay itself doesn't close on click, so a
     // stray tap can't kill the payment screen mid-scan.
+    //
+    // Staff get no such dialog: they are not mid-payment, the QR is stored on the order,
+    // and the admin Orders page re-opens the identical one. Warning them about a
+    // reservation they didn't make would only be noise.
     document.getElementById('khqrModalClose')?.addEventListener('click', async () => {
+        if (QuoteCart._khqrStaffMode) {
+            QuoteCart.hideKhqrModal();
+            return;
+        }
         const confirmed = await ebConfirm(
             'Your order stays reserved as awaiting payment. If you have already paid, your invoice will be issued as soon as the payment is confirmed.',
             { title: 'Close the payment window?', tone: 'warning', confirmText: 'Close' }
         );
         if (confirmed) QuoteCart.hideKhqrModal();
     });
+    // Saves the code as a labelled PNG for sending on. Only ever visible in the staff
+    // flow - see _renderKhqrCard().
+    document.getElementById('khqrDownloadBtn')?.addEventListener('click', () => QuoteCart.downloadQrImage());
     document.getElementById('quoteDiscountEditBtn')?.addEventListener('click', () => {
         document.getElementById('quoteDiscountEditor')?.classList.toggle('open');
     });
@@ -2345,7 +2659,13 @@ const AccountDrawer = {
         body.innerHTML = `
             <div class="account-detail-head">
                 <div>
-                    <strong>${order.order_type === 'quote' ? 'Quote' : 'Order'} #${ebEscapeHtml(order.order_number)}</strong>
+                    <!-- Paid => Invoice, whatever the row started as. The list this
+                         opened from (renderOrders above) and the full-page version
+                         (auth/orders.html) both already read it that way; this heading
+                         was the one place still going by order_type alone, so a quote
+                         staff had just taken payment for still said "Quote" here while
+                         its own PDF button offered an Invoice. -->
+                    <strong>${isPaidDocument ? 'Invoice' : (order.order_type === 'order' ? 'Order' : 'Quote')} #${ebEscapeHtml(order.order_number)}</strong>
                     <span>${ebEscapeHtml(QuoteCart._formatQuoteDate(order.created_at))} · C. Code ${ebEscapeHtml(order.quote_code || '—')}</span>
                 </div>
                 <span class="account-order-total">${formatPrice(order.grand_total)}</span>

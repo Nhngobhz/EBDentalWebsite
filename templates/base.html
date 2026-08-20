@@ -86,6 +86,18 @@
         // id while the KHQR modal waits. A checkout is a pending payment, not an order:
         // the order is only created once that poll reports the money arrived.
         const CHECKOUT_STATUS_URL_TEMPLATE = {{ url_for('quote.checkout_payment_status', checkout_id=0)|tojson }};
+        // Whether this staff member may take payment for the quote they are raising -
+        // the same price_listing-or-admin pair store-api gates the two endpoints below
+        // with. Decides only whether the cart offers "Payment QR"/"Invoice" as things to
+        // create; blueprints/quote.py checks it again on every call.
+        const CAN_TAKE_PAYMENT = {{ (is_staff() and has_any_permission('price_listing', 'admin'))|tojson }};
+        // "/quote/0/..." - main.js swaps the 0 for the id of the quote it has just
+        // created. Issuing a QR against it, recording it as paid, and watching a QR
+        // settle: the same three actions the admin Orders page offers on an existing
+        // order, reachable straight from the staff cart.
+        const ORDER_KHQR_URL_TEMPLATE = {{ url_for('quote.issue_khqr', order_id=0)|tojson }};
+        const ORDER_INVOICE_URL_TEMPLATE = {{ url_for('quote.mark_invoiced', order_id=0)|tojson }};
+        const ORDER_PAYMENT_STATUS_URL_TEMPLATE = {{ url_for('quote.order_payment_status', order_id=0)|tojson }};
         // Feed behind the account drawer's Orders tab (see AccountDrawer in main.js).
         const PROFILE_ORDERS_URL = {{ url_for('auth.profile_orders')|tojson }};
         // Admin-editable site settings (store-api's GET /settings/public). The printed

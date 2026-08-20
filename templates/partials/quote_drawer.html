@@ -62,13 +62,37 @@
                     <!-- Customers must pick how they'll pay: Cash produces a quote
                          (payment is collected offline later), KHQR shows a scan-to-pay
                          QR and only issues the receipt once the payment lands. Staff
-                         never see this - their cart always produces a quote. Required
-                         both here and server-side (store-api routers/orders.py). -->
+                         get the selector below instead - theirs picks what DOCUMENT to
+                         produce, not how they themselves are paying. Required both here
+                         and server-side (store-api routers/orders.py). -->
                     <label>Payment Method *
                         <select id="qiPaymentMethod" required onchange="QuoteCart.saveInfoField('paymentMethod', this.value)">
                             <option value="">Choose…</option>
                             <option value="cash">Cash</option>
                             <option value="khqr">KHQR (scan to pay)</option>
+                        </select>
+                    </label>
+                    {% endif %}
+                    {% if is_staff() and has_any_permission('price_listing', 'admin') %}
+                    {# What the cart should produce. All three start life as the same
+                       row - store-api's POST /orders/ only ever writes a quote - and the
+                       choice decides what happens to it immediately afterwards:
+
+                         Quotation   nothing further; the quote PDF downloads (unchanged
+                                     behaviour, and still the default).
+                         Payment QR  a KHQR is issued against it (POST /quote/<id>/khqr)
+                                     and shown to scan, save or send on.
+                         Invoice     it is recorded as paid (POST /quote/<id>/invoice)
+                                     and the document prints as an Invoice.
+
+                       Same two actions the admin Orders page offers on an existing
+                       order - this just saves the trip round to it for a counter sale.
+                       Permission-gated to match store-api; see confirmPurchase(). #}
+                    <label>Create *
+                        <select id="qiStaffDocument" onchange="QuoteCart.saveInfoField('staffDocument', this.value); QuoteCart.syncStaffDocumentLabel();">
+                            <option value="quote">Quotation</option>
+                            <option value="khqr">Payment QR (customer scans to pay)</option>
+                            <option value="invoice">Invoice (payment already received)</option>
                         </select>
                     </label>
                     {% endif %}
@@ -196,6 +220,14 @@
             <div id="khqrAmount" style="font-size:1.5rem; font-weight:700; color:#0f172a; margin:2px 0 10px;">$0.00</div>
             <div id="khqrCodeBox" style="display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px; min-height:248px;"></div>
             <div id="khqrOrderNo" style="font-size:0.72rem; color:#64748b; margin-top:8px;"></div>
+            <!-- Staff only (QuoteCart.showKhqrModal shows it in staff mode): saves the
+                 code as a PNG with the shop name, the amount and the order number on it,
+                 which is the thing that actually gets sent to a customer over Telegram
+                 or Telegram-adjacent. A customer sitting in front of the live QR has
+                 nothing to send it to, so they don't get the button. -->
+            <button type="button" id="khqrDownloadBtn" class="khqr-download-btn" style="display:none;">
+                <i class="fas fa-download"></i> Download QR
+            </button>
         </div>
         <div id="khqrStatusRow" style="padding:12px 18px 18px; text-align:center; font-size:0.85rem; color:#475569;">
             <i class="fas fa-spinner fa-spin"></i> Scan with your banking app — waiting for payment…
