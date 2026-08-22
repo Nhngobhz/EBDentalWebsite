@@ -82,15 +82,36 @@ def settings_save(group_id):
     # Only this group's keys are submitted, so one tab's form can never blank out
     # another tab's values just by not containing them.
     values = {}
+    uploads = {}
     for setting in group["settings"]:
         key = setting["key"]
         if setting["type"] == "bool":
             values[key] = key in request.form
+        elif setting["type"] == "image":
+            # An `image` setting has no text input at all - its value is a stored
+            # picture URL that only store-api's upload endpoint ever writes. The form
+            # offers a file field and, once one is set, a "remove" checkbox; see the
+            # macro in templates/admin/settings.html for the two field names.
+            upload = request.files.get(f"{key}__file")
+            if upload and upload.filename:
+                uploads[key] = upload
+            elif request.form.get(f"{key}__clear"):
+                values[key] = ""
+            # Neither means "leave the picture alone", which is why nothing is written
+            # here - the same rule the Brands and QR-code screens follow, so saving a
+            # caption can never silently wipe the picture next to it.
         elif key in request.form:
             values[key] = request.form[key]
 
     try:
         client.put_json("/settings/", {"values": values})
+        # After the values, not before: a rejected field then leaves nothing uploaded,
+        # rather than an orphan file stored against a save that failed.
+        for key, upload in uploads.items():
+            client.post_form(
+                f"/settings/image/{key}",
+                files={"file": (upload.filename, upload.stream, upload.mimetype)},
+            )
     except StoreAPIError as e:
         flash(e.detail, "error")
         return redirect(url_for("admin.settings", group=group_id))

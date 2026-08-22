@@ -1092,15 +1092,42 @@ const QuoteCart = {
         // real defaults, and its own PDF builder (services/invoice_pdf.py) reads the
         // same keys. Changing wording here means changing it there too.
         const cfg = (typeof EB_SETTINGS !== 'undefined' && EB_SETTINGS) || {};
+        // The terms box at the foot of the item table. A quotation carries the shop's
+        // standing terms and the bank QR to pay against; a paid invoice and a cancelled
+        // order each carry a single line saying so, and no QR - "please scan to pay" on
+        // a document that is already settled, or void, reads as a mistake. Mirrored by
+        // the terms_lines block in build_invoice_pdf() in store-api's
+        // services/invoice_pdf.py.
+        //
         // The cancelled line is a literal in both engines (CANCELLED_NOTE there): it
-        // states a fact about the row rather than wording the shop picks.
-        const validityNote = isCancelled
-            ? 'This order was cancelled. It is not an invoice and is not payable.'
+        // states a fact about the row rather than wording the shop picks. The settings-
+        // driven lines are escaped - they are typed by an admin rather than by a
+        // customer, so this is belt and braces rather than the load-bearing escaping
+        // the `order` fields get, but a settings screen is not a place to author markup.
+        const termsLines = (isCancelled
+            ? ['This order was cancelled. It is not an invoice and is not payable.']
             : isPaidDocument
-            ? (order.payment_method === 'khqr'
+            ? [ebEscapeHtml(order.payment_method === 'khqr'
                 ? (cfg.receipt_note_khqr || 'Paid via KHQR. Thank you for your purchase.')
-                : (cfg.receipt_note_cash || 'Paid in full. Thank you for your purchase.'))
-            : `Quotation valid for <b>${Number(cfg.quote_validity_days) || 30} days</b> from the date issued.`;
+                : (cfg.receipt_note_cash || 'Paid in full. Thank you for your purchase.'))]
+            : [
+                `Quotation is valid for <b>${Number(cfg.quote_validity_days) || 30} days</b> from the date issued.`,
+                ebEscapeHtml(cfg.quote_deposit_note || ''),
+                ebEscapeHtml(cfg.quote_payment_note || ''),
+            ]).filter(Boolean);
+
+        // The payment QR is served by THIS app (/quote-payment-qr.png in
+        // blueprints/main.py) rather than from the URL the setting actually holds: the
+        // picture lives on store-api or on R2, and html2canvas cannot export a canvas
+        // that has drawn a cross-origin image. `?v=` is the stored filename (a uuid),
+        // so replacing the picture in Settings busts the browser's copy of the old one.
+        const storedQr = isCancelled || isPaidDocument ? '' : (cfg.quote_payment_qr || '').trim();
+        const qrCaption = ebEscapeHtml(cfg.quote_payment_qr_caption || '');
+        const termsQr = storedQr ? `
+                    <div class="qpt-terms-qr">
+                        <img src="/quote-payment-qr.png?v=${encodeURIComponent(storedQr.split('/').pop())}" alt="Payment QR code">
+                        ${qrCaption ? `<div class="qpt-terms-qr-caption">${qrCaption}</div>` : ''}
+                    </div>` : '';
 
         const specialDiscountLabel = order.discount_type === 'cash'
             ? 'Special Discount (Cash):'
@@ -1222,7 +1249,12 @@ const QuoteCart = {
                     ${rows}
                     ${blankRows}
                     <tr class="qpt-total-row qpt-subtotal-row">
-                        <td colspan="6" class="qpt-validity" rowspan="4">${validityNote}</td>
+                        <td colspan="6" class="qpt-validity" rowspan="4">
+                            <div class="qpt-terms">
+                                <div class="qpt-terms-text">${termsLines.map(line => `<div>${line}</div>`).join('')}</div>
+                                ${termsQr}
+                            </div>
+                        </td>
                         <td>Sub-Total($):</td>
                         <td class="qpt-right">$ ${undiscountedSubtotal.toFixed(2)}</td>
                     </tr>

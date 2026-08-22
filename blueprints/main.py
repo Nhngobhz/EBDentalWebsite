@@ -1,8 +1,10 @@
 import os
 import re
 
+import requests
 import site_cache
-from flask import Blueprint, current_app, render_template, url_for
+import site_settings
+from flask import Blueprint, Response, abort, current_app, render_template, url_for
 
 from formatting import resolve_image_url
 from special_products import SPECIAL_PRODUCTS
@@ -203,6 +205,67 @@ def contact():
     except StoreAPIError:
         qr_codes = []
     return render_template("contact.html", qr_codes=qr_codes)
+
+
+# The fetched bytes of the quotation's payment QR, keyed by the URL they came from -
+# so replacing the picture serves the new one immediately instead of after a TTL, and
+# two different pictures can never share an entry.
+QUOTE_QR_CACHE_PREFIX = "quote_payment_qr"
+
+
+@main_bp.route("/quote-payment-qr.png")
+def quote_payment_qr():
+    """The bank QR printed in the terms box of a quotation, re-served from THIS app.
+
+    The picture itself lives wherever store-api put it: a Cloudflare R2 URL, or
+    store-api's own /static on its own port. Either way it is a different origin from
+    this app - and the printed quote is snapshotted with html2canvas
+    (QuoteCart.exportPDF in static/js/main.js). A canvas that has drawn a cross-origin
+    image is tainted, and toDataURL() on a tainted canvas throws, so a QR loaded
+    straight from R2 or from store-api would break the PDF export outright rather than
+    just printing without the picture. Serving the bytes from here makes it same-origin,
+    which is a guarantee neither CORS headers nor crossorigin="anonymous" can offer.
+
+    Public, like the quotation it prints on - a customer exporting their own quote is
+    signed in as a customer at most, and the picture is a payment QR the shop wants
+    scanned. `?v=` is added by the caller (buildPrintTemplate) from the stored filename,
+    so an admin replacing the picture busts every browser's copy of the old one.
+    """
+    stored = (site_settings.get().get("quote_payment_qr") or "").strip()
+    if not stored:
+        abort(404)
+
+    url = resolve_image_url(stored)
+    # resolve_image_url turns a stored "/static/uploads/..." into store-api's own URL;
+    # anything else absolute is R2. Fetching a URL that came out of a settings row is
+    # a server-side request whose destination an admin controls, so it is held to the
+    # two shapes that are actually produced: this deployment's store-api, or https.
+    # Plain http:// elsewhere - which would reach cloud metadata endpoints and other
+    # things only this server can see - is refused rather than fetched.
+    api_base = current_app.config["STORE_API_BASE_URL"].rstrip("/")
+    if not (url.startswith(f"{api_base}/") or url.startswith("https://")):
+        current_app.logger.warning("Refusing to fetch the payment QR from %r", url)
+        abort(404)
+
+    def fetch():
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        content_type = response.headers.get("Content-Type", "image/png")
+        if not content_type.startswith("image/"):
+            raise ValueError(f"payment QR at {url} is {content_type}, not an image")
+        return response.content, content_type
+
+    try:
+        content, content_type = site_cache.cached((QUOTE_QR_CACHE_PREFIX, url), fetch)
+    except (requests.RequestException, ValueError) as exc:
+        current_app.logger.warning("Could not load the payment QR: %s", exc)
+        abort(404)
+
+    return Response(
+        content,
+        mimetype=content_type,
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 
 
 @main_bp.route("/donut")

@@ -28,6 +28,20 @@
                 </label>
             {% elif s.type == 'textarea' %}
                 <textarea id="set-{{ s.key }}" name="{{ s.key }}" rows="{{ s.rows }}">{{ value }}</textarea>
+            {% elif s.type == 'image' %}
+                {# A picture, not a string: the value is written by the upload endpoint
+                   (POST /settings/image/<key> in store-api), so there is nothing to
+                   type here. The two suffixed field names are read back by
+                   settings_save() in blueprints/admin/settings.py. #}
+                <div class="setting-image">
+                    {% if value %}<img class="setting-image-preview" src="{{ img(value) }}" alt="Current {{ s.label|lower }}">{% endif %}
+                    <input type="file" id="set-{{ s.key }}" name="{{ s.key }}__file" accept="image/*">
+                    {% if value %}
+                    <label class="setting-image-clear">
+                        <input type="checkbox" name="{{ s.key }}__clear"> Remove this picture
+                    </label>
+                    {% endif %}
+                </div>
             {% elif s.type == 'number' %}
                 <input type="number" id="set-{{ s.key }}" name="{{ s.key }}" value="{{ value }}"
                        {% if s.minimum is not none %}min="{{ s.minimum }}"{% endif %}
@@ -98,7 +112,10 @@
             </div>
         </div>
         <div class="card-body">
-            <form method="post" action="{{ url_for('admin.settings_save', group_id=group.id) }}">
+            {# multipart because a group may contain an `image` setting, whose value
+               arrives as a file. Harmless on the groups that don't. #}
+            <form method="post" enctype="multipart/form-data"
+                  action="{{ url_for('admin.settings_save', group_id=group.id) }}">
                 {% for s in group.settings %}
                     {{ setting_field(s, values, defaults) }}
                 {% endfor %}
