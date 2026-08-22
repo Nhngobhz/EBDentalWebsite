@@ -98,15 +98,22 @@
         </div>
         {% endif %}
 
+        {# Same gate as Orders: a merchant transaction report is money. The whole group
+           is hidden rather than just its one link, so nobody gets an empty "Analytics"
+           heading with nothing under it. #}
+        {% if has_any_permission('price_listing', 'admin') %}
         <div class="nav-group">
             <div class="group-label" onclick="toggleGroup('group-analytics')">
                 <span>Analytics</span>
                 <i class="fas fa-chevron-right group-icon open"></i>
             </div>
             <div class="group-items open" id="group-analytics">
-                <a class="nav-item" href="#"><i class="fas fa-file-alt"></i> Reports</a>
+                <a class="nav-item {{ 'active' if request.endpoint == 'admin.reports' }}" href="{{ url_for('admin.reports') }}">
+                    <i class="fas fa-file-alt"></i> Reports
+                </a>
             </div>
         </div>
+        {% endif %}
 
         {# The `admin` permission, not user_management: changing the store's contact
            details or switching on maintenance mode is a different job from managing

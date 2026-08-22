@@ -1,0 +1,80 @@
+{% extends "admin/_admin_base.html" %}
+
+{% block title %}Reports{% endblock %}
+{% block admin_page_title %}Reports{% endblock %}
+
+{#
+  One card per report source. Each is a self-contained <form> posting to its own
+  /admin/reports/<source> route, which answers with the finished document as a download
+  rather than a page - so there is no result screen here, and nothing to clear between
+  runs. Adding a second source (Wing, ACLEDA, ...) means another card of the same shape,
+  not a rework of this page.
+#}
+{% block admin_content %}
+<div class="page-title"><i class="fas fa-file-alt"></i> Reports</div>
+<p class="page-sub">Turn a bank's raw transaction export into a clean, printable PDF.</p>
+
+<div class="report-grid">
+    <div class="dash-card report-card">
+        <div class="card-header">
+            <h5><i class="fas fa-university"></i> ABA</h5>
+            <span class="report-tag">Merchant transactions</span>
+        </div>
+        <div class="card-body">
+            <p class="report-blurb">
+                Upload the <strong>merchant transaction report</strong> ABA gives you as an
+                Excel file. You get back a landscape PDF of just the columns that matter —
+                Date, Outlet, Payer, Original Amount and Payment Amount — one line per
+                transaction, with a per-currency total at the end.
+            </p>
+
+            <form method="post" action="{{ url_for('admin.reports_aba') }}"
+                  enctype="multipart/form-data" class="report-form" id="abaReportForm">
+                <label class="report-file" for="abaWorkbook">
+                    <i class="fas fa-file-excel"></i>
+                    <span class="report-file-text" id="abaFileName">Choose the ABA .xlsx file…</span>
+                    {# accept= only filters the file picker; blueprints/admin/reports.py and
+                       store-api both re-check the extension, since a picker can be bypassed. #}
+                    <input type="file" id="abaWorkbook" name="workbook" accept=".xlsx" required
+                           onchange="abaFilePicked(this)">
+                </label>
+                <button type="submit" class="btn-dash primary" id="abaSubmit">
+                    <i class="fas fa-file-pdf"></i> Make PDF
+                </button>
+            </form>
+
+            <p class="report-note">
+                <i class="fas fa-info-circle"></i>
+                Nothing is uploaded to the store — the PDF is built and handed straight
+                back to your browser.
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Native file inputs show "No file chosen" in a style that can't be restyled, so the
+    // real input is hidden inside the label and this writes the chosen name into it.
+    function abaFilePicked(input) {
+        const label = document.getElementById('abaFileName');
+        label.textContent = input.files && input.files.length
+            ? input.files[0].name
+            : 'Choose the ABA .xlsx file…';
+        label.closest('.report-file').classList.toggle('has-file', !!(input.files && input.files.length));
+    }
+
+    // The response is a download, not a navigation, so the page never unloads and the
+    // button would otherwise sit spinning forever. Re-enabled on a timer: there is no
+    // load event to hang the reset on, and a failed run comes back as a redirect (which
+    // does unload the page) carrying the flash message.
+    document.getElementById('abaReportForm').addEventListener('submit', function () {
+        const button = document.getElementById('abaSubmit');
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Building…';
+        setTimeout(function () {
+            button.disabled = false;
+            button.innerHTML = '<i class="fas fa-file-pdf"></i> Make PDF';
+        }, 6000);
+    });
+</script>
+{% endblock %}

@@ -7,6 +7,7 @@ See store-api/AI_AGENT_GUIDE.md for the full endpoint reference this client wrap
 """
 import base64
 import json
+import re
 import time
 
 import requests
@@ -129,13 +130,16 @@ class StoreAPIClient:
             headers["Authorization"] = f"Bearer {self.token}"
         return headers
 
-    def _request(self, method, path, headers=None, session_auth=True, **kwargs):
+    def _send(self, method, path, headers=None, session_auth=True, timeout=None, **kwargs):
+        """The checked response object. Every caller goes through here, so the transport
+        failure and the two auth rules below are decided in exactly one place - what
+        differs between _request and the binary helpers is only how the body is read."""
         try:
             response = self.session.request(
                 method,
                 f"{self.base_url}{path}",
                 headers=self._headers(headers),
-                timeout=self.timeout,
+                timeout=timeout or self.timeout,
                 **kwargs,
             )
         except requests.exceptions.RequestException as exc:
@@ -150,6 +154,10 @@ class StoreAPIClient:
             raise SessionExpired()
         if response.status_code >= 400:
             _raise_for_error(response)
+        return response
+
+    def _request(self, method, path, headers=None, session_auth=True, **kwargs):
+        response = self._send(method, path, headers=headers, session_auth=session_auth, **kwargs)
         if response.status_code == 204 or not response.content:
             return None
         return response.json()
@@ -173,6 +181,25 @@ class StoreAPIClient:
     # ---- multipart passthrough (browser upload -> store-api) ----
     def post_form(self, path, data=None, files=None):
         return self._request("POST", path, data=data, files=files)
+
+    def post_form_download(self, path, data=None, files=None, timeout=60):
+        """Uploads a file and gets a *file* back, as (bytes, content_type, filename) -
+        for endpoints whose answer is a document rather than JSON (the admin Reports
+        screen's ABA button, POST /reports/aba). `filename` is parsed out of
+        Content-Disposition, or None if the endpoint didn't name one.
+
+        Longer default timeout than the JSON verbs: this is a round trip through a file
+        parser and a PDF renderer, not a table read, and 10s is tight for a whole
+        month's transactions. Errors still arrive as JSON, and _send has already turned
+        them into StoreAPIError before this reads a byte of the body."""
+        response = self._send("POST", path, data=data, files=files, timeout=timeout)
+        disposition = response.headers.get("Content-Disposition", "")
+        match = re.search(r'filename\*?=(?:UTF-8\'\')?"?([^";]+)"?', disposition)
+        return (
+            response.content,
+            response.headers.get("Content-Type", "application/octet-stream"),
+            match.group(1) if match else None,
+        )
 
     # ---- auth ----
     def login(self, email, password):

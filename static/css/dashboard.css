@@ -1468,3 +1468,107 @@ a.sidebar-brand:hover {
     background: rgba(139, 92, 246, 0.1);
     color: #8b5cf6;
 }
+
+
+/* ------------------------------------------------------------------
+   Reports screen (templates/admin/reports.html)
+   One card per bank/export source; the grid keeps them the same width
+   whether there is one card or six.
+   ------------------------------------------------------------------ */
+.report-grid {
+    display: grid;
+    /* Capped, not 1fr: with a single card a free-growing column stretched it
+       across a 1440px screen and left the form floating in whitespace. */
+    grid-template-columns: repeat(auto-fill, minmax(340px, 460px));
+    gap: 18px;
+    align-items: start;
+}
+.report-card .card-header h5 i {
+    margin-right: 6px;
+    color: var(--accent);
+}
+.report-tag {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-soft);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    padding: 3px 10px;
+    white-space: nowrap;
+}
+.report-blurb {
+    font-size: 0.78rem;
+    line-height: 1.65;
+    color: var(--text-soft);
+    margin: 0 0 14px;
+}
+.report-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: stretch;
+}
+/* The <input type="file"> sits inside this label, stretched over it and fully
+   transparent - the browser's own "No file chosen" text can't be restyled, so
+   the label plays the part of the control and abaFilePicked() writes the chosen
+   name into it. Covering the label rather than shrinking the input to 1x1 keeps
+   it a real, focusable control, which is what Chrome needs to be able to anchor
+   the `required` validation bubble somewhere visible. */
+.report-file {
+    position: relative;
+    flex: 1 1 200px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+    padding: 9px 12px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    font-size: 0.78rem;
+    color: var(--text-soft);
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
+}
+.report-file:hover,
+.report-file:focus-within {
+    border-color: var(--accent);
+    color: var(--text);
+}
+.report-file.has-file {
+    border-style: solid;
+    border-color: var(--accent);
+    color: var(--text);
+}
+.report-file i {
+    color: #1d6f42; /* Excel green, so the card reads at a glance as "spreadsheet in" */
+    flex-shrink: 0;
+}
+.report-file-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.report-file input[type="file"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+.report-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 0.68rem;
+    line-height: 1.6;
+    color: var(--text-light);
+    margin: 12px 0 0;
+}
+.report-note i {
+    margin-top: 2px;
+}
