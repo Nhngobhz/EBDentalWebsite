@@ -4,15 +4,19 @@
 {% block admin_page_title %}Reports{% endblock %}
 
 {#
-  One card per report source. Each is a self-contained <form> posting to its own
+  One card per report. Most are a self-contained <form> posting to its own
   /admin/reports/<source> route, which answers with the finished document as a download
   rather than a page - so there is no result screen here, and nothing to clear between
   runs. Adding a second source (Wing, ACLEDA, ...) means another card of the same shape,
   not a rework of this page.
+
+  The Activity Log card is the exception: it has a screen of its own rather than a
+  document, because it is browsed and filtered rather than produced once and printed.
+  It sits here anyway - this is where somebody looking for "what happened" comes.
 #}
 {% block admin_content %}
 <div class="page-title"><i class="fas fa-file-alt"></i> Reports</div>
-<p class="page-sub">No one knows what to put in here</p>
+<p class="page-sub">Refined exports and a record of every change made to the store.</p>
 
 <div class="report-grid">
     <div class="dash-card report-card">
@@ -50,6 +54,33 @@
             </p>
         </div>
     </div>
+    {# `admin` only, unlike the ABA card above: the log covers staff accounts,
+       permissions and customers' details as well as prices. The sidebar link is gated
+       the same way, and so is the route behind both. #}
+    {% if has_permission('admin') %}
+    <div class="dash-card report-card">
+        <div class="card-header">
+            <h5><i class="fas fa-clock-rotate-left"></i> Activity Log</h5>
+            <span class="report-tag">Who changed what</span>
+        </div>
+        <div class="card-body">
+            <p class="report-blurb">
+                Every change anyone has made to the store &mdash; products, prices, orders,
+                staff accounts, settings &mdash; newest first, with <strong>the old value
+                beside the new one</strong>. Filter by who, by what, by action or by date.
+            </p>
+            <a href="{{ url_for('admin.activity') }}" class="btn-dash primary">
+                <i class="fas fa-list"></i> Open the log
+            </a>
+            <p class="report-note">
+                <i class="fas fa-info-circle"></i>
+                Entries are recorded from the moment this was switched on &mdash; changes
+                made before that left no record to show.
+            </p>
+        </div>
+    </div>
+    {% endif %}
+
 </div>
 
 <script>

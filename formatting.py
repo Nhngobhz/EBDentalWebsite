@@ -138,6 +138,68 @@ def format_date(value, fmt="%b %d, %Y"):
     return value.strftime(fmt)
 
 
+# ---- activity log display ----
+# store-api's activity log identifies what changed by __tablename__, which is the one
+# name that can't drift as the API evolves. Turning that into something readable is a
+# presentation job, so it happens here rather than over there - and a table missing
+# from this map still renders (see activity_entity_label), it just renders plainly.
+ACTIVITY_ENTITIES = {
+    "products": ("Product", "fa-box"),
+    "orders": ("Order", "fa-file-invoice"),
+    "customers": ("Customer", "fa-user"),
+    "users": ("Staff account", "fa-user-shield"),
+    "brands": ("Brand", "fa-tags"),
+    "categories": ("Category", "fa-layer-group"),
+    "promotions": ("Promotion", "fa-percent"),
+    "sets": ("Set", "fa-cubes"),
+    "manuals": ("Manual", "fa-book"),
+    "hero_slides": ("Hero slide", "fa-images"),
+    "qr_codes": ("QR card", "fa-qrcode"),
+    "app_settings": ("Setting", "fa-sliders"),
+    "pending_checkouts": ("Checkout attempt", "fa-hourglass-half"),
+}
+
+# Past tense, because every entry describes something that already happened.
+ACTIVITY_ACTIONS = {
+    "create": ("Created", "success"),
+    "update": ("Updated", "accent"),
+    "delete": ("Deleted", "danger"),
+    "login": ("Signed in", "muted"),
+    "login_failed": ("Sign-in refused", "warning"),
+    "settings_reset": ("Reset", "warning"),
+}
+
+
+def activity_entity_label(entity_type):
+    """"products" -> "Product". An unmapped table falls back to its own name with the
+    underscores knocked out, so a table added later shows up as "set option groups"
+    rather than not showing up at all."""
+    known = ACTIVITY_ENTITIES.get(entity_type)
+    if known:
+        return known[0]
+    return (entity_type or "").replace("_", " ").strip().capitalize() or "Record"
+
+
+def activity_entity_icon(entity_type):
+    known = ACTIVITY_ENTITIES.get(entity_type)
+    return known[1] if known else "fa-circle-dot"
+
+
+def activity_action(action):
+    """(label, colour-modifier) for an action, defaulting to the raw name so a new
+    action recorded by store-api is legible here before this map learns about it."""
+    return ACTIVITY_ACTIONS.get(
+        action, ((action or "").replace("_", " ").capitalize(), "muted")
+    )
+
+
+def activity_field_label(field):
+    """"list_price" -> "List price". Deliberately mechanical: inventing prettier names
+    per column would be a second place to keep in step with the schema, and the column
+    names here are already close to English."""
+    return (field or "").replace("_", " ").strip().capitalize() or field
+
+
 # ---- per-entity adapters: run once on every dict fetched from store-api, before it
 # reaches a template, so downstream code never has to think about the string-Decimal
 # quirk or recompute a derived field more than once. ----

@@ -104,6 +104,10 @@
                 <i class="fas fa-save"></i> Add Manual
             </button>
         </form>
+        {% if has_permission('admin') %}
+        {% set history_entity_type = 'manuals' %}
+        {% include 'partials/history_panel.html' %}
+        {% endif %}
     </div>
 </div>
 {% endblock %}
@@ -147,6 +151,9 @@
         ebSetImagePreview('manualImagePreview', isEdit && manual.manual_image ? manual.image : null);
 
         document.getElementById('manualModalOverlay').classList.add('active');
+        // Points the History panel at this record (partials/history_panel.html);
+        // null on "add new", where there is nothing to have a history yet.
+        if (window.ebHistoryFor) ebHistoryFor(manualId || null);
     }
 
     function closeManualModal() {

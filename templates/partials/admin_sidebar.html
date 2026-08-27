@@ -111,6 +111,14 @@
                 <a class="nav-item {{ 'active' if request.endpoint == 'admin.reports' }}" href="{{ url_for('admin.reports') }}">
                     <i class="fas fa-file-alt"></i> Reports
                 </a>
+                {# `admin`, not the group's own price_listing-or-admin gate: the log
+                   spans staff accounts, permissions and customers' details as well as
+                   prices, so it is the owner's view. store-api enforces the same. #}
+                {% if has_permission('admin') %}
+                <a class="nav-item {{ 'active' if request.endpoint == 'admin.activity' }}" href="{{ url_for('admin.activity') }}">
+                    <i class="fas fa-clock-rotate-left"></i> Activity Log
+                </a>
+                {% endif %}
             </div>
         </div>
         {% endif %}

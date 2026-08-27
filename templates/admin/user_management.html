@@ -169,6 +169,10 @@
             </div>
             <div style="font-size:0.7rem;color:var(--text-light);margin-top:4px;">Takes effect immediately - no email or reset link involved.</div>
         </form>
+        {% if has_permission('admin') %}
+        {% set history_entity_type = 'users' %}
+        {% include 'partials/history_panel.html' %}
+        {% endif %}
     </div>
 </div>
 {% endblock %}
@@ -224,6 +228,9 @@
         }
 
         document.getElementById('userModalOverlay').classList.add('active');
+        // Points the History panel at this record (partials/history_panel.html);
+        // null on "add new", where there is nothing to have a history yet.
+        if (window.ebHistoryFor) ebHistoryFor(userId || null);
     }
 
     function closeUserModal() {

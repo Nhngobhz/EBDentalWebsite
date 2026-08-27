@@ -348,6 +348,10 @@
             </form>
             <button type="button" class="btn-dash" id="orderPrintBtn" onclick="printOrder(currentOrderId)"><i class="fas fa-print"></i> Print</button>
         </div>
+        {% if has_permission('admin') %}
+        {% set history_entity_type = 'orders' %}
+        {% include 'partials/history_panel.html' %}
+        {% endif %}
     </div>
 </div>
 
@@ -588,6 +592,9 @@
         document.getElementById('orderStatusForm').action = orderUrl(ORDER_STATUS_URL_TEMPLATE, orderId);
 
         document.getElementById('orderModalOverlay').classList.add('active');
+        // Points the History panel at this record (partials/history_panel.html);
+        // null on "add new", where there is nothing to have a history yet.
+        if (window.ebHistoryFor) ebHistoryFor(orderId || null);
     }
 
     // Which of the modal's actions are on offer.

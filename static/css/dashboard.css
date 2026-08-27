@@ -1572,3 +1572,184 @@ a.sidebar-brand:hover {
 .report-note i {
     margin-top: 2px;
 }
+
+
+/* ============================================================
+   ACTIVITY LOG  (templates/admin/activity.html + the History
+   panel partial reused on the product/order/user screens)
+   ============================================================ */
+
+/* The filter bar wraps rather than scrolls: six controls fit one row on a desktop
+   and stack into two or three on a laptop, which is where this screen is actually
+   read. `af-grow` lets the search box take whatever width is left over. */
+.activity-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
+}
+.af-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 140px;
+}
+.af-field.af-grow {
+    flex: 1 1 240px;
+}
+.af-field label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-light);
+}
+.af-field input,
+.af-field select {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.88rem;
+    font-family: inherit;
+}
+.af-field input:focus,
+.af-field select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+.af-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.af-dim {
+    color: var(--text-light);
+    font-size: 0.82rem;
+}
+
+/* One pill per action, coloured by what it did - a delete should be findable by
+   scanning the column, not by reading it. The modifier names come from
+   ACTIVITY_ACTIONS in formatting.py. */
+.af-action {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+.af-success { color: var(--success); border-color: var(--success); }
+.af-accent  { color: var(--accent);  border-color: var(--accent); }
+.af-danger  { color: var(--danger);  border-color: var(--danger); }
+.af-warning { color: var(--warning); border-color: var(--warning); }
+.af-muted   { color: var(--text-light); border-color: var(--border); }
+
+.af-note {
+    font-size: 0.85rem;
+    color: var(--text-soft);
+    margin-bottom: 4px;
+}
+
+.af-changes summary {
+    cursor: pointer;
+    font-size: 0.82rem;
+    color: var(--accent);
+    user-select: none;
+}
+.af-changes ul {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.af-changes li {
+    font-size: 0.84rem;
+    line-height: 1.5;
+    /* Values can be long (a description, a URL). Breaking inside one keeps a single
+       field from stretching the whole table sideways. */
+    overflow-wrap: anywhere;
+}
+.af-field-name {
+    display: inline-block;
+    min-width: 120px;
+    font-weight: 600;
+    color: var(--text-soft);
+}
+.af-old {
+    color: var(--text-light);
+    text-decoration: line-through;
+}
+.af-new {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.af-pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    border-top: 1px solid var(--border);
+}
+
+/* ---- the per-record History panel ---- */
+
+/* Rendered inside an existing edit modal, so it has to look like part of it: no card
+   chrome of its own, just a ruled-off block at the bottom. */
+.history-panel {
+    margin-top: 18px;
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+}
+.history-panel > summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-soft);
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.history-panel > summary::-webkit-details-marker {
+    display: none;
+}
+.history-panel > summary i.fa-chevron-right {
+    transition: transform var(--transition);
+    font-size: 0.7rem;
+}
+.history-panel[open] > summary i.fa-chevron-right {
+    transform: rotate(90deg);
+}
+.history-body {
+    margin-top: 12px;
+    max-height: 320px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.history-entry {
+    border-left: 2px solid var(--border);
+    padding-left: 12px;
+}
+.history-entry-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 0.84rem;
+}
+.history-entry-who {
+    font-weight: 600;
+}
+.history-entry .af-changes ul {
+    margin-top: 6px;
+}

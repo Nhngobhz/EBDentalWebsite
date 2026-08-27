@@ -154,6 +154,10 @@
                 <i class="fas fa-save"></i> Create Set
             </button>
         </form>
+        {% if has_permission('admin') %}
+        {% set history_entity_type = 'sets' %}
+        {% include 'partials/history_panel.html' %}
+        {% endif %}
     </div>
 </div>
 {% endif %}
@@ -219,6 +223,9 @@
         ebOptionGroupPicker.render('setOptionsPicker', isEdit ? set_.option_groups : []);
 
         document.getElementById('setModalOverlay').classList.add('active');
+        // Points the History panel at this record (partials/history_panel.html);
+        // null on "add new", where there is nothing to have a history yet.
+        if (window.ebHistoryFor) ebHistoryFor(setId || null);
     }
 
     function closeSetModal() {

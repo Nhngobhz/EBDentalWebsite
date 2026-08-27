@@ -1,0 +1,175 @@
+{#
+  The per-record History panel: the last few changes to whatever record an admin
+  modal currently has open.
+
+  Include it inside an edit modal, once per page, with the entity's store-api table
+  name set first:
+
+      {% if has_permission('admin') %}
+        {% set history_entity_type = 'products' %}
+        {% include 'partials/history_panel.html' %}
+      {% endif %}
+
+  ...then call `ebHistoryFor(id)` at the end of that page's openXModal(), passing null
+  for the "add new" case (a record that doesn't exist yet has no history, and the
+  panel hides itself rather than showing an empty one).
+
+  Gated on `admin` by the caller AND by the route behind it - the same rule as the
+  Activity Log screen, because it is the same data through a smaller window.
+
+  Fetched when the panel is opened, not when the modal is: most edits never involve
+  looking at the history, and a request per modal open would be a request per edit
+  for nothing.
+#}
+<details class="history-panel" id="historyPanel" data-entity-type="{{ history_entity_type }}" style="display:none;">
+    <summary>
+        <i class="fas fa-chevron-right"></i>
+        <i class="fas fa-clock-rotate-left"></i>
+        History
+    </summary>
+    <div class="history-body" id="historyBody"></div>
+</details>
+
+<script>
+(function () {
+    const panel = document.getElementById('historyPanel');
+    if (!panel) return;
+    const body = document.getElementById('historyBody');
+
+    // Built by swapping the 0 out of a real url_for, rather than concatenating a
+    // path here - the same trick the modal forms use for their action URLs, so a
+    // renamed route breaks loudly at build time instead of 404ing at runtime.
+    const HISTORY_URL = {{ url_for('admin.activity_entity', entity_type=history_entity_type, entity_id=0)|tojson }};
+
+    let currentId = null;
+
+    function el(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        // textContent throughout, never innerHTML: every string below is something a
+        // person typed into a form - a product name, a staff member's name - and it
+        // reaches here as recorded, not as escaped markup.
+        if (text !== undefined && text !== null) node.textContent = text;
+        return node;
+    }
+
+    function fieldLabel(field) {
+        const spaced = String(field).replace(/_/g, ' ');
+        return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+    }
+
+    function when(iso) {
+        const d = new Date(iso);
+        if (isNaN(d)) return iso;
+        return d.toLocaleString(undefined, {
+            year: 'numeric', month: 'short', day: 'numeric',
+            hour: '2-digit', minute: '2-digit',
+        });
+    }
+
+    const ACTIONS = {
+        create: 'Created',
+        update: 'Updated',
+        delete: 'Deleted',
+        login: 'Signed in',
+        login_failed: 'Sign-in refused',
+        settings_reset: 'Reset',
+    };
+
+    function renderChanges(changes) {
+        const list = el('ul');
+        Object.keys(changes).forEach(function (field) {
+            const pair = changes[field];
+            const old = pair[0];
+            const now = pair[1];
+            const li = el('li');
+            li.appendChild(el('span', 'af-field-name', fieldLabel(field)));
+            // Which side is null decides how it reads. A create has no old value and
+            // a delete has no new one, so drawing an arrow for either would show a
+            // transition that never happened.
+            if (old === null && now !== null) {
+                li.appendChild(el('span', 'af-new', String(now)));
+            } else if (now === null && old !== null) {
+                li.appendChild(el('span', 'af-old', String(old)));
+            } else {
+                li.appendChild(el('span', 'af-old', String(old)));
+                li.appendChild(document.createTextNode(' → '));
+                li.appendChild(el('span', 'af-new', String(now)));
+            }
+            list.appendChild(li);
+        });
+        return list;
+    }
+
+    function renderEntry(entry) {
+        const wrap = el('div', 'history-entry');
+        const head = el('div', 'history-entry-head');
+        head.appendChild(el('span', 'history-entry-who', entry.actor_label || 'System'));
+        head.appendChild(el('span', 'af-action af-muted', ACTIONS[entry.action] || entry.action));
+        head.appendChild(el('span', 'af-dim', when(entry.occurred_at)));
+        wrap.appendChild(head);
+
+        if (entry.note) wrap.appendChild(el('div', 'af-note', entry.note));
+
+        if (entry.changes && Object.keys(entry.changes).length) {
+            const details = el('details', 'af-changes');
+            const count = Object.keys(entry.changes).length;
+            details.appendChild(el('summary', null, count + (count === 1 ? ' field' : ' fields')));
+            details.appendChild(renderChanges(entry.changes));
+            wrap.appendChild(details);
+        }
+        return wrap;
+    }
+
+    function load(entityId) {
+        body.textContent = '';
+        body.appendChild(el('div', 'af-dim', 'Loading…'));
+
+        fetch(HISTORY_URL.replace(/\/0$/, '/' + entityId), { credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+            .then(function (data) {
+                // Ignore an answer for a record the admin has already navigated away
+                // from - opening two modals quickly would otherwise show the first
+                // record's history under the second one's name.
+                if (currentId !== entityId) return;
+                body.textContent = '';
+                if (data.error) {
+                    body.appendChild(el('div', 'af-dim', data.error));
+                    return;
+                }
+                if (!data.entries || !data.entries.length) {
+                    body.appendChild(el('div', 'af-dim',
+                        'Nothing recorded yet — changes made from now on appear here.'));
+                    return;
+                }
+                data.entries.forEach(function (entry) {
+                    body.appendChild(renderEntry(entry));
+                });
+                panel.dataset.loadedFor = String(entityId);
+            })
+            .catch(function () {
+                if (currentId !== entityId) return;
+                body.textContent = '';
+                body.appendChild(el('div', 'af-dim', "Couldn't load the history."));
+            });
+    }
+
+    panel.addEventListener('toggle', function () {
+        if (!panel.open || currentId === null) return;
+        if (panel.dataset.loadedFor === String(currentId)) return;
+        load(currentId);
+    });
+
+    /**
+     * Point the panel at a record. Call with null (or nothing) for "add new",
+     * which hides it - there is no history for a record that doesn't exist.
+     */
+    window.ebHistoryFor = function (entityId) {
+        currentId = entityId || null;
+        panel.open = false;
+        delete panel.dataset.loadedFor;
+        body.textContent = '';
+        panel.style.display = currentId === null ? 'none' : '';
+    };
+})();
+</script>

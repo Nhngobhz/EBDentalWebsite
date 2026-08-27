@@ -135,6 +135,10 @@
                 <i class="fas fa-save"></i> Create Customer
             </button>
         </form>
+        {% if has_permission('admin') %}
+        {% set history_entity_type = 'customers' %}
+        {% include 'partials/history_panel.html' %}
+        {% endif %}
     </div>
 </div>
 {% endblock %}
@@ -183,6 +187,9 @@
         document.getElementById('custAccessPermission').checked = isEdit ? !!customer.access_permission : false;
 
         document.getElementById('customerModalOverlay').classList.add('active');
+        // Points the History panel at this record (partials/history_panel.html);
+        // null on "add new", where there is nothing to have a history yet.
+        if (window.ebHistoryFor) ebHistoryFor(customerId || null);
         // Only now does the map have a size to measure - Leaflet built inside a
         // hidden modal comes out zero-height and renders a grey void. reveal()
         // creates it on first open and re-measures on every one after.

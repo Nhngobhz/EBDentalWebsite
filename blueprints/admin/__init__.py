@@ -44,6 +44,7 @@ def _require_staff():
 # so each submodule's `from blueprints.admin import admin_bp` / `@admin_bp.route(...)`
 # attaches routes to this same blueprint instance.
 from blueprints.admin import (  # noqa: E402
+    activity,
     brands,
     categories,
     customers,
