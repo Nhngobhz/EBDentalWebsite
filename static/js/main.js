@@ -1159,7 +1159,7 @@ const QuoteCart = {
                 return `
             <tr class="qpt-component-row">
                 <td class="qpt-num">${lineNo}</td>
-                <td>${ebEscapeHtml(item.product_code || '')}</td>
+                <td>${ebEscapeHtml(item.product_code || '—')}</td>
                 <td class="qpt-component-name">• ${ebEscapeHtml(item.product_name)}</td>
                 <td class="qpt-num">${item.qty}</td>
                 <td class="qpt-num">${ebEscapeHtml(item.uom || 'PCS')}</td>
@@ -1184,7 +1184,7 @@ const QuoteCart = {
         // Pad the table with blank rows so it always looks like a full,
         // pre-printed form (like the paper original) even when there are
         // only a few items on the quote.
-        const MIN_TABLE_ROWS = 22;
+        const MIN_TABLE_ROWS = 21;
         const blankRowsNeeded = Math.max(0, MIN_TABLE_ROWS - order.items.length);
         const blankRows = Array.from({ length: blankRowsNeeded }).map(() => `
             <tr class="qpt-blank-row">
@@ -1346,7 +1346,7 @@ const QuoteCart = {
         // that many pages, so the fit is absorbed by an imperceptible shrink instead
         // of by spilling - and NOTHING is dropped, which is why this scales rather
         // than simply ignoring a small remainder. A genuinely longer quote (more
-        // items than the form's 22 rows) still slices across real pages.
+        // items than the form's 21 rows) still slices across real pages.
         const SINGLE_PAGE_SLACK = 1.05;
         const pageCount = Math.max(1, Math.ceil(imgHeight / (pdfHeight * SINGLE_PAGE_SLACK)));
         const fit = Math.min(1, (pageCount * pdfHeight) / imgHeight);

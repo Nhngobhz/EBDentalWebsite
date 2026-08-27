@@ -1133,7 +1133,10 @@ table.qpt-table td.qpt-right { text-align: right; }
 .qpt-sign-strip {
     display: flex;
     justify-content: space-between;
-    margin-top: 60px;
+    /* Gap under the item table. The template is 794px wide = A4's 210mm, so this
+       is ~20mm - the same drop store-api's fpdf2 builder makes with pdf.ln(20)
+       before it draws the signature lines (services/invoice_pdf.py). */
+    margin-top: 76px;
 }
 .qpt-sign-col {
     text-align: center;
