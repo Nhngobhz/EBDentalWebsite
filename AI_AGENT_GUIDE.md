@@ -475,6 +475,78 @@ one order, and an order's copy is a frozen snapshot of it (`Order.latitude` on
 store-api) so it keeps showing where a past delivery went after the customer
 moves their pin.
 
+## 5c. The two storefronts (`blueprints/materials.py`)
+
+The site is two shops behind one shell, chosen on the landing screen at `/`:
+
+| | Machinery - "EB Dental Supply" | Materials - "HOME 49" |
+|---|---|---|
+| Entry | `/machinery` (`main.home`) | `/materials/` (`materials.home`) |
+| Catalog | `/products` (`catalog.products_catalog`) | `/materials/catalog` |
+| Browse | brand grid + category checkboxes | `/materials/categories`, `/materials/brands` |
+| Item | `/products/<id>` | `/materials/<id>` |
+| Size | ~110 products, 31 categories, 4 brands | 8,000+ SAP items, 824 categories, 173 brands |
+| Photos | every product | one item in 8,125 |
+
+**Never add a materials page by putting a flag on a machinery template.** The
+machinery catalog fetches the whole catalog in one `limit=500` call and filters
+it in the browser; at 8,000 items that call is a 422 and that page is unusable.
+Materials pages therefore page on the server (`GET /products/count` for the
+total, `?page=` in the URL) and browse group-first from `GET /products/facets`,
+which is the only cheap way to know how many items sit behind a category.
+
+**Which shop a page belongs to** is `site_section()` (app.py), and the header,
+bottom nav, footer, hero carousel and promo banner all read it. A route in the
+`materials` blueprint is materials; `main.home` and the `/products` routes are
+machinery; **everything else - About, Contact, sign-in, the profile - inherits
+the last section the visitor was actually in**, remembered in
+`session["site_section"]`. That inheritance is the point: without it, clicking
+About from the materials store swaps the logo to the machinery mark and strands
+the shopper in the other shop. `main.landing` clears it, since that screen is
+the chooser.
+
+**A view can override that** - `site_section.override("materials")`, read back by
+`_request_section()` and carried into the session by an `after_request` hook. One
+endpoint needs it: `/promotions/<id>` serves a machinery bundle or a materials one
+depending on the row, and the routing table cannot see the row. Call it before
+`render_template`, since the sitewide globals are lazy and resolve during rendering.
+It lives in its own module (`site_section.py`) because app.py imports the blueprints,
+so a blueprint importing back from app.py would be circular - the same reason
+`site_cache.py` is its own file.
+
+**Marketing is per-section too.** `hero_slides.section` and `promotions.section` (both
+NOT NULL, defaulting to machinery) decide which shop advertises what, so the
+`hero_slides` and `active_promotions` globals are fetched with `section=` and cached
+per section - `HERO_SLIDES_CACHE_KEYS` is a pair, and a save clears both, because one
+edit can move a slide between shops. The materials front page renders the same
+`partials/hero_slider.html` the machinery home does; what differs is the rows it gets.
+
+Both halves share one cart, one quote flow and one buy box - `.pd-buybox`,
+`.pd-qty` and `.pd-cta` are borrowed by `templates/materials/detail.html` on
+purpose. An item bought from either side has to reach the quote identically.
+
+Two traps in this half specifically:
+
+1. **Don't sum a facet to get a total.** The category facet JOINs categories,
+   and 131 materials have none, so the sum is 7,994 against a real 8,125. Use
+   `GET /products/count` (`_total_items()`).
+2. **`GET /brands/` and `GET /categories/` span both sections.** They return all
+   177 brands and all 854 categories with no idea which half each belongs to, so
+   a list built from them offers options that lead to an empty grid. That is what
+   the footer's brand column used to do. Use the facets.
+3. **"Unbranded" is not a brand.** `scripts/sap_sync.py` files every item with an
+   empty `U_Brand` under it, which makes it the biggest bucket in the catalogue -
+   1,671 items - so any list ordered by size opens with it. It is filtered out of
+   places that *recommend* brands (the materials home strip, the footer column; see
+   `FALLBACK_BRAND_NAME`) and deliberately left in places that merely *list* them
+   (`/materials/brands`, the catalog's filter rail), because those 1,671 items have
+   to be reachable by the only name they have.
+4. **A category tile draws a glyph, never a photograph.** `category_icon(name,
+   override)` guesses from the name via a keyword map and takes the admin's
+   `category_icon` column as an override. The `category_image` column is gone. If you
+   add a call site, pass the override too - four screens draw these tiles and they
+   must not disagree about what a bur looks like.
+
 ## 6. Common agent mistakes to avoid
 
 1. **Writing a permission check only in `auth.py`/a template and assuming

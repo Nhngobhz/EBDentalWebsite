@@ -158,7 +158,8 @@
                        putting them here is that they read as one catalogue. #}
                     {% for set_ in sets %}
                     <a class="product-card product-card-vertical product-card-set reveal" style="--i: {{ loop.index0 % 4 }};"
-                       href="{{ url_for('catalog.set_detail', set_id=set_.id) }}">
+                       href="{{ url_for('catalog.set_detail', set_id=set_.id) }}"
+                       target="_blank" rel="noopener">
                         <div class="product-image-wrap">
                             <img class="product-image"
                                  src="{{ img(set_.set_image) }}"
@@ -188,8 +189,15 @@
                     {% for p in products %}
                     {# A real link, not an onclick - the card used to pop a modal, and a
                        product now has a full page of its own worth linking/sharing. #}
+                    {# Opens in a new tab. A shopper comparing consumables works down a grid and
+                       back up it; a same-tab jump means Back on every single item, and
+                       Back onto a server-paged catalog is a fresh request that lands on
+                       page 1 of the filters if anything about the URL was lost. rel=noopener
+                       is required with target=_blank - without it the opened page gets a
+                       handle on this one through window.opener. #}
                     <a class="product-card product-card-vertical reveal" style="--i: {{ loop.index0 % 4 }};"
-                       href="{{ url_for('catalog.product_detail', product_id=p.id) }}">
+                       href="{{ url_for('catalog.product_detail', product_id=p.id) }}"
+                       target="_blank" rel="noopener">
                         <div class="product-image-wrap">
                             <img class="product-image"
                                  src="{{ img(p.product_image) }}"

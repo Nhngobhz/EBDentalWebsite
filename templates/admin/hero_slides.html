@@ -13,7 +13,7 @@
   screen is for, so hiding them would hide the way back.
 #}
 <div class="page-title"><i class="fas fa-images"></i> Hero Slider</div>
-<p class="page-sub">The rotating banner at the top of the home page and the products catalog. Slides play in display order.</p>
+<p class="page-sub">The rotating banner at the top of each shop's home page. Every slide belongs to one shop &mdash; Machinery or Materials &mdash; and plays in display order there.</p>
 
 <div class="dash-card">
     <div class="card-header">
@@ -30,7 +30,7 @@
         {% else %}
         <table>
             <thead>
-                <tr><th>Order</th><th>Artwork</th><th>Heading</th><th>Badge</th><th>Button</th><th>Status</th><th>Actions</th></tr>
+                <tr><th>Order</th><th>Shop</th><th>Artwork</th><th>Heading</th><th>Badge</th><th>Button</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
                 {% for s in hero_slides %}
@@ -39,6 +39,17 @@
                    to when someone switches it on again. #}
                 <tr style="{{ 'opacity:0.55;' if not s.is_active }}">
                     <td>{{ s.sort_order }}</td>
+                    <td>
+                        {# Which carousel this slide plays in. Reads as a pill rather
+                           than a word because it is the first thing to check when a
+                           slide "isn't showing" - it is usually showing, in the other
+                           shop. #}
+                        {% if s.section == 'materials' %}
+                        <span class="section-pill materials"><i class="fas fa-flask"></i> Materials</span>
+                        {% else %}
+                        <span class="section-pill machinery"><i class="fas fa-gear"></i> Machinery</span>
+                        {% endif %}
+                    </td>
                     <td>
                         {% if s.slide_image %}
                         <img src="{{ img(s.slide_image) }}" loading="lazy"
@@ -156,6 +167,15 @@
             </div>
             <div style="font-size:0.68rem;color:var(--text-light);margin-bottom:12px;">A path on this site (/products, /promotions, /contact) or a full https:// address. The button only appears when both boxes are filled in.</div>
 
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Shop *</label>
+                <select name="section" id="heroSection" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                    <option value="machinery">Machinery &mdash; the EB Dental home page</option>
+                    <option value="materials">Materials &mdash; the HOME 49 home page</option>
+                </select>
+                <div style="font-size:0.68rem;color:var(--text-light);margin-top:4px;">Which storefront's banner this slide plays in. It appears in that shop only.</div>
+            </div>
+
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;align-items:start;">
                 <div class="form-group">
                     <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Display order</label>
@@ -208,6 +228,8 @@
         document.getElementById('heroHeading').value = isEdit ? slide.heading : '';
         document.getElementById('heroHighlight').value = isEdit ? (slide.heading_highlight || '') : '';
         document.getElementById('heroSubheading').value = isEdit ? (slide.subheading || '') : '';
+        // New slides default to machinery, matching the column's server default.
+        document.getElementById('heroSection').value = isEdit ? (slide.section || 'machinery') : 'machinery';
         document.getElementById('heroBadgeLabel').value = isEdit ? (slide.badge_label || '') : '';
         document.getElementById('heroBadgeIcon').value = isEdit ? (slide.badge_icon || 'fa-tooth') : 'fa-tooth';
         document.getElementById('heroButtonLabel').value = isEdit ? (slide.button_label || '') : '';

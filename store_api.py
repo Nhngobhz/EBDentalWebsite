@@ -166,6 +166,37 @@ class StoreAPIClient:
     def get(self, path, params=None):
         return self._request("GET", path, params=params)
 
+    def get_all(self, path, params=None, page_size=500):
+        """Every row from a list endpoint, following `skip` until a short page.
+
+        Exists because `limit` is capped server-side at MAX_PAGE_SIZE=500 (see
+        store-api/app/core/query.py) and a caller asking for more gets a 422, not
+        more rows. Screens that need a *complete* set therefore cannot express that
+        as one request - and the failure mode is silent, which is the point of
+        having this: before the SAP materials import there were 30-odd categories,
+        `limit=500` was indistinguishable from "all of them", and the dropdowns
+        built on it were quietly correct. At 854 categories the same call returns a
+        truncated list, an edit form renders without the option the product is
+        currently set to, and saving that form moves the product to whatever the
+        browser selected instead. Nothing raises.
+
+        For dropdowns and pickers, not for tables: fetching 8,000 products this way
+        would work and then render an unusable page.
+        """
+        rows = []
+        skip = 0
+        while True:
+            page = self.get(path, params={**(params or {}), "skip": skip, "limit": page_size})
+            if not isinstance(page, list):
+                return page
+            rows.extend(page)
+            # A short page means the end. Guarding on the page being non-empty as
+            # well stops a misbehaving endpoint that always returns a full page
+            # from looping forever.
+            if len(page) < page_size:
+                return rows
+            skip += page_size
+
     def post_json(self, path, body=None):
         return self._request("POST", path, json=body or {})
 

@@ -1,12 +1,19 @@
 {# Contact details, tagline and copyright come from the admin Settings screen
    (Settings → Store & Contact), not from this file. site_settings() is the lazy Jinja
-   global in app.py; an empty value hides its row rather than printing a bare icon. #}
+   global in app.py; an empty value hides its row rather than printing a bare icon.
+
+   Section-aware for the same reason the header and the bottom nav are (see
+   site_section() in app.py): the mark, the browse column and the brand column all
+   belong to whichever half of the site is being rendered. `footer_brands` is the
+   brands that half actually has products in - not GET /brands/, which since the SAP
+   import returns all 175 of them regardless of section (see section_brands()). #}
 {% set s = site_settings() %}
+{% set in_materials = site_section() == 'materials' %}
 <footer class="footer eb-footer" id="ebFooter">
     <div class="container">
         <div class="footer-grid" id="ebFooterGrid">
             <div class="footer-brand">
-    <img src="{{ url_for('static', filename='images/machinery-logo.png') }}" alt="{{ s.store_name }}" class="footer-logo" />
+    <img src="{{ url_for('static', filename='images/home-49.png' if in_materials else 'images/machinery-logo.png') }}" alt="{{ s.store_name }}" class="footer-logo" />
                 {% if s.store_tagline %}<p class="eb-tagline">{{ s.store_tagline }}</p>{% endif %}
                 <p>{{ s.store_blurb }}</p>
                 {% if s.years_badge %}<div class="eb-years"> {{ s.years_badge }}</div>{% endif %}
@@ -17,19 +24,35 @@
                 <div style="margin-top:6px; font-size:0.8rem; color:#94a3b8;"><i class="fas fa-envelope"></i> {{ s.contact_email }}</div>
                 {% endif %}
             </div>
+            {% if in_materials %}
+            <div class="footer-links">
+                <h4>Materials</h4>
+                <a href="{{ url_for('materials.catalog') }}">Full catalogue</a>
+                <a href="{{ url_for('materials.categories') }}">All categories</a>
+                <a href="{{ url_for('materials.brands') }}">All brands</a>
+                <a href="{{ url_for('main.home') }}">Machinery store</a>
+            </div>
+            <div class="footer-links">
+                <h4>Brands</h4>
+                {% for brand in (footer_brands or []) %}
+                <a href="{{ url_for('materials.catalog', brand=brand.id) }}">{{ brand.brand_name }}</a>
+                {% endfor %}
+            </div>
+            {% else %}
             <div class="footer-links">
                 <h4>Products</h4>
                 <a href="{{ url_for('catalog.products_catalog') }}">Endodontic</a>
                 <a href="{{ url_for('catalog.products_catalog') }}">Surgical</a>
                 <a href="{{ url_for('catalog.products_catalog') }}">Diagnostic</a>
-                <a href="{{ url_for('catalog.products_catalog') }}">Consumables</a>
+                <a href="{{ url_for('materials.home') }}">Materials store</a>
             </div>
             <div class="footer-links">
                 <h4>Brands</h4>
-                {% for brand in (brands or []) %}
+                {% for brand in (footer_brands or []) %}
                 <a href="{{ url_for('catalog.products_catalog') }}?brand={{ brand.id }}">{{ brand.brand_name }}</a>
                 {% endfor %}
             </div>
+            {% endif %}
         </div>
         <div class="footer-bottom">{{ s.footer_copyright }}</div>
     </div>

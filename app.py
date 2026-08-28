@@ -19,6 +19,7 @@ load_dotenv()
 import assets
 import maps
 import site_cache
+import site_section
 import site_settings
 from auth import can_view_prices, is_staff, register_auth_context
 from formatting import adapt_product, adapt_promotion, format_date, format_price, resolve_file_url, resolve_image_url, resolve_link_url
@@ -33,8 +34,14 @@ from store_api import (
 
 from blueprints.admin import admin_bp
 from blueprints.auth_routes import auth_bp
-from blueprints.catalog import catalog_bp
+from blueprints.catalog import catalog_bp, section_brands
 from blueprints.main import HERO_SLIDES_CACHE_VAR, main_bp
+from blueprints.materials import (
+    CATEGORY_ICON_CHOICES,
+    FALLBACK_BRAND_NAME,
+    category_icon,
+    materials_bp,
+)
 from blueprints.maps_routes import maps_bp
 from blueprints.quote import quote_bp
 
@@ -76,6 +83,11 @@ COMPRESSIBLE_MIMETYPES = {
 # that isn't lost again to the gzip header.
 COMPRESS_MIN_BYTES = 800
 COMPRESS_LEVEL = 6
+
+# How many brands the footer's brand column lists. Machinery has four in total, so
+# this only ever bites on the materials side, where 173 of them would be a footer
+# eleven screens tall.
+FOOTER_BRAND_COUNT = 12
 
 # Static files are immutable for a given ETag (they're fingerprinted with
 # ?v=<mtime>), so their compressed bytes are worth keeping rather than
@@ -215,6 +227,13 @@ def create_app():
     app.jinja_env.globals["location_link"] = maps.location_link
     app.jinja_env.globals["price"] = format_price
     app.jinja_env.globals["format_date"] = format_date
+    # Which glyph stands for a materials category (see blueprints/materials.py).
+    # Global rather than passed per route, because four different pages draw
+    # category tiles and they must not disagree about what a bur looks like.
+    app.jinja_env.globals["category_icon"] = category_icon
+    # The same glyphs, as the admin Categories picker's palette - so what an admin can
+    # choose and what the storefront draws are one list.
+    app.jinja_env.globals["category_icon_choices"] = CATEGORY_ICON_CHOICES
     register_auth_context(app)
 
     def _lazy_catalog_global(cache_key, fetch, shared_scope=None, fallback=list):
@@ -354,17 +373,89 @@ def create_app():
         ), 503
 
     # Which half of the site the visitor is in. The landing page splits into
-    # Machinery and Materials; from then on the header logo mirrors that choice -
-    # it shows that side's mark and links back to that side's home page, rather
-    # than dumping everyone back on the landing screen.
-    MATERIALS_ENDPOINTS = {"main.materials"}
+    # Machinery (EB Dental Supply) and Materials (HOME 49); from then on the
+    # header mark, the nav, the footer and the bottom bar all mirror that choice,
+    # rather than dumping everyone back on the landing screen.
+    #
+    # Most pages say which half they belong to just by being themselves - every
+    # route in blueprints/materials.py is materials, /machinery and /products are
+    # machinery. The pages that DON'T are the shared ones: About, Contact,
+    # Promotions, sign-in, the profile. Those are the whole reason this is
+    # remembered in the session rather than derived per request: without it,
+    # clicking "About" from the materials store swaps the logo to the machinery
+    # mark, the nav to the machinery nav, and leaves the shopper standing in the
+    # other shop with no obvious way back.
+    SECTION_KEY = "site_section"
+
+    MACHINERY_ENDPOINTS = {
+        "main.home",
+        "catalog.products_catalog",
+        "catalog.product_detail",
+        "catalog.special_product",
+        # Promotions and Sets are bundles of machinery products, which is why the
+        # materials nav doesn't offer them. Reaching one anyway - a bookmark, a
+        # shared link - is genuinely walking into the other shop, so the shell
+        # says so rather than dressing machinery deals in the HOME 49 mark.
+        "catalog.promotions_page",
+        "catalog.promotion_detail",
+        "catalog.set_detail",
+    }
+
+    def _request_section():
+        """The section this request's endpoint belongs to, or None for a page that
+        belongs to both (About, Contact, sign-in) or to neither (admin)."""
+        # A view that knows better than the routing table wins - see
+        # site_section.py. /promotions/12 is one endpoint serving a machinery bundle
+        # or a materials one depending on the row, and only the view has the row.
+        chosen = site_section.current_override()
+        if chosen:
+            return chosen
+        if request.blueprint == "materials":
+            return "materials"
+        if request.endpoint in MACHINERY_ENDPOINTS:
+            return "machinery"
+        return None
+
+    @app.before_request
+    def remember_site_section():
+        section = _request_section()
+        # The landing screen is the chooser itself, so arriving there forgets the
+        # last choice - otherwise picking Materials once would tint the machinery
+        # side of the site for the rest of the session.
+        if request.endpoint == "main.landing":
+            # `in` first: werkzeug's session dict marks itself modified on any
+            # mutating call, present key or not, and a modified session is a
+            # Set-Cookie on every single view of the landing page.
+            if SECTION_KEY in session:
+                session.pop(SECTION_KEY)
+        # Written only when it changes: an unconditional assignment marks the
+        # session modified on every request, which means a Set-Cookie on every
+        # response for a value that is almost always the same one.
+        elif section and session.get(SECTION_KEY) != section:
+            session[SECTION_KEY] = section
+
+    @app.after_request
+    def persist_overridden_section(response):
+        """Carry a view's section override into the session, so the shop a shopper
+        was put into by one page is still the shop they are in on the next.
+
+        Has to be here rather than in remember_site_section: that runs before the
+        view, and the override is set inside it. Same "only when it changes" rule -
+        an unconditional write is a Set-Cookie on every response."""
+        chosen = site_section.current_override()
+        if chosen and session.get(SECTION_KEY) != chosen:
+            session[SECTION_KEY] = chosen
+        return response
+
+    def site_section_name():
+        """Which half of the site is being rendered - the same answer the templates
+        get from site_section(), as a plain callable the sitewide globals can use
+        as a cache scope."""
+        return _request_section() or session.get(SECTION_KEY) or "machinery"
 
     @app.context_processor
     def inject_site_section():
-        def site_section():
-            return "materials" if request.endpoint in MATERIALS_ENDPOINTS else "machinery"
-
-        return {"site_section": site_section}
+        return {"site_section": site_section_name}
 
     @app.context_processor
     def inject_catalog_globals():
@@ -393,27 +484,69 @@ def create_app():
             ),
             "hero_slides": _lazy_catalog_global(
                 HERO_SLIDES_CACHE_VAR,
-                lambda c: c.get("/hero-slides/", params={"active_only": True, "limit": 50}),
-                # The carousel on /machinery and /products. Public, unpriced and
-                # identical for everyone, so one cached copy serves the whole site -
-                # blueprints/admin/hero_slides.py clears it on every save.
-                shared_scope=lambda: "all",
+                lambda c: c.get(
+                    "/hero-slides/",
+                    params={
+                        "active_only": True,
+                        "limit": 50,
+                        # Each shop has its own carousel now (hero_slides.section).
+                        # Asked for by section rather than fetched whole and filtered
+                        # in the template, so a machinery page never carries the
+                        # materials slides' markup - or their artwork URLs.
+                        "section": site_section_name(),
+                    },
+                ),
+                # Public, unpriced and identical for every visitor to one section, so
+                # one cached copy per section serves the whole site -
+                # blueprints/admin/hero_slides.py clears both on every save.
+                shared_scope=site_section_name,
+            ),
+            # The footer's brand column, for whichever half of the site is being
+            # rendered. NOT the `brands` global above, which is GET /brands/ and
+            # spans both sections - see section_brands() for what that produced.
+            "footer_brands": _lazy_catalog_global(
+                "_cp_footer_brands",
+                # SAP's "Unbranded" catch-all is dropped: it is the biggest bucket in
+                # the materials catalogue, so a list ordered by size opened every
+                # materials footer with it, and a footer's brand column is a shop
+                # window rather than an index. See materials.FALLBACK_BRAND_NAME.
+                lambda c: [
+                    b
+                    for b in section_brands(site_section_name())
+                    if b["brand_name"] != FALLBACK_BRAND_NAME
+                ][:FOOTER_BRAND_COUNT],
+                shared_scope=site_section_name,
             ),
             "active_promotions": _lazy_catalog_global(
                 "_cp_active_promotions",
                 lambda c: [
                     adapt_promotion(p)
-                    for p in c.get("/promotions/", params={"active_only": True, "limit": 50})
+                    for p in c.get(
+                        "/promotions/",
+                        params={
+                            "active_only": True,
+                            "limit": 50,
+                            # This global feeds the promo banner and the hero
+                            # carousel's automatic first slide, both of which belong
+                            # to whichever shop is being rendered. Before promotions
+                            # had a section the materials pages simply hid the banner;
+                            # now they show their own deals instead.
+                            "section": site_section_name(),
+                        },
+                    )
                 ],
-                # Two copies at most: one with real prices, one with them masked.
-                # Which one a request gets is decided by the same rule store-api
-                # applies (can_view_prices mirrors its get_price_visibility).
-                shared_scope=lambda: "priced" if can_view_prices() else "masked",
+                # Four copies at most: two sections x priced/masked. Which one a
+                # request gets is decided by the same rule store-api applies
+                # (can_view_prices mirrors its get_price_visibility).
+                shared_scope=lambda: (
+                    f"{site_section_name()}:{'priced' if can_view_prices() else 'masked'}"
+                ),
             ),
         }
 
     app.register_blueprint(main_bp)
     app.register_blueprint(catalog_bp)
+    app.register_blueprint(materials_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(quote_bp)
     app.register_blueprint(maps_bp)

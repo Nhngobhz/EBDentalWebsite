@@ -1,0 +1,1504 @@
+/* The materials storefront - HOME 49.
+ *
+ * A separate sheet from products.css because the two catalogs solve different
+ * problems. Machinery is ~110 photographed products and its card is built around
+ * the photograph. Materials is 8,000+ SAP consumables that arrive with no images
+ * at all, so its card is built around the text - name, item code, category, unit -
+ * and treats a picture as the bonus it currently is.
+ *
+ * Loaded only by the templates in templates/materials/ (via {% block extra_css %},
+ * not the store.css bundle), and nothing else on the site defines a .mat-/.mh-/
+ * .mi-/.md- class, so the rules here are written unprefixed. They used to be
+ * scoped under #materialsPage; that stopped working the moment materials became
+ * five pages instead of one, because the card, the search box and the section
+ * heading are shared by all of them.
+ *
+ * Prefixes:  mh- home    mat- catalog    mi- index (categories/brands)    md- detail
+ *
+ * Pieces the detail page deliberately borrows from products.css instead of
+ * restating: .pd-buybox, .pd-qty, .pd-cta, .pd-spec-table, .pd-price-row,
+ * .pd-manual-card, .pd-assurance. One cart, one buy box - a materials item and a
+ * machinery item are bought exactly the same way, and two copies of that styling
+ * would drift.
+ */
+
+#materialsHome,
+#materialsPage,
+#materialsIndex,
+#materialsDetail {
+    padding: 24px 0 64px;
+}
+
+/* The hero is full-bleed, so the page it heads starts flush with the header. */
+#materialsHome {
+    padding-top: 0;
+}
+
+/* ============================================================
+   HOME - hero
+   ============================================================ */
+
+.mh-hero {
+    /* Tinted with the accent rather than painted with it: this sits directly
+       under a translucent header, and a saturated band there fights the logo. */
+    background:
+        radial-gradient(1200px 400px at 50% -120px, rgba(8, 145, 178, 0.18), transparent 70%),
+        linear-gradient(180deg, var(--product-bg), var(--bg));
+    border-bottom: 1px solid var(--border);
+    padding: 48px 0 40px;
+    margin-bottom: 34px;
+}
+
+.mh-hero-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 14px;
+}
+
+.mh-hero-logo {
+    height: 62px;
+    width: auto;
+    object-fit: contain;
+}
+
+.mh-hero h1 {
+    margin: 0;
+    font-size: 2rem;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    color: var(--text);
+}
+
+.mh-hero-sub {
+    max-width: 620px;
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--text-light);
+}
+
+/* The single most-used control on the page, sized like it. */
+.mh-search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    max-width: 620px;
+    margin-top: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    box-shadow: var(--shadow);
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.mh-search:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(8, 145, 178, 0.12);
+}
+
+.mh-search > .fa-search {
+    position: absolute;
+    left: 20px;
+    color: var(--text-light);
+    font-size: 0.9rem;
+    pointer-events: none;
+}
+
+.mh-search input {
+    flex: 1;
+    min-width: 0;
+    padding: 15px 8px 15px 46px;
+    border: none;
+    border-radius: 999px 0 0 999px;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.95rem;
+}
+
+.mh-search input:focus {
+    outline: none;
+}
+
+.mh-search button {
+    flex: none;
+    margin: 5px;
+    padding: 11px 26px;
+    border: none;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font-family: inherit;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--transition);
+}
+
+.mh-search button:hover {
+    background: var(--accent-light);
+}
+
+.mh-stats {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px 26px;
+    margin-top: 8px;
+    font-size: 0.82rem;
+    color: var(--text-light);
+}
+
+.mh-stats strong {
+    color: var(--text);
+    font-size: 0.95rem;
+}
+
+/* ============================================================
+   HOME - sections
+   ============================================================ */
+
+.mh-section {
+    margin-bottom: 40px;
+}
+
+.mh-section:last-child {
+    margin-bottom: 0;
+}
+
+.mh-section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.mh-section-head h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: var(--text);
+}
+
+.mh-section-head p {
+    margin: 4px 0 0;
+    font-size: 0.83rem;
+    color: var(--text-light);
+}
+
+.mh-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--accent);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: border-color var(--transition), background var(--transition);
+}
+
+.mh-more:hover {
+    border-color: var(--accent);
+    background: rgba(8, 145, 178, 0.06);
+}
+
+/* ---- Deal cards ----
+
+   The promotions strip above the category grid. Its own component rather than a
+   reuse of .promo-card, which is scoped to .eb-promotion-page and built for a
+   full-width three-across page; this is a strip that has to sit quietly above the
+   catalogue without out-shouting it. */
+
+.mh-deal-grid {
+    display: grid;
+    /* Three across on a desktop, two on a tablet, one on a phone - without a media
+       query, and without ever stretching a lone deal to the full page width. */
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+}
+
+.mh-deal {
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    transition: transform var(--transition), border-color var(--transition),
+        box-shadow var(--transition);
+}
+
+.mh-deal:hover {
+    transform: translateY(-3px);
+    border-color: var(--accent);
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.09);
+}
+
+.mh-deal-img {
+    position: relative;
+    /* A fixed ratio, not a fixed height: promotion artwork is uploaded at whatever
+       size marketing exported it, and a row of cards whose pictures are different
+       heights reads as broken. */
+    aspect-ratio: 16 / 10;
+    background: var(--bg);
+    overflow: hidden;
+}
+
+.mh-deal-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.mh-deal-img-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    font-size: 1.9rem;
+    color: var(--border);
+}
+
+.mh-deal-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #ea580c;
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+}
+
+.mh-deal-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    gap: 8px;
+    padding: 14px 16px 16px;
+}
+
+.mh-deal-body h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.35;
+    color: var(--text);
+}
+
+.mh-deal-items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 0.76rem;
+    color: var(--text-light);
+}
+
+.mh-deal-items li {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    /* One line each: a bundle can contain a product with a 90-character SAP name,
+       and three of those turn a card into a paragraph. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mh-deal-items li i {
+    color: #16a34a;
+    font-size: 0.65rem;
+}
+
+.mh-deal-items .more {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.mh-deal-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    /* Pinned to the bottom, so the price sits on the same line across a row of
+       cards whose contents lists are different lengths. */
+    margin-top: auto;
+    padding-top: 4px;
+}
+
+.mh-deal-price {
+    font-size: 1.02rem;
+    font-weight: 800;
+    color: var(--text);
+}
+
+.mh-deal-old {
+    margin-left: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-light);
+    text-decoration: line-through;
+}
+
+.mh-deal-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--accent);
+    white-space: nowrap;
+}
+
+/* ---- Category tiles ---- */
+
+.mh-cat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 14px;
+}
+
+.mh-cat {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 18px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--card-shadow);
+    text-decoration: none;
+    color: inherit;
+    transition: transform var(--transition), box-shadow var(--transition),
+                border-color var(--transition);
+}
+
+.mh-cat:hover {
+    transform: translateY(-3px);
+    border-color: var(--accent);
+    box-shadow: var(--shadow);
+}
+
+.mh-cat-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: rgba(8, 145, 178, 0.1);
+    color: var(--accent);
+    font-size: 1.05rem;
+}
+
+.mh-cat-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--text);
+    /* Two lines, then ellipsis: SAP sub-group names run long and a tile that
+       grows to four lines breaks the row it sits in. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.mh-cat-count {
+    margin-top: auto;
+    font-size: 0.75rem;
+    color: var(--text-light);
+}
+
+/* ---- Brand cards ---- */
+
+.mh-brand-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 14px;
+}
+
+.mh-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 18px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--card-shadow);
+    text-align: center;
+    text-decoration: none;
+    color: inherit;
+    transition: transform var(--transition), box-shadow var(--transition),
+                border-color var(--transition);
+}
+
+.mh-brand:hover {
+    transform: translateY(-3px);
+    border-color: var(--accent);
+    box-shadow: var(--shadow);
+}
+
+.mh-brand-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--product-bg);
+    overflow: hidden;
+}
+
+.mh-brand-logo img {
+    max-width: 82%;
+    max-height: 82%;
+    object-fit: contain;
+}
+
+/* Initials are the normal case, not a fallback: 173 materials brands came out of
+   SAP's U_Brand field and not one of them brought a picture. */
+.mh-brand-initials {
+    background: rgba(8, 145, 178, 0.1);
+    color: var(--accent);
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+
+.mh-brand-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--text);
+    overflow-wrap: anywhere;
+}
+
+.mh-brand-count {
+    font-size: 0.72rem;
+    color: var(--text-light);
+}
+
+/* ---- Help strip ---- */
+
+.mh-help {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+}
+
+.mh-help-card {
+    padding: 22px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--card-shadow);
+    text-decoration: none;
+    color: inherit;
+    transition: border-color var(--transition), transform var(--transition);
+}
+
+a.mh-help-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--accent);
+}
+
+.mh-help-card i {
+    color: var(--accent);
+    font-size: 1.2rem;
+}
+
+.mh-help-card h3 {
+    margin: 12px 0 6px;
+    font-size: 0.98rem;
+    color: var(--text);
+}
+
+.mh-help-card p {
+    margin: 0;
+    font-size: 0.83rem;
+    line-height: 1.55;
+    color: var(--text-light);
+}
+
+/* ============================================================
+   Shared - breadcrumb, page head, search, chips
+   ============================================================ */
+
+.mat-crumbs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    font-size: 0.78rem;
+    color: var(--text-light);
+}
+
+.mat-crumbs a {
+    color: var(--text-light);
+    text-decoration: none;
+    transition: color var(--transition);
+}
+
+.mat-crumbs a:hover {
+    color: var(--accent);
+}
+
+.mat-crumbs i {
+    font-size: 0.6rem;
+    opacity: 0.6;
+}
+
+.mat-crumbs .current {
+    color: var(--text);
+    font-weight: 600;
+    /* A 114-character SAP item name is the last crumb on the detail page. */
+    max-width: 46ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mat-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.mat-head h1,
+.mat-head h2 {
+    font-size: 1.6rem;
+    margin: 0;
+    color: var(--text);
+}
+
+.mat-head h2 {
+    font-size: 1.25rem;
+}
+
+.mat-count {
+    margin: 4px 0 0;
+    font-size: 0.85rem;
+    color: var(--text-light);
+}
+
+.mat-search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    /* Grows to fill a wide header but never so far that the count and the search
+       box stop reading as two separate things. */
+    flex: 1 1 320px;
+    max-width: 460px;
+}
+
+/* Reordering the catalogue. Sits beside the search box in the page head, and is
+   deliberately the quieter of the two: search is how anyone with an item code gets
+   where they are going, sort is what you reach for once you are already there. */
+
+.mat-sort {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+.mat-sort label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-light);
+}
+
+.mat-sort select {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    outline: none;
+    transition: border-color var(--transition);
+}
+
+.mat-sort select:focus {
+    border-color: var(--accent);
+}
+
+.mat-search-icon {
+    position: absolute;
+    left: 14px;
+    font-size: 0.85rem;
+    color: var(--text-light);
+    pointer-events: none;
+}
+
+.mat-search input {
+    width: 100%;
+    padding: 11px 14px 11px 38px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.88rem;
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.mat-search input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.12);
+}
+
+.mat-search button {
+    padding: 11px 18px;
+    border: none;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--transition);
+}
+
+.mat-search button:hover {
+    background: var(--accent-light);
+}
+
+/* Active filters, each removable on its own. */
+
+.mat-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+
+.mat-chips-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-light);
+}
+
+.mat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 320px;
+    padding: 6px 12px;
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    background: rgba(8, 145, 178, 0.08);
+    color: var(--accent);
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: background var(--transition);
+}
+
+.mat-chip:hover {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.mat-chip .fa-xmark {
+    font-size: 0.72rem;
+    opacity: 0.75;
+}
+
+.mat-clear {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    font-size: 0.8rem;
+    color: var(--text-light);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.mat-clear:hover {
+    color: var(--accent);
+}
+
+/* ============================================================
+   CATALOG - rail + results
+   ============================================================ */
+
+.mat-layout {
+    display: grid;
+    grid-template-columns: 232px minmax(0, 1fr);
+    gap: 22px;
+    align-items: start;
+}
+
+.mat-rail-panel {
+    position: sticky;
+    /* Clears the fixed header; the rail is taller than most result pages, so it
+       scrolls with the page rather than being pinned in full. */
+    top: 88px;
+    padding: 4px 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+}
+
+.mat-rail-panel > summary {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 13px 16px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-soft);
+    cursor: pointer;
+    list-style: none;
+}
+
+.mat-rail-panel > summary::-webkit-details-marker {
+    display: none;
+}
+
+.mat-rail-panel > summary i {
+    color: var(--accent);
+}
+
+.mat-rail-body {
+    padding: 0 4px 8px;
+}
+
+.mat-facet {
+    padding: 10px 12px 14px;
+    border-top: 1px solid var(--border);
+}
+
+.mat-facet h2 {
+    margin: 0 4px 8px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-light);
+}
+
+.mat-facet ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.mat-facet a {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    color: var(--text-soft);
+    font-size: 0.82rem;
+    text-decoration: none;
+    transition: background var(--transition), color var(--transition);
+}
+
+.mat-facet a:hover {
+    background: var(--bg);
+    color: var(--accent);
+}
+
+.mat-facet a.active {
+    background: rgba(8, 145, 178, 0.1);
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.mat-facet-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mat-facet-count {
+    flex: none;
+    font-size: 0.72rem;
+    color: var(--text-light);
+    font-variant-numeric: tabular-nums;
+}
+
+.mat-facet-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 8px 8px 0;
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.mat-facet-more:hover {
+    text-decoration: underline;
+}
+
+/* ============================================================
+   Item cards - the grid shared by the catalog and the detail page's
+   "more like this" strip
+   ============================================================ */
+
+.mat-grid {
+    display: grid;
+    /* auto-fill, not auto-fit: a page holding three results should show three
+       cards at their normal width, not three stretched across the whole row. */
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 16px;
+}
+
+.mat-card {
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    transition: transform var(--transition), box-shadow var(--transition),
+                border-color var(--transition);
+}
+
+.mat-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--accent);
+    box-shadow: var(--shadow);
+}
+
+.mat-card-img {
+    height: 130px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--product-bg);
+    border-bottom: 1px solid var(--border);
+}
+
+.mat-card-img img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+/* No photograph: the category's own glyph, quiet, rather than a "no image"
+   placeholder repeated 24 times down the page. Kept short so the text below is
+   what the eye lands on. */
+.mat-card-img-empty {
+    height: 74px;
+    color: var(--accent);
+    opacity: 0.3;
+    font-size: 1.5rem;
+}
+
+.mat-card-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    gap: 6px;
+    padding: 12px 14px 14px;
+}
+
+.mat-card-brand {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--accent);
+    min-height: 0.9em;
+}
+
+.mat-card-name {
+    margin: 0;
+    font-size: 0.88rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--text);
+    /* Three lines then ellipsis. SAP item names run to 114 characters, and left
+       to wrap freely one card would be twice the height of its neighbours and
+       tear a hole in the grid row. */
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.mat-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 2px;
+}
+
+.mat-code,
+.mat-cat {
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    line-height: 1.5;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mat-code {
+    background: var(--bg);
+    color: var(--text-soft);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.mat-cat {
+    background: rgba(8, 145, 178, 0.08);
+    color: var(--accent);
+}
+
+.mat-card-foot {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 8px;
+}
+
+.mat-price {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.mat-uom {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--text-light);
+}
+
+.mat-old {
+    font-size: 0.78rem;
+    color: var(--text-light);
+    text-decoration: line-through;
+}
+
+/* ---- Empty state ---- */
+
+.mat-empty {
+    grid-column: 1 / -1;
+    padding: 56px 20px;
+    text-align: center;
+    color: var(--text-light);
+}
+
+.mat-empty .icon {
+    font-size: 2.4rem;
+    color: var(--border);
+    margin-bottom: 12px;
+}
+
+.mat-empty h3 {
+    margin: 0 0 6px;
+    color: var(--text);
+}
+
+.mat-empty p {
+    margin: 0 0 18px;
+}
+
+/* ---- Pager ---- */
+
+.mat-pager {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 32px;
+}
+
+.mat-page-btn,
+.mat-page-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 38px;
+    height: 38px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--text-soft);
+    font-size: 0.83rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: border-color var(--transition), color var(--transition),
+                background var(--transition);
+}
+
+.mat-page-btn:hover:not(.disabled),
+.mat-page-num:hover:not(.active) {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.mat-page-num.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.mat-page-btn.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.mat-page-gap {
+    padding: 0 2px;
+    color: var(--text-light);
+}
+
+/* ============================================================
+   INDEX - the categories and brands pages
+   ============================================================ */
+
+/* The filter boxes on these two pages hide rows by setting the `hidden`
+   attribute, and the UA rule that acts on it ([hidden] { display: none }) is
+   outranked by any author rule that sets a display - which .mh-brand and .mi-jump
+   both do. Without this the brand cards stay on screen while the filter says
+   otherwise. */
+#materialsIndex [hidden] {
+    display: none !important;
+}
+
+.mi-featured {
+    margin-bottom: 30px;
+}
+
+.mi-featured h2 {
+    margin: 0 0 14px;
+    font-size: 1.05rem;
+    color: var(--text);
+}
+
+.mi-jump {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 12px 14px;
+    margin-bottom: 22px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--card-shadow);
+}
+
+.mi-jump a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    color: var(--text-soft);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition: background var(--transition), color var(--transition);
+}
+
+.mi-jump a:hover {
+    background: rgba(8, 145, 178, 0.1);
+    color: var(--accent);
+}
+
+.mi-group {
+    margin-bottom: 26px;
+    /* The jump links land here, and the header is fixed - without this the
+       letter heading arrives underneath it. */
+    scroll-margin-top: 90px;
+}
+
+.mi-letter {
+    margin: 0 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid var(--border);
+    font-size: 1.1rem;
+    color: var(--accent);
+}
+
+.mi-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 6px 14px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.mi-list a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    color: var(--text-soft);
+    font-size: 0.85rem;
+    text-decoration: none;
+    transition: background var(--transition), color var(--transition);
+}
+
+.mi-list a:hover {
+    background: var(--surface);
+    color: var(--accent);
+    box-shadow: var(--card-shadow);
+}
+
+.mi-list i {
+    flex: none;
+    width: 18px;
+    color: var(--accent);
+    opacity: 0.65;
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+.mi-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mi-count {
+    flex: none;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--bg);
+    color: var(--text-light);
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   DETAIL
+   ============================================================ */
+
+.md-layout {
+    display: grid;
+    /* Two columns, not the machinery page's three: there is no gallery column to
+       give away when only one item in 8,125 has a photograph. */
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 26px;
+    align-items: start;
+}
+
+.md-main {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px;
+}
+
+.md-head {
+    display: flex;
+    gap: 22px;
+    align-items: flex-start;
+}
+
+.md-stage {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 168px;
+    height: 168px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--product-bg);
+    overflow: hidden;
+}
+
+.md-stage img {
+    max-width: 92%;
+    max-height: 92%;
+    object-fit: contain;
+}
+
+.md-stage-empty {
+    color: var(--accent);
+    opacity: 0.28;
+    font-size: 3rem;
+}
+
+.md-headings {
+    min-width: 0;
+    flex: 1;
+}
+
+.md-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.md-brand:hover {
+    text-decoration: underline;
+}
+
+.md-headings h1 {
+    margin: 8px 0 12px;
+    font-size: 1.4rem;
+    line-height: 1.3;
+    color: var(--text);
+    overflow-wrap: anywhere;
+}
+
+.md-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.md-code,
+.md-fact {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 11px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg);
+    color: var(--text-soft);
+    font-size: 0.76rem;
+    text-decoration: none;
+}
+
+/* The item code is how staff refer to a consumable, so it is the one fact set
+   in a monospace face - it is an identifier to be read character by character,
+   not a word. */
+.md-code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: var(--surface);
+    color: var(--text);
+    font-weight: 600;
+}
+
+a.md-fact:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.md-block {
+    margin-top: 26px;
+    padding-top: 22px;
+    border-top: 1px solid var(--border);
+}
+
+.md-block h2 {
+    margin: 0 0 12px;
+    font-size: 1rem;
+    color: var(--text);
+}
+
+.md-desc {
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.7;
+    color: var(--text-soft);
+}
+
+.md-buybox {
+    position: sticky;
+    top: 88px;
+}
+
+.md-buybox-unit {
+    margin-top: 2px;
+    margin-bottom: 10px;
+    font-size: 0.78rem;
+    color: var(--text-light);
+}
+
+.md-related {
+    margin-top: 36px;
+}
+
+.md-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 28px;
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+@media (max-width: 980px) {
+    .md-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .md-buybox {
+        position: static;
+    }
+}
+
+@media (max-width: 900px) {
+    /* The rail stops being a rail: on a narrow screen a standing filter panel
+       pushes the results a screen and a half down, so it folds into the one line
+       its <summary> already is. Whether it is folded is the <details> element's
+       `open` attribute - state, not style, and so not something a media query can
+       set: materials/catalog.html syncs it to this same breakpoint. */
+    .mat-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .mat-rail-panel {
+        position: static;
+    }
+
+    /* Closed, the panel is a single tappable row, so it gets the affordance that
+       says so. */
+    .mat-rail-panel > summary::after {
+        content: "078";
+        margin-left: auto;
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+        font-size: 0.7rem;
+        color: var(--text-light);
+        transition: transform var(--transition);
+    }
+
+    .mat-rail-panel[open] > summary::after {
+        transform: rotate(180deg);
+    }
+}
+
+@media (max-width: 640px) {
+    .mh-hero {
+        padding: 34px 0 30px;
+    }
+
+    .mh-hero h1 {
+        font-size: 1.45rem;
+    }
+
+    .mh-hero-logo {
+        height: 48px;
+    }
+
+    .mh-search input {
+        padding: 13px 6px 13px 42px;
+        font-size: 0.88rem;
+    }
+
+    .mh-search button {
+        padding: 10px 18px;
+    }
+
+    .mh-cat-grid,
+    .mh-brand-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 12px;
+    }
+
+    .mat-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 12px;
+    }
+
+    .mat-head h1 {
+        font-size: 1.3rem;
+    }
+
+    .md-main {
+        padding: 18px;
+    }
+
+    /* The photo/glyph tile and the name stack, so neither is squeezed into a
+       third of a phone screen. */
+    .md-head {
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .md-stage {
+        width: 100%;
+        height: 150px;
+    }
+
+    .mi-list {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* The numbered links go, Prev/Next and the "page N of M" line stay - on a
+       phone the window of seven wraps to three rows and stops being navigation. */
+    .mat-page-num,
+    .mat-page-gap {
+        display: none;
+    }
+
+    .mat-page-num.active {
+        display: inline-flex;
+    }
+}

@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Materials{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/materials.css') }}">
+{% endblock %}
+
+{% block content %}
+{# The materials front door. Category-first: see materials.home for why a grid of
+   items is the wrong thing to open 8,000 SAP consumables with. #}
+<div id="materialsHome">
+
+    <section class="mh-hero">
+        <div class="container mh-hero-inner">
+            <img src="{{ url_for('static', filename='images/home-49.png') }}"
+                 alt="HOME 49" class="mh-hero-logo" />
+            <h1>Dental materials &amp; consumables</h1>
+            <p class="mh-hero-sub">
+                Everything the chair and the lab run on &mdash; burs, files, teeth, composites,
+                impression, orthodontics &mdash; stocked and priced.
+            </p>
+
+            {# The single most useful control on the page, which is why it is the
+               biggest thing in the hero: staff know an item by its SAP code far
+               more reliably than by a name that starts with the same three words
+               as forty others, and `q` matches both. #}
+            <form class="mh-search" method="get" action="{{ url_for('materials.catalog') }}" role="search">
+                <i class="fas fa-search" aria-hidden="true"></i>
+                <input type="search" name="q" placeholder="Search by item name or code&hellip;"
+                       aria-label="Search materials" autocomplete="off" />
+                <button type="submit">Search</button>
+            </form>
+
+            <div class="mh-stats">
+                <span><strong>{{ '{:,}'.format(total_items) }}</strong> items</span>
+                <span><strong>{{ '{:,}'.format(category_count) }}</strong> categories</span>
+                <span><strong>{{ '{:,}'.format(brand_count) }}</strong> brands</span>
+            </div>
+        </div>
+    </section>
+
+    <div class="container">
+
+        {# The materials carousel. Same partial the machinery home page uses - the
+           slides it draws are the ones an admin filed under Materials (hero_slides.
+           section), because the sitewide `hero_slides` global is fetched per section.
+
+           Below the search band rather than above it: on a catalogue of 8,000 SAP
+           consumables the search box IS the front door, and a shopper who arrives
+           knowing the item code should not have to scroll past a banner to type it. #}
+        {% include "partials/hero_slider.html" %}
+
+        {# Deals first, before the shelves. A promotion is the one thing on this page
+           that expires, so it is the one thing worth putting above a category grid
+           that will say the same thing next month. Hidden entirely when there are
+           none - an empty "Deals" heading advertises that the shop has no offers. #}
+        {% if promotions %}
+        <section class="mh-section">
+            <div class="mh-section-head reveal">
+                <div>
+                    <h2>Deals on materials</h2>
+                    <p>Running now, while stock lasts.</p>
+                </div>
+            </div>
+
+            <div class="mh-deal-grid">
+                {% for promo in promotions %}
+                {# New tab, like every other product link in the shop - see the card
+                   comment in materials/catalog.html. #}
+                <a class="mh-deal reveal" style="--i: {{ loop.index0 % 4 }};"
+                   href="{{ url_for('catalog.promotion_detail', promotion_id=promo.id) }}"
+                   target="_blank" rel="noopener">
+                    <div class="mh-deal-img">
+                        {% if promo.promotion_image %}
+                        <img src="{{ img(promo.promotion_image) }}" alt="{{ promo.promotion_name }}" loading="lazy" />
+                        {% else %}
+                        <span class="mh-deal-img-empty"><i class="fas fa-fire"></i></span>
+                        {% endif %}
+                        <span class="mh-deal-badge"><i class="fas fa-fire"></i> Deal</span>
+                    </div>
+                    <div class="mh-deal-body">
+                        <h3>{{ promo.promotion_name }}</h3>
+                        {# A promotion is a collection of products, so say what is in
+                           it - the price alone means nothing without the contents. #}
+                        {% if promo['items'] %}
+                        <ul class="mh-deal-items">
+                            {% for item in promo['items'][:3] %}
+                            <li><i class="fas fa-check"></i> {{ item.product_name }}{% if item.qty > 1 %} &times;{{ item.qty }}{% endif %}</li>
+                            {% endfor %}
+                            {% if promo['items']|length > 3 %}
+                            <li class="more">+{{ promo['items']|length - 3 }} more</li>
+                            {% endif %}
+                        </ul>
+                        {% endif %}
+                        <div class="mh-deal-foot">
+                            <span class="mh-deal-price">
+                                {{ price(promo.price) }}
+                                {% if promo.old_price %}<span class="mh-deal-old">{{ price(promo.old_price) }}</span>{% endif %}
+                            </span>
+                            <span class="mh-deal-cta">View <i class="fas fa-arrow-right"></i></span>
+                        </div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        <section class="mh-section">
+            <div class="mh-section-head reveal">
+                <div>
+                    <h2>Browse by category</h2>
+                    <p>The shelves we stock deepest.</p>
+                </div>
+                <a class="mh-more" href="{{ url_for('materials.categories') }}">
+                    All {{ '{:,}'.format(category_count) }} categories <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+
+            <div class="mh-cat-grid">
+                {% for cat in top_categories %}
+                <a class="mh-cat reveal" style="--i: {{ loop.index0 % 4 }};"
+                   href="{{ url_for('materials.catalog', category=cat.id) }}">
+                    {# No photographs anywhere in this half of the catalogue, so a
+                       tile is a glyph and a count - see category_icon(). #}
+                    <span class="mh-cat-icon"><i class="fas {{ category_icon(cat.name, cat.icon) }}"></i></span>
+                    <span class="mh-cat-name">{{ cat.name }}</span>
+                    <span class="mh-cat-count">{{ '{:,}'.format(cat.count) }} item{{ '' if cat.count == 1 else 's' }}</span>
+                </a>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="mh-section">
+            <div class="mh-section-head reveal">
+                <div>
+                    <h2>Shop by brand</h2>
+                    {# SAP's "Unbranded" catch-all is the biggest bucket in the
+                       catalogue and is left out here on purpose - see
+                       FALLBACK_BRAND_NAME. It is still on the brands index, which
+                       lists rather than recommends. #}
+                    <p>Ordered by how much of each we carry.</p>
+                </div>
+                <a class="mh-more" href="{{ url_for('materials.brands') }}">
+                    All {{ '{:,}'.format(brand_count) }} brands <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+
+            <div class="mh-brand-grid">
+                {% for brand in top_brands %}
+                <a class="mh-brand reveal" style="--i: {{ loop.index0 % 4 }};"
+                   href="{{ url_for('materials.catalog', brand=brand.id) }}">
+                    {% if brand.image %}
+                    <span class="mh-brand-logo"><img src="{{ img(brand.image) }}" alt="{{ brand.name }}" loading="lazy" /></span>
+                    {% else %}
+                    {# 173 brands came out of SAP's U_Brand field and not one brought
+                       a picture, so initials are the normal case here, not a
+                       fallback for the odd missing file. #}
+                    <span class="mh-brand-logo mh-brand-initials">{{ initials(brand.name) }}</span>
+                    {% endif %}
+                    <span class="mh-brand-name">{{ brand.name }}</span>
+                    <span class="mh-brand-count">{{ '{:,}'.format(brand.count) }}</span>
+                </a>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="mh-section">
+            <div class="mh-help">
+                <a class="mh-help-card reveal" href="{{ url_for('materials.catalog') }}">
+                    <i class="fas fa-list-ul"></i>
+                    <h3>See the whole catalogue</h3>
+                    <p>All {{ '{:,}'.format(total_items) }} items, filtered by brand and category.</p>
+                </a>
+                <div class="mh-help-card reveal">
+                    <i class="fas fa-boxes-stacked"></i>
+                    <h3>Bulk &amp; clinic orders</h3>
+                    <p>Add what you need to the cart and we quote it as one order.</p>
+                </div>
+                <a class="mh-help-card reveal" href="{{ url_for('main.contact') }}">
+                    <i class="fas fa-headset"></i>
+                    <h3>Can&rsquo;t find an item?</h3>
+                    <p>Send us the code or the name and we&rsquo;ll source it.</p>
+                </a>
+            </div>
+        </section>
+
+    </div>
+</div>
+{% endblock %}

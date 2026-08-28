@@ -32,8 +32,27 @@
                 <i class="fas fa-chevron-right group-icon open"></i>
             </div>
             <div class="group-items open" id="group-catalog">
-                <a class="nav-item {{ 'active' if request.endpoint == 'admin.products' }}" href="{{ url_for('admin.products') }}">
-                    <i class="fas fa-box"></i> Products <span class="badge-dash">{{ products|length }}</span>
+                {# `and not request.args.get('section')`: all three of these entries are
+                   the same endpoint, so without it "Products" lit up alongside whichever
+                   shop you were filtered to and the sidebar showed two current pages. #}
+                <a class="nav-item {{ 'active' if request.endpoint == 'admin.products' and not request.args.get('section') }}" href="{{ url_for('admin.products') }}">
+                    <i class="fas fa-box"></i> Products
+                </a>
+                {# The two shops as their own entries. The Products screen is one table
+                   with a section filter, so these are that filter pre-applied - which
+                   is how staff actually think about it ("the materials list"), and it
+                   saves a click every single time.
+
+                   No count badges: the badge used to read `products|length`, i.e. the
+                   500-row cap on a sitewide fetch, which said "500" for a catalogue of
+                   8,125. A wrong number in a badge is worse than no badge. #}
+                <a class="nav-item sub {{ 'active' if request.endpoint == 'admin.products' and request.args.get('section') == 'machinery' }}"
+                   href="{{ url_for('admin.products', section='machinery') }}">
+                    <i class="fas fa-gear"></i> Machinery
+                </a>
+                <a class="nav-item sub {{ 'active' if request.endpoint == 'admin.products' and request.args.get('section') == 'materials' }}"
+                   href="{{ url_for('admin.products', section='materials') }}">
+                    <i class="fas fa-flask"></i> Materials
                 </a>
                 <a class="nav-item {{ 'active' if request.endpoint == 'admin.brands' }}" href="{{ url_for('admin.brands') }}">
                     <i class="fas fa-tags"></i> Brands <span class="badge-dash">{{ brands|length }}</span>
@@ -163,7 +182,12 @@
                 </div>
             </div>
             <div style="display:flex; align-items:center; gap:2px;">
-                <a class="logout-btn" href="{{ url_for('main.home') }}" target="_blank" rel="noopener" title="View Site"><i class="fas fa-arrow-up-right-from-square"></i></a>
+                {# One button per shop. It used to be a single unlabelled arrow to the
+                   machinery home page, which left the materials storefront with no way
+                   in from the panel at all - you had to know the URL. Both open in a
+                   new tab so the panel stays where it was. #}
+                <a class="logout-btn" href="{{ url_for('main.home') }}" target="_blank" rel="noopener" title="Open the Machinery store"><i class="fas fa-gear"></i></a>
+                <a class="logout-btn" href="{{ url_for('materials.home') }}" target="_blank" rel="noopener" title="Open the Materials store"><i class="fas fa-flask"></i></a>
                 <a class="logout-btn" href="{{ url_for('auth.logout') }}" title="Logout"><i class="fas fa-sign-out-alt"></i></a>
             </div>
         </div>

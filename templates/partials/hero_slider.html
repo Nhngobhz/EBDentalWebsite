@@ -10,10 +10,20 @@
   active_only and sorted by sort_order), which is why this partial can be included from
   two different blueprints without either route fetching anything.
 
-  The first active promotion still contributes an automatic slide ahead of them — it's
-  generated from that deal's own artwork rather than authored, so it isn't a row.
+  The first active promotion WITH ARTWORK still contributes an automatic slide ahead of
+  them — it's generated from that deal's own picture rather than authored, so it isn't a
+  row.
+
+  Both halves of what this renders are per-section now: `hero_slides` is fetched with
+  `section=` (see app.py) and `active_promotions` likewise, so including this partial
+  from the materials home page draws the materials carousel and the materials deals.
 #}
-{% set promo = active_promotions[0] if active_promotions else None %}
+{# The automatic slide needs ARTWORK, not just a promotion: this slide is
+   nothing but that picture (`no-overlay`, no heading, no copy), so a deal whose
+   image has never been uploaded rendered the "404 no image" placeholder full-bleed
+   across the widest element on the site. A deal without a picture is still on the
+   promotions page and in the promo banner - it just doesn't get a slide. #}
+{% set promo = (active_promotions | selectattr('promotion_image') | first) if active_promotions else None %}
 {# Nothing to show means no carousel at all: an empty .slides with arrows and no dots
    is a broken-looking box, not an empty state. #}
 {% if promo or hero_slides %}

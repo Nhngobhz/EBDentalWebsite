@@ -44,7 +44,13 @@
     {% include "partials/flash_messages.html" %}
     {% if request.endpoint != "main.landing" %}
     {% include "partials/header.html" %}
+    {# The banner advertises a Promotion, and a Promotion is a machinery bundle -
+       the deals are built out of machinery products and the nav on that side is
+       where they are browsed. Showing it over the materials store hands a HOME 49
+       shopper a link into the other shop before they have seen a single item. #}
+    {% if site_section() != 'materials' %}
     {% include "partials/promo_banner.html" %}
+    {% endif %}
     {% endif %}
 
     <main>

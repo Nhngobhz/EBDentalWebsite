@@ -5,6 +5,21 @@ from blueprints.admin import admin_bp
 from store_api import StoreAPIError, get_api_client
 
 
+def _icon_from_form():
+    """The Font Awesome class the admin picked, or "" for "no override".
+
+    Always sent, never omitted, and that is the point: the field has to be
+    ERASABLE. Omitting the key on a partial update leaves the old icon in place
+    (store-api applies exclude_unset), so picking "Automatic" would silently do
+    nothing. The edit route turns the empty string into an explicit null; create
+    posts multipart, which can only carry strings, and store-api blanks "" to NULL
+    on the way in.
+
+    A category with no override falls back to the storefront's name-based guess -
+    see blueprints/materials.py::category_icon."""
+    return request.form.get("category_icon", "").strip()
+
+
 def _product_counts_by_category(products):
     counts = {}
     for p in products:
@@ -14,19 +29,22 @@ def _product_counts_by_category(products):
     return counts
 
 
-def _file_from_request():
-    file = request.files.get("file")
-    if file and file.filename:
-        return {"file": (file.filename, file.stream, file.mimetype)}
-    return None
-
-
 @admin_bp.route("/categories")
 def categories():
     client = get_api_client()
-    category_list = client.get("/categories/", params={"limit": 500})
+    category_list = client.get_all("/categories/")
     # Gift-only products still belong to a category, so they count here.
-    raw_products = client.get("/products/", params={"limit": 500, "include_unpurchasable": "true"})
+    #
+    # KNOWN LIMITATION, same one the admin Products table carries: 500 is the
+    # server's maximum page and the catalogue is past 8,000 rows since the SAP
+    # import, so this counts the first 500 only. Deliberately not "fixed" by paging
+    # through everything - GET /products/facets already returns exact per-category
+    # counts in one query, and moving this screen onto it is the real fix rather
+    # than 17 more requests per page view.
+    raw_products = client.get(
+        "/products/",
+        params={"limit": 500, "include_unpurchasable": "true", "section": "all"},
+    )
     counts = _product_counts_by_category(raw_products)
     for c in category_list:
         c["product_count"] = counts.get(c["id"], 0)
@@ -43,7 +61,10 @@ def categories_new():
 
     client = get_api_client()
     try:
-        client.post_form("/categories/", data={"category_name": name}, files=_file_from_request())
+        client.post_form(
+            "/categories/",
+            data={"category_name": name, "category_icon": _icon_from_form()},
+        )
     except StoreAPIError as e:
         flash(e.detail, "error")
         return redirect(url_for("admin.categories"))
@@ -58,11 +79,10 @@ def categories_edit(category_id):
     name = request.form.get("category_name", "").strip()
     client = get_api_client()
     try:
+        payload = {"category_icon": _icon_from_form() or None}
         if name:
-            client.put_json(f"/categories/{category_id}", {"category_name": name})
-        files = _file_from_request()
-        if files:
-            client.post_form(f"/categories/{category_id}/image", files=files)
+            payload["category_name"] = name
+        client.put_json(f"/categories/{category_id}", payload)
     except StoreAPIError as e:
         flash(e.detail, "error")
         return redirect(url_for("admin.categories"))

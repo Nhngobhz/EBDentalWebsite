@@ -1,7 +1,9 @@
 from collections import Counter
 from urllib.parse import urlencode
 
-from flask import Blueprint, abort, render_template, request, url_for
+import site_cache
+import site_section
+from flask import Blueprint, abort, redirect, render_template, request, url_for
 
 from formatting import adapt_product, adapt_promotion, adapt_set, resolve_image_url
 from special_products import SPECIAL_PRODUCTS, get_special_product
@@ -9,6 +11,40 @@ from store_api import StoreAPIError, get_api_client
 
 
 catalog_bp = Blueprint("catalog", __name__)
+
+
+def section_brands(section):
+    """The brands that actually have products in one half of the store.
+
+    NOT `GET /brands/`. That endpoint returns every brand in the database with no
+    idea which section each belongs to, and since the SAP import there are 175 of
+    them - 173 with only materials behind them. A machinery brand strip built from
+    it listed all 175, each one a card with a "404 no image" placeholder leading to
+    an empty grid, because a materials brand has no machinery to show.
+
+    Shaped like `GET /brands/` (`brand_name`, `brand_image`) rather than like the
+    facet buckets it is built from, so the strip, the grid and the footer that
+    render brands all keep reading the same field names. Ordered biggest range
+    first, which is what the facet gives.
+
+    Cached per section: it is on the machinery home page, the machinery catalog and
+    every footer on the site, and it only moves when the catalogue does.
+    """
+    def fetch():
+        buckets = get_api_client().get(
+            "/products/facets", params={"section": section}
+        )["brands"]
+        return [
+            {
+                "id": b["id"],
+                "brand_name": b["name"],
+                "brand_image": b["image"],
+                "product_count": b["count"],
+            }
+            for b in buckets
+        ]
+
+    return site_cache.cached(("section_brands", section), fetch)
 
 
 @catalog_bp.route("/products")
@@ -23,8 +59,8 @@ def products_catalog():
     selected_categories = request.args.getlist("category", type=int)
     search_query = request.args.get("q", "").strip()
 
-    brands = client.get("/brands/", params={"limit": 200})
-    categories = client.get("/categories/", params={"limit": 500})
+    brands = section_brands("machinery")
+    categories = client.get_all("/categories/")
 
     # Note what is NOT sent: `category_id`. store-api filters on one category at a
     # time (see routers/products.py::list_products), which can't express "Endo Motor
@@ -135,8 +171,25 @@ def products_catalog():
     )
 
 
-@catalog_bp.route("/products/<int:product_id>")
-def product_detail(product_id):
+def detail_context(product_id, section, related_by="brand"):
+    """Everything a product page needs, or a redirect to the other half.
+
+    Shared by /products/<id> and /materials/<id> (blueprints/materials.py) even
+    though the two now render different templates: what differs between them is
+    presentation, and everything here - the two guards, the gallery, the manuals,
+    the related strip - is the same question asked of the same row.
+
+    Returning a redirect rather than a 404 when the sections disagree keeps every
+    link that predates the split alive: /products/<a materials id> is a real
+    product, just filed on the other side.
+
+    `related_by` picks what the "more like this" strip at the foot is drawn from.
+    Machinery groups by brand, which is how that catalog is browsed. Materials
+    groups by category, because a fifth of it is filed under the "Unbranded"
+    fallback the SAP import invents for items with no U_Brand - "more from
+    Unbranded" is 1,671 unrelated consumables, while "more Diamond Burs" is the
+    shelf the shopper is standing at.
+    """
     client = get_api_client()
     try:
         raw_product = client.get(f"/products/{product_id}")
@@ -152,6 +205,18 @@ def product_detail(product_id):
     # box and all - for something store-api will refuse to put on an order.
     if not product.get("is_purchasable", True):
         abort(404)
+
+    # Same reasoning one step further: SAP has withdrawn this item, so the catalog
+    # listing already excludes it, but GET /products/{id} still serves it for the
+    # admin screens. Without this a bookmark or a search-engine result would reach
+    # a full buy box for something the business no longer sells.
+    if product.get("delisted_at"):
+        abort(404)
+
+    if product["section"] != section:
+        other = "materials.detail" if product["section"] == "materials" \
+            else "catalog.product_detail"
+        return redirect(url_for(other, product_id=product_id))
 
     # ALL of the product's documents, not just the first. A product can carry a
     # user guide, a quick-start sheet and a service manual, each with its own
@@ -169,27 +234,45 @@ def product_detail(product_id):
         resolve_image_url(extra.get("image")) for extra in product.get("images") or []
     ]
 
-    # "More from this brand" strip at the foot of the page. Best-effort: a failure
+    # The "more like this" strip at the foot of the page. Best-effort: a failure
     # here shouldn't take down the product page itself.
     related = []
-    brand = product.get("brand")
-    if brand:
+    group = product.get(related_by)
+    if group:
         try:
             related = [
                 adapt_product(p)
-                for p in client.get("/products/", params={"brand_id": brand["id"], "limit": 12})
+                for p in client.get(
+                    "/products/",
+                    # Kept inside the same half of the store: a strip on a materials
+                    # page pointing at machinery would walk the shopper out of the
+                    # catalog they are browsing, and several brands now carry both.
+                    params={
+                        f"{related_by}_id": group["id"],
+                        "limit": 12,
+                        "section": section,
+                    },
+                )
                 if p["id"] != product_id
             ][:6]
         except StoreAPIError:
             related = []
 
-    return render_template(
-        "products/detail.html",
-        product=product,
-        manuals=manuals,
-        gallery=gallery,
-        related=related,
-    )
+    return {
+        "product": product,
+        "manuals": manuals,
+        "gallery": gallery,
+        "related": related,
+        "related_group": group,
+    }
+
+
+@catalog_bp.route("/products/<int:product_id>")
+def product_detail(product_id):
+    context = detail_context(product_id, "machinery")
+    if not isinstance(context, dict):
+        return context
+    return render_template("products/detail.html", **context)
 
 
 @catalog_bp.route("/manuals")
@@ -202,7 +285,13 @@ def manuals():
 @catalog_bp.route("/promotions")
 def promotions_page():
     client = get_api_client()
-    raw_promotions = client.get("/promotions/", params={"active_only": True, "limit": 200})
+    # section=machinery: this is the machinery shop's Promotions page (it also lists
+    # Sets, which are machinery bundles). Materials deals are shown on the materials
+    # front page instead - see blueprints/materials.py::home.
+    raw_promotions = client.get(
+        "/promotions/",
+        params={"active_only": True, "section": "machinery", "limit": 200},
+    )
     promotions = [adapt_promotion(p) for p in raw_promotions]
 
     selected_brand = request.args.get("brand", type=int)
@@ -256,6 +345,13 @@ def _bundle_detail(kind, path, adapt, name_field, image_field, extra_images=()):
             abort(404)
         raise
     item = adapt(raw)
+
+    # A deal belongs to whichever shop advertises it, and this one URL serves both.
+    # Without this, opening a materials promotion from the HOME 49 front page swapped
+    # the header mark, the nav and the footer over to machinery - the shopper is put
+    # in the other shop by clicking a deal that shop does not even sell. Sets have no
+    # section of their own and stay machinery, which is what they are.
+    site_section.override(item.get("section"))
 
     # Gallery, same shape as the product page's: main picture first, then any
     # secondary image the entity happens to have (only Set has one today).

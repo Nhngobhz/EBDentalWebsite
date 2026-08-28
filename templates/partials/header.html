@@ -3,18 +3,33 @@
        in app.py): the machinery mark on machinery pages, HOME 49 on materials
        pages - and each links back to its own section's home page. #}
     {% set in_materials = site_section() == 'materials' %}
-    <a href="{{ url_for('main.materials') if in_materials else url_for('main.home') }}" class="logo"
+    <a href="{{ url_for('materials.home') if in_materials else url_for('main.home') }}" class="logo"
        title="{{ 'Materials' if in_materials else 'Machinery' }}">
     <img src="{{ url_for('static', filename='images/home-49.png' if in_materials else 'images/machinery-logo.png') }}"
          alt="{{ 'HOME 49' if in_materials else 'EB Dental Supply' }}" class="header-logo-img" />
     </a>
     <nav class="eb-nav-center" id="ebNav">
+        {# Every link here belongs to whichever half you're in - the two stores
+           share this header but not their pages. Materials has its own home,
+           catalogue and indexes (blueprints/materials.py); "Home" points at that
+           one, never at main.home, which IS the machinery home page. #}
+        {% if in_materials %}
+        <a href="{{ url_for('materials.home') }}" class="{{ 'active' if request.endpoint == 'materials.home' }}">Home</a>
+        <a href="{{ url_for('materials.catalog') }}" class="{{ 'active' if request.endpoint in ('materials.catalog', 'materials.detail') }}">Catalogue</a>
+        <a href="{{ url_for('materials.categories') }}" class="{{ 'active' if request.endpoint == 'materials.categories' }}">Categories</a>
+        <a href="{{ url_for('materials.brands') }}" class="{{ 'active' if request.endpoint == 'materials.brands' }}">Brands</a>
+        {% else %}
         <a href="{{ url_for('main.home') }}" class="{{ 'active' if request.endpoint == 'main.home' }}">Home</a>
         <a href="{{ url_for('catalog.products_catalog') }}" class="{{ 'active' if request.endpoint == 'catalog.products_catalog' }}">Products</a>
+        {% endif %}
 
+        {# Promotions are a machinery offer - the deals and bundles are built out
+           of machinery products - so the materials nav skips it and keeps the room
+           for its own three browse links. #}
+        {% if not in_materials %}
         <a href="{{ url_for('catalog.promotions_page') }}" class="{{ 'active' if request.endpoint == 'catalog.promotions_page' }}"> Promotions</a>
+        {% endif %}
 
-        
         <a href="{{ url_for('main.about') }}" class="{{ 'active' if request.endpoint == 'main.about' }}">About</a>
         <a href="{{ url_for('main.contact') }}" class="{{ 'active' if request.endpoint == 'main.contact' }}">Contact</a>
         {# No "Manual" link here anymore - a manual is shown on the page of the

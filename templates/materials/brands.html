@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Material brands{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/materials.css') }}">
+{% endblock %}
+
+{% block content %}
+<div id="materialsIndex">
+    <div class="container">
+
+        <nav class="mat-crumbs" aria-label="Breadcrumb">
+            <a href="{{ url_for('materials.home') }}">Materials</a>
+            <i class="fas fa-chevron-right"></i>
+            <span class="current">Brands</span>
+        </nav>
+
+        <header class="mat-head reveal">
+            <div class="mat-head-text">
+                <h1>All brands</h1>
+                <p class="mat-count">{{ '{:,}'.format(brand_count) }} brands, largest range first</p>
+            </div>
+
+            <div class="mat-search mat-search-live">
+                <i class="fas fa-search mat-search-icon" aria-hidden="true"></i>
+                <input type="search" id="matIndexFilter" placeholder="Filter brands&hellip;"
+                       aria-label="Filter brands" autocomplete="off" />
+            </div>
+        </header>
+
+        <div class="mh-brand-grid" id="matIndexList">
+            {% for brand in brands %}
+            <a class="mh-brand" data-name="{{ brand.name | lower }}"
+               href="{{ url_for('materials.catalog', brand=brand.id) }}">
+                {% if brand.image %}
+                <span class="mh-brand-logo"><img src="{{ img(brand.image) }}" alt="{{ brand.name }}" loading="lazy" /></span>
+                {% else %}
+                <span class="mh-brand-logo mh-brand-initials">{{ initials(brand.name) }}</span>
+                {% endif %}
+                <span class="mh-brand-name">{{ brand.name }}</span>
+                <span class="mh-brand-count">{{ '{:,}'.format(brand.count) }}</span>
+            </a>
+            {% endfor %}
+        </div>
+
+        <div class="mat-empty" id="matIndexEmpty" hidden>
+            <div class="icon"><i class="fas fa-box-open"></i></div>
+            <h3>No brands match</h3>
+            <p>Try a shorter word, or search the items themselves.</p>
+            <a class="btn-primary" href="{{ url_for('materials.catalog') }}">Search all materials</a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function () {
+        const input = document.getElementById('matIndexFilter');
+        const cards = Array.from(document.querySelectorAll('#matIndexList .mh-brand'));
+        const empty = document.getElementById('matIndexEmpty');
+
+        input.addEventListener('input', function () {
+            const needle = input.value.trim().toLowerCase();
+            let shown = 0;
+            cards.forEach(function (card) {
+                const match = !needle || card.dataset.name.includes(needle);
+                card.hidden = !match;
+                if (match) { shown += 1; }
+            });
+            empty.hidden = shown > 0;
+        });
+    })();
+</script>
+{% endblock %}

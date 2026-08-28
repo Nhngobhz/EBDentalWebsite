@@ -20,10 +20,22 @@ from flask import flash, redirect, render_template, request, url_for
 
 from auth import permission_required
 from blueprints.admin import admin_bp
-from blueprints.main import HERO_SLIDES_CACHE_KEY
+from blueprints.main import HERO_SLIDES_CACHE_KEYS
 from store_api import StoreAPIError, get_api_client
 
 HERO_PERMISSION = "product_management"
+
+# The two carousels a slide can belong to. Same words as everywhere else in the app -
+# see store-api's models.HeroSlide.section.
+SECTIONS = ("machinery", "materials")
+
+
+def _invalidate():
+    """Drop the cached carousel for BOTH shops. See HERO_SLIDES_CACHE_KEYS - one edit
+    can move a slide out of one section and into the other, so clearing only the
+    section on the form would leave the other still showing it."""
+    for key in HERO_SLIDES_CACHE_KEYS:
+        site_cache.invalidate(key)
 
 
 def _back():
@@ -45,9 +57,17 @@ def _form_fields():
     except ValueError:
         sort_order = 0
 
+    section = request.form.get("section")
+    if section not in SECTIONS:
+        # Not "leave it alone": the select always posts one of the two, so anything
+        # else is a hand-made request, and machinery is the safe answer (it is what
+        # every slide was before the column existed).
+        section = "machinery"
+
     return {
         "heading": request.form.get("heading", "").strip(),
         "heading_highlight": request.form.get("heading_highlight", "").strip() or None,
+        "section": section,
         "subheading": request.form.get("subheading", "").strip() or None,
         "badge_label": request.form.get("badge_label", "").strip() or None,
         "badge_icon": request.form.get("badge_icon", "").strip() or None,
@@ -111,7 +131,7 @@ def hero_slides_new():
         flash(e.detail, "error")
         return redirect(_back())
 
-    site_cache.invalidate(HERO_SLIDES_CACHE_KEY)
+    _invalidate()
     flash(f"Slide '{fields['heading']}' created.", "success")
     return redirect(_back())
 
@@ -136,7 +156,7 @@ def hero_slides_edit(slide_id):
         flash(e.detail, "error")
         return redirect(_back())
 
-    site_cache.invalidate(HERO_SLIDES_CACHE_KEY)
+    _invalidate()
     flash("Slide updated.", "success")
     return redirect(_back())
 
@@ -155,7 +175,7 @@ def hero_slides_toggle(slide_id):
         flash(e.detail, "error")
         return redirect(_back())
 
-    site_cache.invalidate(HERO_SLIDES_CACHE_KEY)
+    _invalidate()
     flash("Slide shown on the storefront." if show else "Slide hidden from the storefront.", "success")
     return redirect(_back())
 
@@ -170,6 +190,6 @@ def hero_slides_delete(slide_id):
         flash(e.detail, "error")
         return redirect(_back())
 
-    site_cache.invalidate(HERO_SLIDES_CACHE_KEY)
+    _invalidate()
     flash("Slide deleted.", "success")
     return redirect(_back())

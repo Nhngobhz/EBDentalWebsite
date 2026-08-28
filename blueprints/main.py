@@ -7,6 +7,7 @@ import site_settings
 from flask import Blueprint, Response, abort, current_app, render_template, url_for
 
 from formatting import resolve_image_url
+from blueprints.catalog import section_brands
 from special_products import SPECIAL_PRODUCTS
 from store_api import StoreAPIError, get_api_client
 
@@ -19,13 +20,20 @@ QR_CODES_CACHE_KEY = ("qr_codes", "all")
 
 # The hero carousel's slides. Unlike the QR cards this app doesn't fetch them itself -
 # they arrive through the sitewide lazy global in app.py, because the slider partial is
-# included from two different blueprints. The name lives here rather than there so that
-# blueprints/admin/hero_slides.py can clear the entry after a save without importing
-# app.py (which imports the blueprints, and would be circular). app.py builds the global
-# under HERO_SLIDES_CACHE_VAR; site_cache then keys it by (var, scope), which is the
-# pair spelled out in HERO_SLIDES_CACHE_KEY.
+# included from three different blueprints. The name lives here rather than there so
+# that blueprints/admin/hero_slides.py can clear the entry after a save without
+# importing app.py (which imports the blueprints, and would be circular). app.py builds
+# the global under HERO_SLIDES_CACHE_VAR; site_cache then keys it by (var, scope).
 HERO_SLIDES_CACHE_VAR = "_cp_hero_slides"
-HERO_SLIDES_CACHE_KEY = (HERO_SLIDES_CACHE_VAR, "all")
+
+# One cache entry per shop, because the global is now fetched per section (a machinery
+# page must not carry the materials slides). A save clears BOTH: an admin can move a
+# slide from one carousel to the other in a single edit, which changes what each
+# section returns, and clearing only the section named on the form would leave the
+# other one advertising a slide that has left it. Cheap - it is two dict pops.
+HERO_SLIDES_CACHE_KEYS = tuple(
+    (HERO_SLIDES_CACHE_VAR, section) for section in ("machinery", "materials")
+)
 
 # Logo files the About page's brand marquee falls back to for brands the
 # catalogue doesn't know (or knows without an image). Drop a new file in
@@ -124,17 +132,14 @@ def landing():
 def home():
     # brands/active_promotions are also available via the sitewide context
     # processor, but passed explicitly too (matches the original mock's own pattern).
-    client = get_api_client()
-    brands = client.get("/brands/", params={"limit": 200})
+    # section_brands, not GET /brands/: this grid is "Shop by Brand" on the
+    # machinery home page, and the raw endpoint would fill it with the 173 brands
+    # that only carry materials - see section_brands().
+    brands = section_brands("machinery")
     special_products = [
         {"slug": slug, **meta} for slug, meta in SPECIAL_PRODUCTS.items()
     ]
     return render_template("main/home.html", brands=brands, special_products=special_products)
-
-
-@main_bp.route("/materials")
-def materials():
-    return render_template("main/materials_coming_soon.html")
 
 
 BRAND_MARQUEE_ROWS = 5

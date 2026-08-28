@@ -29,11 +29,11 @@
         {% else %}
         <table>
             <thead>
-                <tr><th>Image</th><th>Name</th><th>Price</th><th>Period</th><th>Status</th><th>Actions</th></tr>
+                <tr><th>Image</th><th>Name</th><th>Shop</th><th>Price</th><th>Period</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody id="promosTableBody">
                 {% for p in promotions %}
-                <tr data-search="{{ p.promotion_name|lower }}">
+                <tr data-search="{{ (p.promotion_name ~ ' ' ~ p.section)|lower }}">
                     <td>
                         <img src="{{ img(p.promotion_image) }}" loading="lazy"
                              style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid var(--border);" />
@@ -44,6 +44,15 @@
                         <div style="font-size:0.7rem;color:var(--text-light);margin-top:2px;">
                             Includes: {% for i in p['items'] %}{{ i.product_name }}{% if i.qty > 1 %} ×{{ i.qty }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
                         </div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {# Which storefront advertises the deal - it appears on that
+                           shop's home page and promo banner only. #}
+                        {% if p.section == 'materials' %}
+                        <span class="section-pill materials"><i class="fas fa-flask"></i> Materials</span>
+                        {% else %}
+                        <span class="section-pill machinery"><i class="fas fa-gear"></i> Machinery</span>
                         {% endif %}
                     </td>
                     <td>
@@ -89,6 +98,14 @@
             <div class="form-group" style="margin-bottom:12px;">
                 <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Promotion Name *</label>
                 <input type="text" name="promotion_name" id="promoName" required style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Shop *</label>
+                <select name="section" id="promoSection" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
+                    <option value="machinery">Machinery &mdash; EB Dental</option>
+                    <option value="materials">Materials &mdash; HOME 49</option>
+                </select>
+                <div style="font-size:0.7rem;color:var(--text-light);margin-top:4px;">Where the deal is advertised: that shop's home page, promo banner and hero slide. The products inside it can come from either shop.</div>
             </div>
             <div class="form-group" style="margin-bottom:12px;">
                 <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Description</label>
@@ -175,6 +192,8 @@
 
         document.getElementById('promoName').value = isEdit ? promo.promotion_name : '';
         document.getElementById('promoDesc').value = isEdit ? (promo.description || '') : '';
+        // New deals default to machinery, matching the column's server default.
+        document.getElementById('promoSection').value = isEdit ? (promo.section || 'machinery') : 'machinery';
         document.getElementById('promoPrice').value = isEdit && typeof promo.price === 'number' ? promo.price : '';
         document.getElementById('promoOldPrice').value = isEdit && promo.old_price ? promo.old_price : '';
         document.getElementById('promoStart').value = isEdit ? promo.start_date_short : '';

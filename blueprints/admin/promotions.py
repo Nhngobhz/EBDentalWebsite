@@ -24,10 +24,23 @@ def _iso_to_date(value):
     return value[:10]
 
 
+# The two storefronts a deal can be advertised in - see store-api's
+# models.Promotion.section.
+SECTIONS = ("machinery", "materials")
+
+
 def _promo_form_payload():
+    section = request.form.get("section")
+    if section not in SECTIONS:
+        # The select always posts one of the two, so anything else is a hand-made
+        # request and machinery is the safe answer (what every promotion was before
+        # the column existed).
+        section = "machinery"
+
     return {
         "promotion_name": request.form.get("promotion_name", "").strip(),
         "description": request.form.get("description", "").strip() or None,
+        "section": section,
         "price": request.form.get("price") or None,
         "old_price": request.form.get("old_price") or None,
         "start_date": _date_to_iso(request.form.get("start_date")),
@@ -62,7 +75,13 @@ def promotions():
         promos.append(promo)
     # The full catalog feeds the modal's "Included Products" picker.
     # include_unpurchasable: a bundle may legitimately contain a gift-only product.
-    products = client.get("/products/", params={"limit": 500, "include_unpurchasable": "true"})
+    # section=all: a deal is advertised in one shop, but nothing stops it from
+    # containing an item out of the other - a scanner bundled with its consumables is
+    # the obvious case - so the picker offers both and labels which is which.
+    products = client.get(
+        "/products/",
+        params={"limit": 500, "include_unpurchasable": "true", "section": "all"},
+    )
     return render_template(
         "admin/promotions.html",
         promotions=promos,

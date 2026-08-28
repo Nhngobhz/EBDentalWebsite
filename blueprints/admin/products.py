@@ -1,9 +1,44 @@
+from urllib.parse import urlencode
+
 from flask import flash, redirect, render_template, request, url_for
 
 from auth import permission_required
 from blueprints.admin import admin_bp, bundle_items_from_form
 from formatting import adapt_product
 from store_api import StoreAPIError, get_api_client
+
+
+def _back():
+    """The list as the staffer had it - their search, section, sort and page.
+
+    Every write posts these four back as hidden inputs, because a bare redirect to
+    /admin/products would drop them onto page 1 of an unfiltered 8,000-row table after
+    every single save.
+
+    Rebuilt from named fields rather than by echoing a submitted query string: the
+    destination is always url_for("admin.products") with a query made of four keys this
+    function chose, so there is nothing here an attacker can steer - not the path, not
+    the header. `page` is coerced through int() for the same reason.
+
+    The fields are read under an `rt_` prefix and written out unprefixed. That is not
+    cosmetic: the edit modal posts its own `section` - the shop the PRODUCT is in - into
+    the same flat form body, and `request.form.get("section")` returns whichever comes
+    first in the document. Sharing the name meant editing a machinery product from a
+    Materials-filtered table moved it into the other shop."""
+    query = {}
+    for key in ("q", "section", "sort"):
+        value = (request.form.get(f"rt_{key}") or "").strip()
+        if value:
+            query[key] = value
+    try:
+        page = int(request.form.get("rt_page") or 1)
+    except ValueError:
+        page = 1
+    if page > 1:
+        query["page"] = page
+
+    base = url_for("admin.products")
+    return f"{base}?{urlencode(query)}" if query else base
 
 
 def _file_from_request():
@@ -98,24 +133,161 @@ def _product_form_payload():
     return payload
 
 
+# How many rows one page of the admin table holds. Fifty is about as much as anyone
+# scans without reaching for the search box, and it keeps the page's <script> blob
+# (PRODUCTS_DATA, which carries every column the edit modal seeds from) small.
+PAGE_SIZE = 50
+
+# How many numbered page links to show at once - 8,125 materials is 163 pages, and
+# rendering one link each would be longer than the table.
+PAGE_WINDOW = 7
+
+# What the sortable column headers offer, as {value: (label, opposite)}. The third
+# element is what clicking an already-sorted column switches to, which is what makes a
+# header a toggle rather than a one-way trip.
+SORTS = {
+    "name": ("Name", "name_desc"),
+    "name_desc": ("Name", "name"),
+    "price_asc": ("Price", "price_desc"),
+    "price_desc": ("Price", "price_asc"),
+    "stock_asc": ("Stock", "stock_desc"),
+    "stock_desc": ("Stock", "stock_asc"),
+    "newest": ("Added", "oldest"),
+    "oldest": ("Added", "newest"),
+}
+DEFAULT_SORT = "name"
+
+SECTIONS = ("all", "machinery", "materials")
+
+
 @admin_bp.route("/products")
 def products():
+    """The catalogue table: server-paged, searched and sorted.
+
+    It used to fetch `limit=500` and filter/sort in the browser. That was right while
+    the catalogue was ~110 machinery products; the SAP import took it past 8,000, at
+    which point the screen was showing the first 500 alphabetically with no sign that
+    it was doing so - a product beginning with "T" simply did not exist as far as this
+    page was concerned, and its search box could not find it either.
+
+    So the four controls all go to the server now: `q`, `section`, `sort`, `page`. The
+    trade is one round trip per keystroke-that-you-submit instead of instant filtering
+    over a partial list, and a partial list is the thing that made the old behaviour
+    wrong rather than merely slow.
+
+    include_unpurchasable: the admin table is the one place gift-only products have to
+    stay visible - it's where they're created, edited and picked from when building
+    another product's free-item list.
+
+    include_delisted: products SAP has withdrawn are hidden from the storefront, but
+    this table is where staff go to find out what happened to one - and they are still
+    real rows, still on past orders, still editable.
+
+    section defaults to "all" here for the same reason include_unpurchasable is true:
+    this table is the one screen that has to be able to show every row regardless of
+    which half of the storefront it belongs to. GET /products/ defaults to machinery on
+    purpose, so spanning both is always a deliberate opt-in - see SectionFilter in
+    schemas.py.
+    """
     client = get_api_client()
-    # include_unpurchasable: the admin table is the one place gift-only products
-    # have to stay visible - it's where they're created, edited and picked from
-    # when building another product's free-item list.
-    # section=all for the same reason include_unpurchasable is true: this table is
-    # the one screen that has to show every row regardless of which half of the
-    # storefront it belongs to. GET /products/ defaults to machinery on purpose, so
-    # spanning both is always a deliberate opt-in - see SectionFilter in schemas.py.
+
+    search_query = request.args.get("q", "").strip()
+    section = request.args.get("section", "all")
+    if section not in SECTIONS:
+        section = "all"
+    sort = request.args.get("sort", DEFAULT_SORT)
+    if sort not in SORTS:
+        sort = DEFAULT_SORT
+    page = max(1, request.args.get("page", 1, type=int))
+
+    filters = {
+        "section": section,
+        "include_unpurchasable": "true",
+        "include_delisted": "true",
+    }
+    if search_query:
+        filters["q"] = search_query
+
+    total = client.get("/products/count", params=filters).get("count", 0)
+    total_pages = max(1, -(-total // PAGE_SIZE))
+    # A ?page= past the end - a stale bookmark, or a search that has since narrowed -
+    # lands on the last real page rather than on an empty table.
+    page = min(page, total_pages)
+
     raw_products = client.get(
         "/products/",
-        params={"limit": 500, "include_unpurchasable": "true", "section": "all"},
+        params={**filters, "sort": sort, "skip": (page - 1) * PAGE_SIZE, "limit": PAGE_SIZE},
     )
     products_list = [adapt_product(p) for p in raw_products]
+
     brands = client.get("/brands/", params={"limit": 200})
-    categories = client.get("/categories/", params={"limit": 500})
-    return render_template("admin/products.html", products=products_list, brands=brands, categories=categories)
+    categories = client.get_all("/categories/")
+
+    # The catalogue behind the modal's "Comes With (Free)" picker. Its own fetch,
+    # because that list must not shrink to whatever 50 rows this page happens to be
+    # showing - a bundle is built by searching the whole catalogue.
+    #
+    # KNOWN LIMITATION: 500 is the server's maximum page, so the picker offers the
+    # first 500 by name across both sections. Unchanged from before this screen was
+    # paged; a free-item list is a machinery feature in practice, and machinery is
+    # ~110 products.
+    bundle_options = [
+        {"id": p["id"], "product_name": p["product_name"], "product_code": p.get("product_code")}
+        for p in client.get(
+            "/products/",
+            params={"limit": 500, "include_unpurchasable": "true", "section": "all"},
+        )
+    ]
+
+    def products_url(**overrides):
+        query = {
+            "q": search_query or None,
+            "section": section if section != "all" else None,
+            "sort": sort if sort != DEFAULT_SORT else None,
+            "page": page if page > 1 else None,
+        }
+        query.update(overrides)
+        query = {k: v for k, v in query.items() if v not in (None, "", [])}
+        base = url_for("admin.products")
+        return f"{base}?{urlencode(query)}" if query else base
+
+    def sort_url(value):
+        """Sorted by `value`, back to page 1 - a new ordering means page 4 holds
+        different rows. Clicking the column you are already sorted by flips it."""
+        target = SORTS[sort][1] if SORTS[value][0] == SORTS[sort][0] else value
+        return products_url(page=None, sort=target if target != DEFAULT_SORT else None)
+
+    def filter_url(**overrides):
+        return products_url(page=None, **overrides)
+
+    def page_url(target):
+        return products_url(page=target if target > 1 else None)
+
+    # A window that stays PAGE_WINDOW wide at both ends instead of collapsing to three
+    # links on page 1 - clamping only the start would do that.
+    half = PAGE_WINDOW // 2
+    start = max(1, min(page - half, total_pages - PAGE_WINDOW + 1))
+    page_numbers = list(range(start, min(total_pages, start + PAGE_WINDOW - 1) + 1))
+
+    return render_template(
+        "admin/products.html",
+        products=products_list,
+        bundle_options=bundle_options,
+        brands=brands,
+        categories=categories,
+        search_query=search_query,
+        section=section,
+        sort=sort,
+        sorts=SORTS,
+        total=total,
+        page=page,
+        total_pages=total_pages,
+        page_numbers=page_numbers,
+        page_size=PAGE_SIZE,
+        sort_url=sort_url,
+        filter_url=filter_url,
+        page_url=page_url,
+    )
 
 
 @admin_bp.route("/products/new", methods=["POST"])
@@ -124,7 +296,7 @@ def products_new():
     payload = _product_form_payload()
     if not payload["product_name"] or not payload.get("price") or not payload["brand_id"]:
         flash("Name, price, and brand are required.", "error")
-        return redirect(url_for("admin.products"))
+        return redirect(_back())
 
     client = get_api_client()
     try:
@@ -135,10 +307,10 @@ def products_new():
         _upload_gallery(client, created["id"])
     except StoreAPIError as e:
         flash(e.detail, "error")
-        return redirect(url_for("admin.products"))
+        return redirect(_back())
 
     flash(f"Product '{payload['product_name']}' created.", "success")
-    return redirect(url_for("admin.products"))
+    return redirect(_back())
 
 
 @admin_bp.route("/products/<int:product_id>/edit", methods=["POST"])
@@ -155,10 +327,10 @@ def products_edit(product_id):
         _upload_gallery(client, product_id)
     except StoreAPIError as e:
         flash(e.detail, "error")
-        return redirect(url_for("admin.products"))
+        return redirect(_back())
 
     flash("Product updated.", "success")
-    return redirect(url_for("admin.products"))
+    return redirect(_back())
 
 
 @admin_bp.route("/products/<int:product_id>/price", methods=["POST"])
@@ -185,10 +357,10 @@ def products_price(product_id):
         client.patch_json(f"/products/{product_id}/price", payload)
     except StoreAPIError as e:
         flash(e.detail, "error")
-        return redirect(url_for("admin.products"))
+        return redirect(_back())
 
     flash("Price updated.", "success")
-    return redirect(url_for("admin.products"))
+    return redirect(_back())
 
 
 @admin_bp.route("/products/<int:product_id>/delete", methods=["POST"])
@@ -199,7 +371,7 @@ def products_delete(product_id):
         client.delete(f"/products/{product_id}")
     except StoreAPIError as e:
         flash(e.detail, "error")
-        return redirect(url_for("admin.products"))
+        return redirect(_back())
 
     flash("Product deleted.", "success")
-    return redirect(url_for("admin.products"))
+    return redirect(_back())

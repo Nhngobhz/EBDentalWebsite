@@ -30,7 +30,8 @@
                    on the catalog - the Add to Cart button lives in that page's buy
                    box now (a <button> can't legally sit inside an <a> anyway). #}
                 {% for promo in promotions %}
-                <a class="promo-card" href="{{ url_for('catalog.promotion_detail', promotion_id=promo.id) }}">
+                <a class="promo-card" href="{{ url_for('catalog.promotion_detail', promotion_id=promo.id) }}"
+                   target="_blank" rel="noopener">
                     <div class="promo-image-wrap">
                         <img class="promo-image"
                              src="{{ img(promo.promotion_image) }}"
@@ -106,7 +107,8 @@
                 {% endif %}
 
                 {% for set_ in sets %}
-                <a class="set-card" href="{{ url_for('catalog.set_detail', set_id=set_.id) }}">
+                <a class="set-card" href="{{ url_for('catalog.set_detail', set_id=set_.id) }}"
+                   target="_blank" rel="noopener">
                     <div class="set-image-wrap">
                         <img class="set-image"
                              src="{{ img(set_.set_image) }}"

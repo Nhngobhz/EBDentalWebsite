@@ -1,16 +1,34 @@
 <nav class="eb-bottom-nav" id="ebBottomNav">
+    {# Section-aware for the same reason the header nav is - see partials/header.html. #}
+    {% set in_materials = site_section() == 'materials' %}
+    {% if in_materials %}
+    <a class="nav-item {{ 'active' if request.endpoint == 'materials.home' }}" href="{{ url_for('materials.home') }}">
+        <span class="nav-icon"><i class="fas fa-home"></i></span> Home
+    </a>
+    <a class="nav-item {{ 'active' if request.endpoint in ('materials.catalog', 'materials.detail') }}" href="{{ url_for('materials.catalog') }}">
+        <span class="nav-icon"><i class="fas fa-flask"></i></span> Catalogue
+    </a>
+    <a class="nav-item {{ 'active' if request.endpoint in ('materials.categories', 'materials.brands') }}" href="{{ url_for('materials.categories') }}">
+        <span class="nav-icon"><i class="fas fa-layer-group"></i></span> Browse
+    </a>
+    {% else %}
     <a class="nav-item {{ 'active' if request.endpoint == 'main.home' }}" href="{{ url_for('main.home') }}">
         <span class="nav-icon"><i class="fas fa-home"></i></span> Home
     </a>
     <a class="nav-item {{ 'active' if request.endpoint == 'catalog.products_catalog' }}" href="{{ url_for('catalog.products_catalog') }}">
         <span class="nav-icon"><i class="fas fa-th-large"></i></span> Brands
     </a>
+    {% endif %}
+    {# Five items is what fits across a phone. Materials spends its fifth slot on
+       Browse, so Promotions - a machinery offer - gives way there. #}
+    {% if not in_materials %}
     <a class="nav-item {{ 'active' if request.endpoint == 'catalog.promotions_page' }}" href="{{ url_for('catalog.promotions_page') }}">
         <span class="nav-icon"><i class="fas fa-fire"></i></span> Promotions
     </a>
     <a class="nav-item {{ 'active' if request.endpoint == 'main.about' }}" href="{{ url_for('main.about') }}">
         <span class="nav-icon"><i class="fas fa-info-circle"></i></span> About
     </a>
+    {% endif %}
     <a class="nav-item {{ 'active' if request.endpoint == 'main.contact' }}" href="{{ url_for('main.contact') }}">
         <span class="nav-icon"><i class="fas fa-phone"></i></span> Contact
     </a>

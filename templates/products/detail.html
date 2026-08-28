@@ -180,7 +180,8 @@
             <h2>More from {{ product.brand.brand_name if product.brand else 'our catalog' }}</h2>
             <div class="pd-related-grid">
                 {% for r in related %}
-                <a class="pd-related-card" href="{{ url_for('catalog.product_detail', product_id=r.id) }}">
+                <a class="pd-related-card" href="{{ url_for('catalog.product_detail', product_id=r.id) }}"
+                   target="_blank" rel="noopener">
                     <div class="pd-related-img"><img src="{{ img(r.product_image) }}" alt="{{ r.product_name }}" loading="lazy" /></div>
                     <div class="pd-related-name">{{ r.product_name }}</div>
                     <div class="pd-related-price">{{ price(r.price) }}</div>

@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/materials.css') }}">
+{% endblock %}
+
+{% block content %}
+{# The paged results grid. Deliberately NOT products/catalog.html with a flag:
+   that page fetches the whole catalog and filters it in the browser, which is
+   exactly what 8,000 items cannot do. See materials.catalog. #}
+<div id="materialsPage">
+    <div class="container">
+
+        <nav class="mat-crumbs" aria-label="Breadcrumb">
+            <a href="{{ url_for('materials.home') }}">Materials</a>
+            <i class="fas fa-chevron-right"></i>
+            {% if selected_category_obj %}
+            <a href="{{ url_for('materials.categories') }}">Categories</a>
+            <i class="fas fa-chevron-right"></i>
+            <span class="current">{{ selected_category_obj.name }}</span>
+            {% elif selected_brand_obj %}
+            <a href="{{ url_for('materials.brands') }}">Brands</a>
+            <i class="fas fa-chevron-right"></i>
+            <span class="current">{{ selected_brand_obj.name }}</span>
+            {% else %}
+            <span class="current">{{ page_title }}</span>
+            {% endif %}
+        </nav>
+
+        <header class="mat-head reveal">
+            <div class="mat-head-text">
+                <h1>{{ page_title }}</h1>
+                <p class="mat-count">
+                    {% if total %}
+                        {{ '{:,}'.format(total) }} item{{ '' if total == 1 else 's' }}
+                        {# Which slice of the whole this page is. On a 340-page
+                           catalog "page 7 of 339" is the only thing that makes the
+                           number above mean anything. #}
+                        {% if total_pages > 1 %}
+                            &middot; page {{ '{:,}'.format(page) }} of {{ '{:,}'.format(total_pages) }}
+                        {% endif %}
+                    {% else %}
+                        No items match
+                    {% endif %}
+                </p>
+            </div>
+
+            <form class="mat-search" method="get" action="{{ url_for('materials.catalog') }}" role="search">
+                {# Brand and category ride along as hidden inputs so searching
+                   narrows the current view instead of resetting it. `page` is
+                   deliberately absent: new search, first page. #}
+                {% if selected_brand %}<input type="hidden" name="brand" value="{{ selected_brand }}">{% endif %}
+                {% if selected_category %}<input type="hidden" name="category" value="{{ selected_category }}">{% endif %}
+                <i class="fas fa-search mat-search-icon" aria-hidden="true"></i>
+                <input type="search" name="q" value="{{ search_query or '' }}"
+                       placeholder="Search by name or item code&hellip;"
+                       aria-label="Search materials" />
+                <button type="submit">Search</button>
+            </form>
+
+            {# Reordering is a new query, not a re-render of the 24 cards on screen -
+               see materials.catalog. A plain <form> so it works without JavaScript;
+               the onchange below just saves the extra click on the Go button, which
+               is hidden for anyone who has JS. #}
+            <form class="mat-sort" method="get" action="{{ url_for('materials.catalog') }}">
+                {% if selected_brand %}<input type="hidden" name="brand" value="{{ selected_brand }}">{% endif %}
+                {% if selected_category %}<input type="hidden" name="category" value="{{ selected_category }}">{% endif %}
+                {% if search_query %}<input type="hidden" name="q" value="{{ search_query }}">{% endif %}
+                {# `page` is deliberately absent: a new ordering means page 7 holds
+                   different items, so it starts at the first one. #}
+                <label for="matSort">Sort</label>
+                <select id="matSort" name="sort" onchange="this.form.submit()">
+                    {% for value, label in sort_options %}
+                    <option value="{{ value }}" {{ 'selected' if value == sort }}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <noscript><button type="submit">Go</button></noscript>
+            </form>
+        </header>
+
+        {# What is currently narrowing the list, each removable on its own. Without
+           this the only way back from "ECOLINE + Diamond Burs + rotary" is Clear
+           all, which throws away the two filters you wanted to keep. #}
+        {% if selected_category_obj or selected_brand_obj or search_query %}
+        <div class="mat-chips reveal">
+            <span class="mat-chips-label">Filtered by</span>
+            {% if selected_category_obj %}
+            <a class="mat-chip" href="{{ filter_url(category=None) }}">
+                <i class="fas {{ category_icon(selected_category_obj.name, selected_category_obj.icon) }}"></i>
+                {{ selected_category_obj.name }} <i class="fas fa-xmark"></i>
+            </a>
+            {% endif %}
+            {% if selected_brand_obj %}
+            <a class="mat-chip" href="{{ filter_url(brand=None) }}">
+                <i class="fas fa-tag"></i> {{ selected_brand_obj.name }} <i class="fas fa-xmark"></i>
+            </a>
+            {% endif %}
+            {% if search_query %}
+            <a class="mat-chip" href="{{ filter_url(q=None) }}">
+                <i class="fas fa-search"></i> &ldquo;{{ search_query }}&rdquo; <i class="fas fa-xmark"></i>
+            </a>
+            {% endif %}
+            <a class="mat-clear" href="{{ url_for('materials.catalog') }}">Clear all</a>
+        </div>
+        {% endif %}
+
+        <div class="mat-layout">
+
+            {# The filter rail. A <details> so that on a phone it collapses to one
+               line instead of pushing the results a screen and a half down. It is
+               rendered open - that is the desktop state and the no-JS state - and
+               folded shut under 900px by the script at the foot of this page. #}
+            <aside class="mat-rail">
+                <details class="mat-rail-panel" open>
+                    <summary><i class="fas fa-sliders"></i> Refine</summary>
+
+                    <div class="mat-rail-body">
+                        <section class="mat-facet">
+                            <h2>Category</h2>
+                            <ul>
+                                {% for cat in categories %}
+                                <li>
+                                    <a class="{{ 'active' if cat.id == selected_category }}"
+                                       href="{{ filter_url(category=None if cat.id == selected_category else cat.id) }}">
+                                        <span class="mat-facet-name">{{ cat.name }}</span>
+                                        <span class="mat-facet-count">{{ '{:,}'.format(cat.count) }}</span>
+                                    </a>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {# Only the biggest handful are listed here; the rest of
+                               the 800-odd live on their own page, where they are
+                               grouped and searchable rather than stacked. #}
+                            {% if category_total > categories|length %}
+                            <a class="mat-facet-more" href="{{ url_for('materials.categories') }}">
+                                All {{ '{:,}'.format(category_total) }} categories <i class="fas fa-arrow-right"></i>
+                            </a>
+                            {% endif %}
+                        </section>
+
+                        <section class="mat-facet">
+                            <h2>Brand</h2>
+                            <ul>
+                                {% for brand in brands %}
+                                <li>
+                                    <a class="{{ 'active' if brand.id == selected_brand }}"
+                                       href="{{ filter_url(brand=None if brand.id == selected_brand else brand.id) }}">
+                                        <span class="mat-facet-name">{{ brand.name }}</span>
+                                        <span class="mat-facet-count">{{ '{:,}'.format(brand.count) }}</span>
+                                    </a>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% if brand_total > brands|length %}
+                            <a class="mat-facet-more" href="{{ url_for('materials.brands') }}">
+                                All {{ '{:,}'.format(brand_total) }} brands <i class="fas fa-arrow-right"></i>
+                            </a>
+                            {% endif %}
+                        </section>
+                    </div>
+                </details>
+            </aside>
+
+            <div class="mat-results">
+                <div class="mat-grid">
+                    {% if not products %}
+                    <div class="mat-empty">
+                        <div class="icon"><i class="fas fa-box-open"></i></div>
+                        <h3>Nothing found</h3>
+                        <p>
+                            {% if search_query %}No materials match &ldquo;{{ search_query }}&rdquo;.
+                            {% else %}No materials match these filters.{% endif %}
+                        </p>
+                        <a class="btn-primary" href="{{ url_for('materials.catalog') }}">Browse all materials</a>
+                    </div>
+                    {% endif %}
+
+                    {% for p in products %}
+                    {# Opens in a new tab. A shopper comparing consumables works down a grid and
+                       back up it; a same-tab jump means Back on every single item, and
+                       Back onto a server-paged catalog is a fresh request that lands on
+                       page 1 of the filters if anything about the URL was lost. rel=noopener
+                       is required with target=_blank - without it the opened page gets a
+                       handle on this one through window.opener. #}
+                    <a class="mat-card reveal" style="--i: {{ loop.index0 % 4 }};"
+                       href="{{ url_for('materials.detail', product_id=p.id) }}"
+                       target="_blank" rel="noopener">
+                        {# Materials arrive from SAP without photographs, so the card
+                           leads with the item's own text rather than a grid of
+                           identical placeholder images. The picture appears only when
+                           there is a real one - uploaded here, since SAP holds none. #}
+                        {% if p.product_image %}
+                        <div class="mat-card-img">
+                            <img src="{{ img(p.product_image) }}" alt="{{ p.product_name }}" loading="lazy" />
+                        </div>
+                        {% else %}
+                        <div class="mat-card-img mat-card-img-empty" aria-hidden="true">
+                            <i class="fas {{ category_icon(p.category.category_name, p.category.category_icon) if p.category else category_icon('') }}"></i>
+                        </div>
+                        {% endif %}
+
+                        <div class="mat-card-body">
+                            <div class="mat-card-brand">{{ p.brand.brand_name if p.brand else '' }}</div>
+                            <h3 class="mat-card-name">{{ p.product_name }}</h3>
+                            <div class="mat-card-meta">
+                                {% if p.product_code %}<span class="mat-code">{{ p.product_code }}</span>{% endif %}
+                                {% if p.category %}<span class="mat-cat">{{ p.category.category_name }}</span>{% endif %}
+                            </div>
+                            <div class="mat-card-foot">
+                                <span class="mat-price">
+                                    {{ price(p.price) }}
+                                    {% if p.uom %}<span class="mat-uom">/ {{ p.uom }}</span>{% endif %}
+                                </span>
+                                {% if p.was_price %}<span class="mat-old">{{ price(p.was_price) }}</span>{% endif %}
+                            </div>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+
+                {% if total_pages > 1 %}
+                <nav class="mat-pager" aria-label="Materials pages">
+                    <a class="mat-page-btn {{ 'disabled' if page == 1 }}"
+                       href="{{ page_url(page - 1) if page > 1 else '#' }}"
+                       {{ 'aria-disabled=true tabindex=-1' if page == 1 }}>
+                        <i class="fas fa-chevron-left"></i> Prev
+                    </a>
+
+                    {# A jump to page 1 whenever the window has moved off it, so getting
+                       back to the start is never 40 clicks of Prev. #}
+                    {% if page_numbers and page_numbers[0] > 1 %}
+                    <a class="mat-page-num" href="{{ page_url(1) }}">1</a>
+                    {% if page_numbers[0] > 2 %}<span class="mat-page-gap">&hellip;</span>{% endif %}
+                    {% endif %}
+
+                    {% for n in page_numbers %}
+                    <a class="mat-page-num {{ 'active' if n == page }}"
+                       href="{{ page_url(n) }}"
+                       {{ 'aria-current=page' if n == page }}>{{ n }}</a>
+                    {% endfor %}
+
+                    {% if page_numbers and page_numbers[-1] < total_pages %}
+                    {% if page_numbers[-1] < total_pages - 1 %}<span class="mat-page-gap">&hellip;</span>{% endif %}
+                    <a class="mat-page-num" href="{{ page_url(total_pages) }}">{{ '{:,}'.format(total_pages) }}</a>
+                    {% endif %}
+
+                    <a class="mat-page-btn {{ 'disabled' if page == total_pages }}"
+                       href="{{ page_url(page + 1) if page < total_pages else '#' }}"
+                       {{ 'aria-disabled=true tabindex=-1' if page == total_pages }}>
+                        Next <i class="fas fa-chevron-right"></i>
+                    </a>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function () {
+        // The rail stands open beside the results on a wide screen and folds to
+        // its one-line summary on a narrow one. Which of those a visitor gets is
+        // the <details> element's `open` attribute - state, not style - so a
+        // media query can't set it, and it is synced to the same 900px
+        // breakpoint materials.css uses. Without JS the panel simply stays open,
+        // which costs a phone one scroll and nothing else.
+        const panel = document.querySelector('.mat-rail-panel');
+        if (!panel) { return; }
+
+        const narrow = window.matchMedia('(max-width: 900px)');
+        const sync = function (query) { panel.open = !query.matches; };
+
+        sync(narrow);
+        // Only fires when the breakpoint is actually crossed, so someone who
+        // opened the panel on a phone keeps it open while they scroll.
+        narrow.addEventListener('change', sync);
+    })();
+</script>
+{% endblock %}

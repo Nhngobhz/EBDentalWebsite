@@ -26,14 +26,22 @@
         {% else %}
         <table>
             <thead>
-                <tr><th>Image</th><th>Name</th><th>Products</th><th>Actions</th></tr>
+                <tr><th>Icon</th><th>Name</th><th>Products</th><th>Actions</th></tr>
             </thead>
             <tbody id="categoriesTableBody">
                 {% for c in categories %}
                 <tr data-search="{{ c.category_name|lower }}">
                     <td>
-                        <img src="{{ img(c.category_image) }}" loading="lazy"
-                             style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1px solid var(--border);" />
+                        {# The glyph the storefront actually draws for this category:
+                           the admin's choice when there is one, otherwise the guess
+                           category_icon() makes from the name. Rendering the resolved
+                           value rather than the stored column is deliberate - an empty
+                           cell for "automatic" would say nothing about what a shopper
+                           sees, which is the only thing this column is here to show. #}
+                        <span class="cat-icon-chip {{ 'is-auto' if not c.category_icon }}"
+                              title="{{ 'Chosen: ' ~ c.category_icon if c.category_icon else 'Automatic, from the name' }}">
+                            <i class="fas {{ category_icon(c.category_name, c.category_icon) }}"></i>
+                        </span>
                     </td>
                     <td><strong>{{ c.category_name }}</strong></td>
                     <td>{{ c.product_count }}</td>
@@ -66,9 +74,27 @@
                 <input type="text" name="category_name" id="categoryName" required style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
             </div>
             <div class="form-group" style="margin-bottom:12px;">
-                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Category Image</label>
-                <input type="file" name="file" id="categoryImageFile" accept="image/png,image/jpeg,image/webp,image/gif" data-preview="categoryImagePreview" style="width:100%;font-size:0.8rem;">
-                <img id="categoryImagePreview" src="" alt="" style="display:none; margin-top:8px; width:60px; height:60px; border-radius:50%; object-fit:cover; border:1px solid var(--border);">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Icon</label>
+                {# The stored value. "" means no override - the storefront guesses from
+                   the name, which is right for almost every one of the 800-odd SAP
+                   categories and is why Automatic is the first tile. #}
+                <input type="hidden" name="category_icon" id="categoryIcon" value="">
+                <div class="icon-picker" id="categoryIconPicker">
+                    <button type="button" class="icon-choice" data-icon="" title="Automatic - pick a glyph from the category name">
+                        <i class="fas fa-wand-magic-sparkles"></i>
+                        <span>Auto</span>
+                    </button>
+                    {% for glyph, label in category_icon_choices %}
+                    <button type="button" class="icon-choice" data-icon="{{ glyph }}" title="{{ label }}">
+                        <i class="fas {{ glyph }}"></i>
+                        <span>{{ label }}</span>
+                    </button>
+                    {% endfor %}
+                </div>
+                <div style="font-size:0.68rem;color:var(--text-light);margin-top:6px;">
+                    Shown on the Materials category tiles and on items with no photograph.
+                    <strong>Auto</strong> picks one from the category name.
+                </div>
             </div>
             <button type="submit" class="btn-dash primary" style="width:100%;padding:10px;font-size:0.9rem;justify-content:center;margin-top:16px;" id="categoryModalSubmitBtn">
                 <i class="fas fa-save"></i> Create Category
@@ -85,11 +111,7 @@
 
 {% block extra_js %}
 <script>
-    {% set categories_json = [] %}
-    {% for c in categories %}
-    {% set _ = categories_json.append(dict(c, image=img(c.category_image))) %}
-    {% endfor %}
-    const CATEGORIES_DATA = {{ categories_json|tojson }};
+    const CATEGORIES_DATA = {{ categories|tojson }};
     const CATEGORY_NEW_URL = {{ url_for('admin.categories_new')|tojson }};
 
     function openCategoryModal(categoryId) {
@@ -105,10 +127,8 @@
             : CATEGORY_NEW_URL;
 
         document.getElementById('categoryName').value = isEdit ? category.category_name : '';
-        document.getElementById('categoryImageFile').value = '';
-        // Seeds the saved image; picking a file swaps in a preview of it
-        // (data-preview on the input above, handled in main.js).
-        ebSetImagePreview('categoryImagePreview', isEdit ? category.image : null);
+        // Seeds the saved override, or Auto for a new category / one that has none.
+        selectCategoryIcon(isEdit ? (category.category_icon || '') : '');
 
         document.getElementById('categoryModalOverlay').classList.add('active');
         // Points the History panel at this record (partials/history_panel.html);
@@ -119,6 +139,21 @@
     function closeCategoryModal() {
         document.getElementById('categoryModalOverlay').classList.remove('active');
     }
+
+    // The icon grid writes into the hidden input; "" is Auto. A hidden input rather
+    // than a <select> because the whole point is seeing the glyphs - a dropdown of
+    // "fa-circle-notch" is not a way to choose a picture.
+    function selectCategoryIcon(icon) {
+        document.getElementById('categoryIcon').value = icon;
+        document.querySelectorAll('#categoryIconPicker .icon-choice').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.icon === icon);
+        });
+    }
+
+    document.getElementById('categoryIconPicker')?.addEventListener('click', function(e) {
+        const btn = e.target.closest('.icon-choice');
+        if (btn) selectCategoryIcon(btn.dataset.icon);
+    });
 
     document.getElementById('categoryModalOverlay')?.addEventListener('click', function(e) {
         if (e.target === this) closeCategoryModal();

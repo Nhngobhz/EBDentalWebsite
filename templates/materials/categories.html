@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Material categories{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/materials.css') }}">
+{% endblock %}
+
+{% block content %}
+{# The full category index - see materials.categories for why this is a page
+   rather than a longer dropdown. #}
+<div id="materialsIndex">
+    <div class="container">
+
+        <nav class="mat-crumbs" aria-label="Breadcrumb">
+            <a href="{{ url_for('materials.home') }}">Materials</a>
+            <i class="fas fa-chevron-right"></i>
+            <span class="current">Categories</span>
+        </nav>
+
+        <header class="mat-head reveal">
+            <div class="mat-head-text">
+                <h1>All categories</h1>
+                <p class="mat-count">{{ '{:,}'.format(category_count) }} categories with items in stock</p>
+            </div>
+
+            {# Client-side, and no form around it: the whole index is already in the
+               page, so filtering it is instant and a round trip would only make it
+               slower. Nothing here depends on JS being on - with it off this box is
+               inert and the full A-Z list below is still the page. #}
+            <div class="mat-search mat-search-live">
+                <i class="fas fa-search mat-search-icon" aria-hidden="true"></i>
+                <input type="search" id="matIndexFilter" placeholder="Filter categories&hellip;"
+                       aria-label="Filter categories" autocomplete="off" />
+            </div>
+        </header>
+
+        <section class="mi-featured reveal">
+            <h2>Biggest categories</h2>
+            <div class="mh-cat-grid">
+                {% for cat in biggest %}
+                <a class="mh-cat" href="{{ url_for('materials.catalog', category=cat.id) }}">
+                    <span class="mh-cat-icon"><i class="fas {{ category_icon(cat.name, cat.icon) }}"></i></span>
+                    <span class="mh-cat-name">{{ cat.name }}</span>
+                    <span class="mh-cat-count">{{ '{:,}'.format(cat.count) }} item{{ '' if cat.count == 1 else 's' }}</span>
+                </a>
+                {% endfor %}
+            </div>
+        </section>
+
+        <nav class="mi-jump reveal" aria-label="Jump to letter">
+            {% for letter in letters %}
+            <a href="#letter-{{ letter | replace('#', 'sym') }}">{{ letter }}</a>
+            {% endfor %}
+        </nav>
+
+        <div id="matIndexList">
+            {% for letter in letters %}
+            <section class="mi-group" id="letter-{{ letter | replace('#', 'sym') }}">
+                <h2 class="mi-letter">{{ letter }}</h2>
+                <ul class="mi-list">
+                    {% for cat in groups[letter] %}
+                    {# data-name is what the filter box matches on, lowercased once
+                       here so the keystroke handler doesn't lowercase 824 strings
+                       on every letter typed. #}
+                    <li data-name="{{ cat.name | lower }}">
+                        <a href="{{ url_for('materials.catalog', category=cat.id) }}">
+                            <i class="fas {{ category_icon(cat.name, cat.icon) }}"></i>
+                            <span class="mi-name">{{ cat.name }}</span>
+                            <span class="mi-count">{{ '{:,}'.format(cat.count) }}</span>
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </section>
+            {% endfor %}
+        </div>
+
+        <div class="mat-empty" id="matIndexEmpty" hidden>
+            <div class="icon"><i class="fas fa-box-open"></i></div>
+            <h3>No categories match</h3>
+            <p>Try a shorter word, or search the items themselves.</p>
+            <a class="btn-primary" href="{{ url_for('materials.catalog') }}">Search all materials</a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function () {
+        const input = document.getElementById('matIndexFilter');
+        const groups = Array.from(document.querySelectorAll('#matIndexList .mi-group'));
+        const empty = document.getElementById('matIndexEmpty');
+        const jump = document.querySelector('.mi-jump');
+
+        function apply() {
+            const needle = input.value.trim().toLowerCase();
+            let shown = 0;
+
+            groups.forEach(function (group) {
+                let visibleInGroup = 0;
+                group.querySelectorAll('li').forEach(function (row) {
+                    const match = !needle || row.dataset.name.includes(needle);
+                    row.hidden = !match;
+                    if (match) { visibleInGroup += 1; }
+                });
+                // A letter heading with nothing under it reads as an empty
+                // category, so the whole section goes with its last row.
+                group.hidden = visibleInGroup === 0;
+                shown += visibleInGroup;
+            });
+
+            empty.hidden = shown > 0;
+            // The jump bar addresses sections that are no longer there once a
+            // filter is on, so it steps aside while one is.
+            if (jump) { jump.hidden = !!needle; }
+        }
+
+        input.addEventListener('input', apply);
+    })();
+</script>
+{% endblock %}

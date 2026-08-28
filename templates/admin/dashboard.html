@@ -4,55 +4,240 @@
 {% block admin_page_title %}Dashboard{% endblock %}
 
 {% block admin_content %}
-<div class="page-title">Dashboard</div>
-<p class="page-sub">Welcome back, {{ current_account().name if current_account() else 'Administrator' }}.</p>
+{#
+  The panel's landing screen. Built around what someone opens the panel to find out -
+  what came in, what is owed, what is stuck - rather than around counts of rows, which
+  the sidebar already carries. See blueprints/admin/dashboard.py for where each figure
+  comes from and which permission gates it.
+#}
 
-<div class="dash-stats">
-    <div class="dash-stat">
-        <span class="stat-icon"><i class="fas fa-tags"></i></span>
-        <div class="stat-label">Brands</div>
-        <div class="stat-number">{{ brands|length }}</div>
+<div class="dash-hero">
+    <div>
+        <div class="page-title" style="margin-bottom:2px;">
+            {# Time-of-day greeting is deliberately absent: the server's clock is UTC
+               and the shop is in Phnom Penh, so "Good morning" would be wrong for a
+               third of the working day. #}
+            Welcome back, {{ (current_account().name if current_account() else 'Administrator').split(' ')[0] }}
+        </div>
+        <p class="page-sub" style="margin-bottom:0;">
+            {{ current_account().role_title if current_account() else 'Admin' }} &middot; EB Dental Supply
+        </p>
     </div>
-    <div class="dash-stat">
-        <span class="stat-icon"><i class="fas fa-box"></i></span>
-        <div class="stat-label">Products</div>
-        <div class="stat-number">{{ products|length }}</div>
-    </div>
-    <div class="dash-stat">
-        <span class="stat-icon"><i class="fas fa-fire"></i></span>
-        <div class="stat-label">Active Promos</div>
-        <div class="stat-number">{{ active_promotions|length }}</div>
+
+    {# The two shops, one click each. Both open in a new tab: the panel is a place you
+       stay in, and checking how a change looks on the storefront should not cost you
+       the screen you were working on. #}
+    <div class="dash-hero-actions">
+        <a class="shop-btn machinery" href="{{ url_for('main.home') }}" target="_blank" rel="noopener">
+            <span class="shop-btn-icon"><i class="fas fa-gear"></i></span>
+            <span class="shop-btn-text">
+                <strong>Machinery store</strong>
+                <small>{{ '{:,}'.format(catalog.machinery) }} products</small>
+            </span>
+            <i class="fas fa-arrow-up-right-from-square shop-btn-go"></i>
+        </a>
+        <a class="shop-btn materials" href="{{ url_for('materials.home') }}" target="_blank" rel="noopener">
+            <span class="shop-btn-icon"><i class="fas fa-flask"></i></span>
+            <span class="shop-btn-text">
+                <strong>Materials store</strong>
+                <small>{{ '{:,}'.format(catalog.materials) }} items</small>
+            </span>
+            <i class="fas fa-arrow-up-right-from-square shop-btn-go"></i>
+        </a>
     </div>
 </div>
 
-<div class="dash-card">
-    <div class="card-header"><h5>System Overview</h5></div>
-    <div class="card-body">
-        <div style="font-size:0.8rem; color:var(--text-light);">
-            {{ products|length }} products across {{ brands|length }} brands, with {{ active_promotions|length }} active promotion{{ 's' if active_promotions|length != 1 }}.
+{% if stats %}
+{# Money, gated on price_listing-or-admin exactly as the Orders screen is. A
+   product_management-only staffer sees the catalogue cards below and none of this. #}
+<div class="dash-stats">
+    <div class="dash-stat accent">
+        <span class="stat-icon"><i class="fas fa-arrow-trend-up"></i></span>
+        <div class="stat-label">Last {{ recent_days }} days</div>
+        <div class="stat-number">{{ price(stats.recent_value) }}</div>
+        <div class="stat-foot">{{ stats.recent_count }} order{{ '' if stats.recent_count == 1 else 's' }} raised</div>
+    </div>
+    <div class="dash-stat good">
+        <span class="stat-icon"><i class="fas fa-circle-check"></i></span>
+        <div class="stat-label">Paid</div>
+        <div class="stat-number">{{ price(stats.paid_value) }}</div>
+        <div class="stat-foot">Settled, all time</div>
+    </div>
+    <div class="dash-stat {{ 'warn' if stats.unpaid_count }}">
+        <span class="stat-icon"><i class="fas fa-hourglass-half"></i></span>
+        <div class="stat-label">Awaiting payment</div>
+        <div class="stat-number">{{ price(stats.unpaid_value) }}</div>
+        <div class="stat-foot">
+            {% if stats.unpaid_count %}
+            <a href="{{ url_for('admin.orders') }}">{{ stats.unpaid_count }} order{{ '' if stats.unpaid_count == 1 else 's' }} open &rarr;</a>
+            {% else %}Nothing outstanding{% endif %}
         </div>
     </div>
+    <div class="dash-stat">
+        <span class="stat-icon"><i class="fas fa-file-lines"></i></span>
+        <div class="stat-label">Quotes</div>
+        <div class="stat-number">{{ '{:,}'.format(stats.quotes_total) }}</div>
+        <div class="stat-foot">{{ '{:,}'.format(stats.orders_total) }} order{{ '' if stats.orders_total == 1 else 's' }} beside them</div>
+    </div>
 </div>
 
-<div class="dash-card" style="margin-top: 16px;">
-    <div class="card-header">
-        <h5>Recent Products</h5>
-        <a href="{{ url_for('admin.products') }}" style="font-size:0.75rem; font-weight:700; color:var(--accent);">View All →</a>
+{% if checkouts %}
+{# Money that may have moved with no order to show for it. Loud on purpose, and only
+   rendered when there is one - see admin.dashboard. #}
+<div class="dash-alert">
+    <i class="fas fa-triangle-exclamation"></i>
+    <div>
+        <strong>{{ checkouts|length }} payment{{ '' if checkouts|length == 1 else 's' }} awaiting confirmation.</strong>
+        A customer was shown a QR code and no order was written. Check the bank statement, then confirm or discard.
     </div>
-    <div class="card-body" style="padding:0;">
-        <table>
-            <thead><tr><th>Name</th><th>Brand</th><th>Price</th><th>Badge</th></tr></thead>
-            <tbody>
-                {% for p in products[:5] %}
-                <tr>
-                    <td><strong>{{ p.product_name }}</strong></td>
-                    <td>{{ p.brand.brand_name if p.brand else '' }}</td>
-                    <td>{{ price(p.price) }}</td>
-                    <td>{{ p.badge or '—' }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <a class="btn-dash primary" href="{{ url_for('admin.orders') }}">Review</a>
+</div>
+{% endif %}
+{% endif %}
+
+<div class="dash-columns">
+
+    <div class="dash-col-main">
+        {% if stats %}
+        <div class="dash-card">
+            <div class="card-header">
+                <h5>Latest orders</h5>
+                <a class="card-link" href="{{ url_for('admin.orders') }}">View all <i class="fas fa-arrow-right"></i></a>
+            </div>
+            <div class="card-body" style="padding:0;">
+                {% if not recent_orders %}
+                <div class="empty-state"><i class="fas fa-receipt"></i> Nothing has been raised yet.</div>
+                {% else %}
+                <table>
+                    <thead>
+                        <tr><th>Number</th><th>Customer</th><th>Type</th><th>Total</th><th>Payment</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for o in recent_orders %}
+                        <tr class="row-clickable" onclick="window.location='{{ url_for('admin.orders') }}'">
+                            <td>
+                                <strong>{{ o.order_number }}</strong>
+                                <div style="font-size:0.7rem;color:var(--text-light);">{{ format_date(o.created_at) }}</div>
+                            </td>
+                            <td>{{ o.clinic_name }}</td>
+                            <td>
+                                {# .type-pill, not .section-pill: that one means "which shop",
+                                   and a quote is not a shop. Same shape on purpose - the
+                                   two read as the same KIND of marker. #}
+                                {% if o.order_type == 'quote' %}
+                                <span class="type-pill quote"><i class="fas fa-file-lines"></i> Quote</span>
+                                {% else %}
+                                <span class="type-pill order"><i class="fas fa-cart-shopping"></i> Order</span>
+                                {% endif %}
+                            </td>
+                            <td><strong>{{ price(o.grand_total) }}</strong></td>
+                            <td>
+                                {% if o.payment_status == 'paid' %}
+                                <span class="stock-chip in"><i class="fas fa-check"></i> Paid</span>
+                                {% elif o.status == 'cancelled' %}
+                                <span class="stock-chip out">Cancelled</span>
+                                {% else %}
+                                <span class="stock-chip pending">Unpaid</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="dash-card">
+            <div class="card-header"><h5>Catalogue</h5></div>
+            <div class="card-body">
+                <div class="dash-mini-grid">
+                    <a class="dash-mini" href="{{ url_for('admin.products', section='machinery') }}">
+                        <span class="mini-icon machinery"><i class="fas fa-gear"></i></span>
+                        <span class="mini-value">{{ '{:,}'.format(catalog.machinery) }}</span>
+                        <span class="mini-label">Machinery products</span>
+                    </a>
+                    <a class="dash-mini" href="{{ url_for('admin.products', section='materials') }}">
+                        <span class="mini-icon materials"><i class="fas fa-flask"></i></span>
+                        <span class="mini-value">{{ '{:,}'.format(catalog.materials) }}</span>
+                        <span class="mini-label">Materials from SAP</span>
+                    </a>
+                    <a class="dash-mini" href="{{ url_for('admin.brands') }}">
+                        <span class="mini-icon"><i class="fas fa-tags"></i></span>
+                        <span class="mini-value">{{ brands|length }}</span>
+                        <span class="mini-label">Brands</span>
+                    </a>
+                    <a class="dash-mini" href="{{ url_for('admin.promotions') }}">
+                        <span class="mini-icon"><i class="fas fa-fire"></i></span>
+                        {# NOT active_promotions - that global is scoped to whichever
+                           storefront the admin last visited. See admin.dashboard. #}
+                        <span class="mini-value">{{ live_promotions }}</span>
+                        <span class="mini-label">Live promotions</span>
+                    </a>
+                    {% if customer_count is not none %}
+                    <a class="dash-mini" href="{{ url_for('admin.customers') }}">
+                        <span class="mini-icon"><i class="fas fa-users"></i></span>
+                        {# A floor, not a total - the fetch behind it is capped. #}
+                        <span class="mini-value">{{ '{:,}'.format(customer_count) }}{{ '+' if customer_count >= customer_cap }}</span>
+                        <span class="mini-label">Customers</span>
+                    </a>
+                    {% endif %}
+                    <a class="dash-mini" href="{{ url_for('admin.sets') }}">
+                        <span class="mini-icon"><i class="fas fa-box-open"></i></span>
+                        <span class="mini-value">{{ sets|length }}</span>
+                        <span class="mini-label">Sets</span>
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
+
+    <div class="dash-col-side">
+        {% if status_counts %}
+        <div class="dash-card">
+            <div class="card-header"><h5>Order pipeline</h5></div>
+            <div class="card-body">
+                {# A bar per status, each as wide as its share of the busiest one. Not a
+                   chart library: five bars is not worth 90KB of JavaScript on the
+                   first page after sign-in. #}
+                {% set busiest = status_counts.values()|max %}
+                <div class="dash-bars">
+                    {% for status, count in status_counts|dictsort(by='value', reverse=true) %}
+                    <a class="dash-bar" href="{{ url_for('admin.orders') }}">
+                        <span class="bar-label">{{ status|title }}</span>
+                        <span class="bar-track">
+                            <span class="bar-fill status-{{ status }}" style="width: {{ (count / busiest * 100)|round|int }}%;"></span>
+                        </span>
+                        <span class="bar-count">{{ count }}</span>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="dash-card">
+            <div class="card-header"><h5>Jump to</h5></div>
+            <div class="card-body">
+                <div class="dash-links">
+                    {% if has_permission('product_management') %}
+                    <a href="{{ url_for('admin.products') }}"><i class="fas fa-box"></i> Products <span>Add, price, edit</span></a>
+                    <a href="{{ url_for('admin.hero_slides') }}"><i class="fas fa-images"></i> Hero Slider <span>Both storefronts' banners</span></a>
+                    <a href="{{ url_for('admin.categories') }}"><i class="fas fa-layer-group"></i> Categories <span>Names and icons</span></a>
+                    {% endif %}
+                    {% if has_any_permission('price_listing', 'admin') %}
+                    <a href="{{ url_for('admin.orders') }}"><i class="fas fa-shopping-cart"></i> Orders <span>Quotes, invoices, payments</span></a>
+                    <a href="{{ url_for('admin.reports') }}"><i class="fas fa-file-alt"></i> Reports <span>ABA settlement</span></a>
+                    {% endif %}
+                    {% if has_permission('admin') %}
+                    <a href="{{ url_for('admin.activity') }}"><i class="fas fa-clock-rotate-left"></i> Activity Log <span>Who changed what</span></a>
+                    <a href="{{ url_for('admin.settings') }}"><i class="fas fa-cog"></i> Settings <span>Store details, maintenance</span></a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 {% endblock %}

@@ -1,39 +1,112 @@
 {% extends "admin/_admin_base.html" %}
 
+{# Where a save should land: the list exactly as the staffer had it. Posted by every
+   form on this page, read back by admin.products._back(). Four named fields rather
+   than an echoed query string, so nothing here can steer the redirect.
+
+   The `rt_` prefix is load-bearing, not tidiness. The edit modal has its OWN
+   `<select name="section">` - the shop the product belongs to - and an unprefixed
+   filter field of the same name collides with it in one flat form body. Flask's
+   `request.form.get("section")` returns the first value in document order, which is
+   this one, so editing a machinery product while the table was filtered to Materials
+   silently moved that product into the other shop. #}
+{% macro return_to() -%}
+<input type="hidden" name="rt_q" value="{{ search_query }}">
+<input type="hidden" name="rt_section" value="{{ section }}">
+<input type="hidden" name="rt_sort" value="{{ sort }}">
+<input type="hidden" name="rt_page" value="{{ page }}">
+{%- endmacro %}
+
 {% block title %}Manage Products{% endblock %}
 {% block admin_page_title %}Products{% endblock %}
 
 {% block admin_content %}
 <div class="page-title"><i class="fas fa-box"></i> Products</div>
-<p class="page-sub">Manage your product catalog.</p>
+<p class="page-sub">Both shops in one table &mdash; machinery you list here, materials the SAP sync brings in.</p>
 
 <div class="dash-card">
     <div class="card-header">
-        <h5 id="productsCountLabel">All Products ({{ products|length }})</h5>
+        <h5 id="productsCountLabel">
+            {% if search_query or section != 'all' %}
+            {{ '{:,}'.format(total) }} match{{ '' if total == 1 else 'es' }}
+            {% else %}
+            All Products ({{ '{:,}'.format(total) }})
+            {% endif %}
+            {% if total_pages > 1 %}
+            <span style="font-weight:500;color:var(--text-light);font-size:0.8rem;">&middot; page {{ page }} of {{ '{:,}'.format(total_pages) }}</span>
+            {% endif %}
+        </h5>
         <div class="card-actions">
-            <div class="search-box-dash">
+            {# Search goes to the SERVER now. It used to hide rows in the browser,
+               which was honest while the catalogue was 110 products and became a lie
+               at 8,000: the page held the first 500 by name, so searching for anything
+               later in the alphabet found nothing and said "no matches". #}
+            <form method="get" action="{{ url_for('admin.products') }}" class="search-box-dash" style="margin:0;">
+                {% if section != 'all' %}<input type="hidden" name="section" value="{{ section }}">{% endif %}
+                {% if sort != 'name' %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
                 <i class="fas fa-search"></i>
-                <input type="text" id="productSearchInput" class="search-input-dash" placeholder="Search products..." oninput="filterProductsTable()">
-            </div>
+                <input type="search" name="q" value="{{ search_query }}" class="search-input-dash" placeholder="Search name or code...">
+            </form>
+            {% if search_query %}
+            <a class="btn-dash sm" href="{{ filter_url(q=None) }}" title="Clear the search"><i class="fas fa-xmark"></i></a>
+            {% endif %}
             {% if has_permission('product_management') %}
             <button type="button" class="btn-dash primary" onclick="openProductModal()"><i class="fas fa-plus"></i> Add Product</button>
             {% endif %}
         </div>
     </div>
+
+    {# Which shop, and in what order. A strip rather than two more selects in the
+       header: the section split is the first cut anyone makes on this screen, and it
+       reads better as three tabs than as a dropdown that hides two of its three
+       states. #}
+    <div class="table-toolbar">
+        <div class="seg">
+            {% for value, label, icon in [('all', 'All', 'fa-layer-group'), ('machinery', 'Machinery', 'fa-gear'), ('materials', 'Materials', 'fa-flask')] %}
+            <a class="seg-btn {{ 'active' if section == value }}" href="{{ filter_url(section=value if value != 'all' else None) }}">
+                <i class="fas {{ icon }}"></i> {{ label }}
+            </a>
+            {% endfor %}
+        </div>
+        <div class="toolbar-right">
+            <label for="productSort">Sort</label>
+            <select id="productSort" onchange="window.location = this.value;">
+                {% for value, label in [('name', 'Name (A-Z)'), ('name_desc', 'Name (Z-A)'), ('price_asc', 'Price: low to high'), ('price_desc', 'Price: high to low'), ('stock_desc', 'Stock: most first'), ('stock_asc', 'Stock: least first'), ('newest', 'Recently added'), ('oldest', 'Oldest first')] %}
+                <option value="{{ filter_url(sort=value if value != 'name' else None) }}" {{ 'selected' if sort == value }}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
     <div class="card-body" style="padding:0;">
         {% if products|length == 0 %}
-        <div class="empty-state"><i class="fas fa-box"></i> No products found.</div>
+        <div class="empty-state">
+            <i class="fas fa-box"></i>
+            {% if search_query %}Nothing matches &ldquo;{{ search_query }}&rdquo;.{% else %}No products found.{% endif %}
+        </div>
         {% else %}
         <table>
             <thead>
                 <tr>
-                    <th>Image</th><th>Name</th><th>Code</th><th>Brand</th><th>Category</th>
-                    <th>Price</th><th>UOM</th><th>Discount</th><th>Actions</th>
+                    <th>Image</th>
+                    {# Sortable headers. The arrow only appears on the column actually
+                       in use, and clicking that one reverses it - see sort_url(). #}
+                    <th><a class="th-sort {{ 'active' if sort in ('name', 'name_desc') }}" href="{{ sort_url('name') }}">
+                        Name {% if sort == 'name' %}<i class="fas fa-arrow-down-a-z"></i>{% elif sort == 'name_desc' %}<i class="fas fa-arrow-up-a-z"></i>{% endif %}
+                    </a></th>
+                    <th>Code</th><th>Shop</th><th>Brand</th><th>Category</th>
+                    <th><a class="th-sort {{ 'active' if sort in ('price_asc', 'price_desc') }}" href="{{ sort_url('price_asc') }}">
+                        Price {% if sort == 'price_asc' %}<i class="fas fa-arrow-down-1-9"></i>{% elif sort == 'price_desc' %}<i class="fas fa-arrow-up-1-9"></i>{% endif %}
+                    </a></th>
+                    <th>UOM</th><th>Discount</th>
+                    <th><a class="th-sort {{ 'active' if sort in ('stock_asc', 'stock_desc') }}" href="{{ sort_url('stock_desc') }}">
+                        Stock {% if sort == 'stock_asc' %}<i class="fas fa-arrow-down-1-9"></i>{% elif sort == 'stock_desc' %}<i class="fas fa-arrow-up-1-9"></i>{% endif %}
+                    </a></th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody id="productsTableBody">
                 {% for p in products %}
-                <tr data-search="{{ (p.product_name ~ ' ' ~ (p.brand.brand_name if p.brand else '') ~ ' ' ~ (p.category.category_name if p.category else ''))|lower }}">
+                <tr>
                     <td>
                         <img src="{{ img(p.product_image) }}" loading="lazy"
                              style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid var(--border);" />
@@ -51,6 +124,13 @@
                         {% endif %}
                     </td>
                     <td style="font-size:0.75rem; color:var(--text-light);">{{ p.product_code or '—' }}</td>
+                    <td>
+                        {% if p.section == 'materials' %}
+                        <span class="section-pill materials"><i class="fas fa-flask"></i> Materials</span>
+                        {% else %}
+                        <span class="section-pill machinery"><i class="fas fa-gear"></i> Machinery</span>
+                        {% endif %}
+                    </td>
                     <td>{{ p.brand.brand_name if p.brand else '—' }}</td>
                     <td style="font-size:0.7rem;">{{ p.category.category_name if p.category else '—' }}</td>
                     <td>
@@ -60,9 +140,29 @@
                     <td style="font-size:0.75rem;">{{ p.uom or 'PCS' }}</td>
                     <td style="font-size:0.75rem;">{% if p.discount_type == 'cash' %}{{ price(p.discount) if p.discount else '$0.00' }}{% else %}{{ p.discount or 0 }}%{% endif %}</td>
                     <td style="white-space:nowrap;">
+                        {# Read-only, on purpose. SAP owns the number (scripts/sap_sync.py
+                           writes it nightly) so an editable field here would save
+                           cleanly and be silently reverted by the next sync.
+
+                           NULL and 0 are different answers and are shown differently:
+                           "—" is "we have never been told", which is every machinery
+                           product, since machinery never enters SAP. 0 is SAP saying
+                           none left. #}
+                        {% if p.stock_qty is none %}
+                        <span style="color:var(--text-light);" title="Not tracked in SAP">&mdash;</span>
+                        {% elif p.stock_qty|float > 0 %}
+                        <span class="stock-chip in" title="{{ 'Counted ' ~ format_date(p.stock_synced_at) if p.stock_synced_at else 'Never synced' }}">
+                            {{ '{:,.0f}'.format(p.stock_qty|float) }}
+                        </span>
+                        {% else %}
+                        <span class="stock-chip out" title="{{ 'Counted ' ~ format_date(p.stock_synced_at) if p.stock_synced_at else 'Never synced' }}">0</span>
+                        {% endif %}
+                    </td>
+                    <td style="white-space:nowrap;">
                         {% if has_permission('product_management') %}
                         <button type="button" data-row-edit class="btn-dash primary sm" onclick="openProductModal({{ p.id }})" title="Edit"><i class="fas fa-edit"></i></button>
                         <form method="post" action="{{ url_for('admin.products_delete', product_id=p.id) }}" style="display:inline;" data-confirm="Delete this product?">
+                            {{ return_to() }}
                             <button type="submit" class="btn-dash danger sm" title="Delete"><i class="fas fa-trash"></i></button>
                         </form>
                         {% elif has_permission('price_listing') %}
@@ -73,9 +173,32 @@
                 {% endfor %}
             </tbody>
         </table>
-        <div class="empty-state" id="productsNoMatch" style="display:none;"><i class="fas fa-search"></i> No products match your search.</div>
         {% endif %}
     </div>
+
+    {% if total_pages > 1 %}
+    <div class="table-pager">
+        <a class="pager-btn {{ 'disabled' if page == 1 }}" href="{{ page_url(page - 1) if page > 1 else '#' }}">
+            <i class="fas fa-chevron-left"></i> Prev
+        </a>
+        {# A jump to page 1 whenever the window has moved off it, so getting back to
+           the start is never 40 clicks of Prev. #}
+        {% if page_numbers and page_numbers[0] > 1 %}
+        <a class="pager-num" href="{{ page_url(1) }}">1</a>
+        {% if page_numbers[0] > 2 %}<span class="pager-gap">&hellip;</span>{% endif %}
+        {% endif %}
+        {% for n in page_numbers %}
+        <a class="pager-num {{ 'active' if n == page }}" href="{{ page_url(n) }}">{{ n }}</a>
+        {% endfor %}
+        {% if page_numbers and page_numbers[-1] < total_pages %}
+        {% if page_numbers[-1] < total_pages - 1 %}<span class="pager-gap">&hellip;</span>{% endif %}
+        <a class="pager-num" href="{{ page_url(total_pages) }}">{{ '{:,}'.format(total_pages) }}</a>
+        {% endif %}
+        <a class="pager-btn {{ 'disabled' if page == total_pages }}" href="{{ page_url(page + 1) if page < total_pages else '#' }}">
+            Next <i class="fas fa-chevron-right"></i>
+        </a>
+    </div>
+    {% endif %}
 </div>
 
 {% if has_permission('product_management') %}
@@ -85,6 +208,7 @@
         <button type="button" class="dash-modal-close" onclick="closeProductModal()"><i class="fas fa-times"></i></button>
         <h3 class="dash-modal-title" id="productModalTitle">Add New Product</h3>
         <form id="productForm" method="post" enctype="multipart/form-data">
+            {{ return_to() }}
             <div class="form-group" style="margin-bottom:12px;">
                 <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Product Name *</label>
                 <input type="text" name="product_name" id="prodName" required style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
@@ -220,6 +344,7 @@
         <button type="button" class="dash-modal-close" onclick="closePriceModal()"><i class="fas fa-times"></i></button>
         <h3 class="dash-modal-title" id="priceModalTitle">Update Price</h3>
         <form id="priceForm" method="post">
+            {{ return_to() }}
             <div class="form-group" style="margin-bottom:12px;">
                 <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Price (before discount)</label>
                 <input type="number" name="price" id="priceOnlyPrice" step="0.01" min="0.01" oninput="_syncCashDiscountMax('priceOnly')" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
@@ -255,14 +380,12 @@
     {% endfor %}
     {% set _ = products_json.append(dict(p, image=img(p.product_image), gallery=gallery)) %}
     {% endfor %}
+    // Only the rows on this page - the modal seeds from whatever row was clicked, and
+    // nothing else on the screen reads this.
     const PRODUCTS_DATA = {{ products_json|tojson }};
-    {# The "Comes With (Free)" dropdowns pick from this same catalog - see
-       ebBundlePicker in main.js. #}
-    {% set product_options = [] %}
-    {% for p in products %}
-    {% set _ = product_options.append({'id': p.id, 'product_name': p.product_name, 'product_code': p.product_code}) %}
-    {% endfor %}
-    const BUNDLE_PRODUCTS = {{ product_options|tojson }};
+    {# The "Comes With (Free)" dropdowns pick from the whole catalogue, not from this
+       page's 50 rows - see admin.products' bundle_options. #}
+    const BUNDLE_PRODUCTS = {{ bundle_options|tojson }};
     {% if has_permission('product_management') %}
     const PRODUCT_NEW_URL = {{ url_for('admin.products_new')|tojson }};
     {% endif %}
@@ -429,23 +552,5 @@
     document.getElementById('priceModalOverlay')?.addEventListener('click', function(e) {
         if (e.target === this) closePriceModal();
     });
-
-    function filterProductsTable() {
-        const query = document.getElementById('productSearchInput').value.trim().toLowerCase();
-        const rows = document.querySelectorAll('#productsTableBody tr');
-        let visibleCount = 0;
-
-        rows.forEach(row => {
-            const matches = !query || (row.dataset.search || '').includes(query);
-            row.style.display = matches ? '' : 'none';
-            if (matches) visibleCount++;
-        });
-
-        const noMatch = document.getElementById('productsNoMatch');
-        if (noMatch) noMatch.style.display = visibleCount === 0 ? 'block' : 'none';
-
-        document.getElementById('productsCountLabel').textContent =
-            query ? `Products (${visibleCount} of ${PRODUCTS_DATA.length})` : `All Products (${PRODUCTS_DATA.length})`;
-    }
 </script>
 {% endblock %}

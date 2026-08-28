@@ -205,6 +205,22 @@ a.sidebar-brand:hover {
     font-size: 0.6rem;
     color: rgba(255, 255, 255, 0.5);
 }
+/* A nested entry under the one it belongs to - the two shop filters under Products.
+   Indented and a shade quieter, so the group still reads as one item with two
+   shortcuts rather than as three siblings. */
+.dashboard-sidebar .sidebar-nav .nav-item.sub {
+    padding-left: 30px;
+    font-size: 0.78rem;
+    opacity: 0.82;
+}
+.dashboard-sidebar .sidebar-nav .nav-item.sub.active,
+.dashboard-sidebar .sidebar-nav .nav-item.sub:hover {
+    opacity: 1;
+}
+.dashboard-sidebar .sidebar-nav .nav-item.sub i {
+    font-size: 0.85rem;
+}
+
 .dashboard-sidebar .sidebar-nav .nav-item.disabled {
     opacity: 0.25;
     pointer-events: none;
@@ -1752,4 +1768,622 @@ a.sidebar-brand:hover {
 }
 .history-entry .af-changes ul {
     margin-top: 6px;
+}
+/* ============================================================
+   ADMIN - shared row markers
+   ============================================================ */
+
+/* Which shop a row belongs to. Used on Products, Promotions and Hero Slider, which
+   all span both storefronts now - and on the dashboard's order table, where the same
+   two-tone treatment separates a quote from an order. One definition rather than three
+   inline styles, so the machinery blue means the same thing on every screen. */
+.section-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+.section-pill i {
+    font-size: 0.6rem;
+}
+.section-pill.machinery {
+    background: rgba(8, 145, 178, 0.1);
+    border-color: rgba(8, 145, 178, 0.28);
+    color: #0e7490;
+}
+.section-pill.materials {
+    background: rgba(217, 119, 6, 0.1);
+    border-color: rgba(217, 119, 6, 0.28);
+    color: #b45309;
+}
+/* The pills carry their colour as a tint of the page, so on the dark theme the tint
+   disappears into the surface and only the text needs lifting. */
+[data-theme="dark"] .section-pill.machinery {
+    color: #67e8f9;
+}
+[data-theme="dark"] .section-pill.materials {
+    color: #fcd34d;
+}
+
+/* Quote vs order on the dashboard's list. Shaped exactly like .section-pill so the two
+   read as the same kind of marker, but named for what it says - a quote is not a shop,
+   and one class meaning both would be the sort of reuse that survives until someone
+   changes the machinery colour and silently repaints every quote. */
+.type-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+.type-pill i {
+    font-size: 0.6rem;
+}
+.type-pill.quote {
+    background: rgba(100, 116, 139, 0.12);
+    border-color: rgba(100, 116, 139, 0.3);
+    color: #475569;
+}
+.type-pill.order {
+    background: rgba(8, 145, 178, 0.1);
+    border-color: rgba(8, 145, 178, 0.28);
+    color: #0e7490;
+}
+[data-theme="dark"] .type-pill.quote {
+    color: #cbd5e1;
+}
+[data-theme="dark"] .type-pill.order {
+    color: #67e8f9;
+}
+
+/* On-hand quantity from the last SAP sync, and the paid/unpaid marker on the
+   dashboard's order list - the same chip, because both answer a yes/no with a number
+   attached. */
+.stock-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 9px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.stock-chip.in {
+    background: rgba(5, 150, 105, 0.12);
+    color: #047857;
+}
+.stock-chip.out {
+    background: rgba(220, 38, 38, 0.1);
+    color: #b91c1c;
+}
+.stock-chip.pending {
+    background: rgba(217, 119, 6, 0.12);
+    color: #b45309;
+}
+[data-theme="dark"] .stock-chip.in {
+    color: #6ee7b7;
+}
+[data-theme="dark"] .stock-chip.out {
+    color: #fca5a5;
+}
+[data-theme="dark"] .stock-chip.pending {
+    color: #fcd34d;
+}
+
+/* A sortable column header. The whole cell is the link; the arrow appears only on the
+   column actually in use, so the header row stays quiet until you look at it. */
+.dash-card .card-body table th .th-sort {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: inherit;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.dash-card .card-body table th .th-sort:hover {
+    color: var(--accent);
+}
+.dash-card .card-body table th .th-sort.active {
+    color: var(--accent);
+}
+
+/* ---- Table toolbar: section tabs on the left, sort on the right ---- */
+.table-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+}
+.table-toolbar .seg {
+    display: inline-flex;
+    padding: 3px;
+    gap: 2px;
+    border-radius: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+}
+.table-toolbar .seg-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--text-soft);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: var(--transition);
+}
+.table-toolbar .seg-btn:hover {
+    color: var(--accent);
+}
+.table-toolbar .seg-btn.active {
+    background: var(--surface);
+    color: var(--accent);
+    box-shadow: var(--shadow);
+}
+.table-toolbar .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.table-toolbar .toolbar-right label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-light);
+}
+.table-toolbar select {
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    outline: none;
+}
+
+/* ---- Pager under a server-paged admin table ---- */
+.table-pager {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+}
+.table-pager .pager-btn,
+.table-pager .pager-num {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 34px;
+    height: 34px;
+    padding: 0 12px;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text-soft);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition: var(--transition);
+}
+.table-pager .pager-btn:hover,
+.table-pager .pager-num:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.table-pager .pager-num.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+/* Kept in the flow rather than removed, so the row doesn't reflow on the first and
+   last pages. */
+.table-pager .pager-btn.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+.table-pager .pager-gap {
+    color: var(--text-light);
+    padding: 0 2px;
+}
+
+/* ---- Category icon picker (admin Categories) ---- */
+.cat-icon-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: rgba(8, 145, 178, 0.1);
+    color: var(--accent);
+    font-size: 0.95rem;
+}
+/* An automatic icon is drawn quieter than a chosen one, so the table says at a glance
+   which categories somebody has actually decided about. */
+.cat-icon-chip.is-auto {
+    background: var(--bg);
+    color: var(--text-light);
+}
+
+.icon-picker {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
+    gap: 6px;
+    max-height: 190px;
+    overflow-y: auto;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+}
+.icon-choice {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 4px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text-soft);
+    font-family: inherit;
+    cursor: pointer;
+    transition: var(--transition);
+}
+.icon-choice i {
+    font-size: 1.05rem;
+}
+.icon-choice span {
+    font-size: 0.6rem;
+    font-weight: 600;
+    text-align: center;
+    /* SAP category names are long; the label is a hint, not the thing being chosen. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+.icon-choice:hover {
+    border-color: var(--accent-light);
+    color: var(--accent);
+}
+.icon-choice.active {
+    border-color: var(--accent);
+    background: rgba(8, 145, 178, 0.1);
+    color: var(--accent);
+}
+
+/* ============================================================
+   DASHBOARD - the landing screen
+   ============================================================ */
+
+.dash-hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 22px;
+}
+.dash-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+/* The two storefronts, as buttons rather than links: getting to the shop you are
+   editing is the single most common thing to want from this screen, and it used to be
+   one unlabelled arrow icon in the sidebar footer. */
+.shop-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 11px;
+    padding: 10px 16px 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    text-decoration: none;
+    box-shadow: var(--shadow);
+    transition: var(--transition);
+}
+.shop-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+.shop-btn.machinery:hover {
+    border-color: #0891b2;
+}
+.shop-btn.materials:hover {
+    border-color: #d97706;
+}
+.shop-btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    font-size: 0.95rem;
+    flex-shrink: 0;
+}
+.shop-btn.machinery .shop-btn-icon {
+    background: rgba(8, 145, 178, 0.12);
+    color: #0e7490;
+}
+.shop-btn.materials .shop-btn-icon {
+    background: rgba(217, 119, 6, 0.12);
+    color: #b45309;
+}
+.shop-btn-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.25;
+}
+.shop-btn-text strong {
+    font-size: 0.83rem;
+    font-weight: 700;
+}
+.shop-btn-text small {
+    font-size: 0.7rem;
+    color: var(--text-light);
+}
+.shop-btn-go {
+    font-size: 0.7rem;
+    color: var(--text-light);
+}
+
+/* A stat card carries a figure and a line saying what it is a figure OF - the old
+   ones carried a bare number, which is the part nobody could act on. */
+.dash-stat .stat-foot {
+    margin-top: 6px;
+    font-size: 0.7rem;
+    color: var(--text-light);
+}
+.dash-stat .stat-foot a {
+    color: var(--accent);
+    font-weight: 700;
+    text-decoration: none;
+}
+/* A coloured rule down the left edge, so the row reads as four different KINDS of
+   figure rather than four instances of the same one. */
+.dash-stat.accent {
+    border-left: 3px solid var(--accent);
+}
+.dash-stat.good {
+    border-left: 3px solid #059669;
+}
+.dash-stat.warn {
+    border-left: 3px solid #d97706;
+}
+
+/* Something that needs a person, today. Deliberately the loudest thing on the page,
+   and rendered only when it applies. */
+.dash-alert {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    border-radius: 12px;
+    border: 1px solid rgba(217, 119, 6, 0.35);
+    background: rgba(217, 119, 6, 0.08);
+    color: var(--text);
+    font-size: 0.82rem;
+}
+.dash-alert > i {
+    font-size: 1.3rem;
+    color: #d97706;
+    flex-shrink: 0;
+}
+.dash-alert > div {
+    flex: 1;
+}
+
+/* Two columns on a desktop, one on anything narrower. The side column is the
+   at-a-glance half, so it collapses UNDER the main one rather than above it. */
+.dash-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
+}
+@media (max-width: 1100px) {
+    .dash-columns {
+        grid-template-columns: 1fr;
+    }
+}
+
+.dash-card .card-header .card-link {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--accent);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ---- Catalogue tiles ---- */
+.dash-mini-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+}
+.dash-mini {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    background: var(--bg);
+    color: var(--text);
+    text-decoration: none;
+    transition: var(--transition);
+}
+.dash-mini:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+}
+.mini-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    margin-bottom: 6px;
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text-light);
+    font-size: 0.8rem;
+}
+.mini-icon.machinery {
+    color: #0e7490;
+}
+.mini-icon.materials {
+    color: #b45309;
+}
+.mini-value {
+    font-size: 1.35rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+.mini-label {
+    font-size: 0.7rem;
+    color: var(--text-light);
+    font-weight: 600;
+}
+
+/* ---- Order pipeline bars ----
+   Bars rather than a chart library: five rows is not worth 90KB of JavaScript on the
+   first page after sign-in, and a bar whose width is its share of the busiest status
+   answers "what is piling up" in the same glance a donut would. */
+.dash-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.dash-bar {
+    display: grid;
+    grid-template-columns: 82px 1fr 32px;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: inherit;
+}
+.bar-label {
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--text-soft);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.bar-track {
+    height: 8px;
+    border-radius: 99px;
+    background: var(--bg);
+    overflow: hidden;
+}
+.bar-fill {
+    display: block;
+    height: 100%;
+    border-radius: 99px;
+    background: var(--accent);
+    /* A status with one order still has to be visible - 1 of 140 rounds to 1%. */
+    min-width: 4px;
+}
+.bar-fill.status-completed,
+.bar-fill.status-delivered {
+    background: #059669;
+}
+.bar-fill.status-pending {
+    background: #d97706;
+}
+.bar-fill.status-cancelled {
+    background: #dc2626;
+}
+.bar-count {
+    font-size: 0.76rem;
+    font-weight: 800;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- Jump-to list ---- */
+.dash-links {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.dash-links a {
+    display: grid;
+    grid-template-columns: 20px 1fr;
+    align-items: baseline;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 9px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.82rem;
+    font-weight: 700;
+    transition: var(--transition);
+}
+.dash-links a:hover {
+    background: var(--bg);
+    color: var(--accent);
+}
+.dash-links a i {
+    color: var(--text-light);
+    font-size: 0.85rem;
+}
+.dash-links a span {
+    grid-column: 2;
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--text-light);
+}
+
+@media (max-width: 640px) {
+    .dash-hero-actions {
+        width: 100%;
+    }
+    .shop-btn {
+        flex: 1 1 100%;
+    }
+    .table-toolbar {
+        padding: 10px 14px;
+    }
+    .table-toolbar .seg {
+        width: 100%;
+        justify-content: space-between;
+    }
 }
