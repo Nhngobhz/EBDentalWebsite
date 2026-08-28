@@ -392,6 +392,13 @@ def create_app():
         "catalog.products_catalog",
         "catalog.product_detail",
         "catalog.special_product",
+        # Spare parts are a catalogue inside this shop, not a shop of their own -
+        # they are SAP-sourced and stored under their own products.section, but they
+        # are sold under the machinery mark, nav and cart. Listing the two endpoints
+        # here is what keeps the shell from treating /spare-parts as "belongs to
+        # neither" and falling back to whichever shop the visitor was in last.
+        "catalog.spare_parts",
+        "catalog.spare_part_detail",
         # Promotions and Sets are bundles of machinery products, which is why the
         # materials nav doesn't offer them. Reaching one anyway - a bookmark, a
         # shared link - is genuinely walking into the other shop, so the shell

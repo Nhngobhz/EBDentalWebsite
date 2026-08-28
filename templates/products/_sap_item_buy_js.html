@@ -1,0 +1,40 @@
+{# The buy box's quantity stepper and Add to Cart, for the SAP-catalogue detail
+   page. Shared by materials/detail.html and products/spare_part_detail.html.
+
+   Same ids and the same payload as the machinery product page - QuoteCart is one
+   cart, and an item added from any catalogue has to reach the quote identically.
+   See products/detail.html. #}
+{% if can_quote() %}
+<script>
+    const pdQtyInput = document.getElementById('pdQty');
+
+    function pdReadQty() {
+        const qty = parseInt(pdQtyInput.value, 10);
+        return Number.isFinite(qty) && qty > 0 ? Math.min(qty, 100000) : 1;
+    }
+
+    document.getElementById('pdQtyMinus').addEventListener('click', () => {
+        pdQtyInput.value = Math.max(1, pdReadQty() - 1);
+    });
+    document.getElementById('pdQtyPlus').addEventListener('click', () => {
+        pdQtyInput.value = Math.min(100000, pdReadQty() + 1);
+    });
+    pdQtyInput.addEventListener('change', () => { pdQtyInput.value = pdReadQty(); });
+
+    document.getElementById('detailAddToQuoteBtn').addEventListener('click', () => {
+        QuoteCart.addItem({
+            id: {{ product.id|tojson }},
+            product_name: {{ product.product_name|tojson }},
+            code: {{ product.product_code|tojson }},
+            uom: {{ product.uom|tojson }},
+            price: {{ product.price|tojson }},
+            discount: {{ (product.discount or 0)|tojson }},
+            discount_type: {{ (product.discount_type or 'percent')|tojson }},
+            was_price: {{ product.was_price|tojson }},
+            image: {{ img(product.product_image)|tojson }},
+            free_items: {{ product.free_items|tojson }},
+        }, pdReadQty());
+        showToast('Added to cart successfully');
+    });
+</script>
+{% endif %}

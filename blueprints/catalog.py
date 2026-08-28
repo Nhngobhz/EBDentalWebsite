@@ -1,6 +1,7 @@
 from collections import Counter
 from urllib.parse import urlencode
 
+import sap_catalog
 import site_cache
 import site_section
 from flask import Blueprint, abort, redirect, render_template, request, url_for
@@ -214,8 +215,13 @@ def detail_context(product_id, section, related_by="brand"):
         abort(404)
 
     if product["section"] != section:
-        other = "materials.detail" if product["section"] == "materials" \
-            else "catalog.product_detail"
+        # One endpoint per catalogue, so a link that predates a split - or one typed
+        # against the wrong half - lands on the page that can actually show the row
+        # rather than 404ing on a product that plainly exists.
+        other = {
+            "materials": "materials.detail",
+            "spare_parts": "catalog.spare_part_detail",
+        }.get(product["section"], "catalog.product_detail")
         return redirect(url_for(other, product_id=product_id))
 
     # ALL of the product's documents, not just the first. A product can carry a
@@ -273,6 +279,185 @@ def product_detail(product_id):
     if not isinstance(context, dict):
         return context
     return render_template("products/detail.html", **context)
+
+
+SPARE_PARTS_SECTION = "spare_parts"
+
+
+@catalog_bp.route("/spare-parts")
+def spare_parts():
+    """The spare-parts catalogue - SAP item group 103, sold in the machinery shop.
+
+    A page of its own rather than rows in /products, because of what the two lists
+    are. The machinery catalog is 110 photographed machines in 32 categories, small
+    enough to fetch whole and filter in the browser; spare parts are 754 SAP items
+    in 194 categories with no photographs at all. Blended, the machines would be
+    seven per cent of their own catalog, the category panel would grow from 32
+    checkboxes to ~190, and the single `limit=500` fetch that page is built on would
+    silently truncate the result - MAX_PAGE_SIZE is a hard server cap.
+
+    So this pages on the server exactly the way the materials catalog does; see
+    sap_catalog, which both are built from. It stays inside the machinery shop -
+    same header, same brands, same cart - and `catalog.spare_parts` is listed in
+    app.py's MACHINERY_ENDPOINTS so the shell agrees.
+    """
+    client = get_api_client()
+
+    selected_brand = request.args.get("brand", type=int)
+    selected_category = request.args.get("category", type=int)
+    search_query = request.args.get("q", "").strip()
+    page = max(1, request.args.get("page", 1, type=int))
+    # An unknown value (a stale link, a hand-typed URL) falls back to the default
+    # rather than 422-ing off store-api's Literal.
+    sort = request.args.get("sort", sap_catalog.DEFAULT_SORT)
+    if sort not in sap_catalog.SORT_VALUES:
+        sort = sap_catalog.DEFAULT_SORT
+
+    filters = {"section": SPARE_PARTS_SECTION}
+    if selected_brand:
+        filters["brand_id"] = selected_brand
+    if selected_category:
+        filters["category_id"] = selected_category
+    if search_query:
+        filters["q"] = search_query
+
+    total = client.get("/products/count", params=filters).get("count", 0)
+    page_size = sap_catalog.PAGE_SIZE
+    total_pages = max(1, -(-total // page_size))
+    # A `?page=` past the end (a stale bookmark, or a filter that has since narrowed)
+    # lands on the last real page instead of an empty grid.
+    page = min(page, total_pages)
+
+    # `sort` goes to the SERVER, not to the 24 rows that come back: this page is a
+    # window onto 754 items, so "cheapest first" applied to the window would only
+    # reorder the window. Kept out of `filters` because that dict is also what
+    # /count and /facets are asked with, and neither has an opinion about ordering.
+    products = [
+        adapt_product(p)
+        for p in client.get(
+            "/products/",
+            params={
+                **filters,
+                "sort": sort,
+                "skip": (page - 1) * page_size,
+                "limit": page_size,
+            },
+        )
+    ]
+
+    facets = sap_catalog.facets(
+        SPARE_PARTS_SECTION,
+        brand_id=selected_brand,
+        category_id=selected_category,
+        q=search_query,
+    )
+    # Counted with this facet's own filter dropped (see GET /products/facets), so
+    # both lists still offer every sibling to switch to - what a filter rail is for.
+    categories, brands = facets["categories"], facets["brands"]
+
+    selected_category_obj = next(
+        (c for c in categories if c["id"] == selected_category), None
+    )
+    selected_brand_obj = next((b for b in brands if b["id"] == selected_brand), None)
+
+    if search_query:
+        page_title = 'Results for "%s"' % search_query
+    elif selected_category_obj:
+        page_title = selected_category_obj["name"]
+    elif selected_brand_obj:
+        page_title = selected_brand_obj["name"]
+    else:
+        page_title = "Spare Parts"
+
+    def spare_parts_url(**overrides):
+        query = {
+            "brand": selected_brand,
+            "category": selected_category,
+            "q": search_query or None,
+            # The default ordering is left out of the URL entirely, so the canonical
+            # view of a category has one address however you arrived at it.
+            "sort": sort if sort != sap_catalog.DEFAULT_SORT else None,
+            "page": page if page > 1 else None,
+        }
+        query.update(overrides)
+        query = {k: v for k, v in query.items() if v not in (None, "", [])}
+        base = url_for("catalog.spare_parts")
+        return f"{base}?{urlencode(query)}" if query else base
+
+    def filter_url(**overrides):
+        """A filter link: same view, one facet changed, back to page 1. Any change of
+        filter is a new result set, so staying on page 12 of the old one would land
+        the shopper somewhere they never asked for."""
+        return spare_parts_url(page=None, **overrides)
+
+    def sort_url(value):
+        """This exact view, reordered - and back to page 1, because a new ordering
+        means page 7 holds different items."""
+        return spare_parts_url(
+            page=None, sort=value if value != sap_catalog.DEFAULT_SORT else None
+        )
+
+    def page_url(target):
+        # Page 1 drops the parameter rather than writing ?page=1, so the canonical
+        # first page has exactly one URL however you arrive at it.
+        return spare_parts_url(page=target if target > 1 else None)
+
+    # The rail leads with the biggest handful of each facet and keeps the rest
+    # behind a "show all" fold in the same panel. Materials sends you to a whole
+    # categories page at this point, because 824 of them are not a list anyone
+    # scrolls; 194 are, so spare parts stay on one screen rather than growing two
+    # index pages that would each hold a single short column.
+    rail_categories = sap_catalog.rail(categories, selected_category)
+    rail_brands = sap_catalog.rail(brands, selected_brand)
+    shown = {c["id"] for c in rail_categories}
+    more_categories = [c for c in categories if c["id"] not in shown]
+    shown = {b["id"] for b in rail_brands}
+    more_brands = [b for b in brands if b["id"] not in shown]
+
+    return render_template(
+        "products/spare_parts.html",
+        products=products,
+        categories=rail_categories,
+        brands=rail_brands,
+        more_categories=more_categories,
+        more_brands=more_brands,
+        category_total=len(categories),
+        brand_total=len(brands),
+        selected_brand=selected_brand,
+        selected_category=selected_category,
+        selected_brand_obj=selected_brand_obj,
+        selected_category_obj=selected_category_obj,
+        search_query=search_query,
+        page_title=page_title,
+        total=total,
+        catalogue_total=sap_catalog.total_items(SPARE_PARTS_SECTION),
+        page=page,
+        total_pages=total_pages,
+        page_numbers=sap_catalog.page_numbers(page, total_pages),
+        page_size=page_size,
+        sort=sort,
+        sort_options=sap_catalog.SORT_OPTIONS,
+        sort_url=sort_url,
+        catalog_url=spare_parts_url,
+        filter_url=filter_url,
+        page_url=page_url,
+        initials=sap_catalog.initials,
+    )
+
+
+@catalog_bp.route("/spare-parts/<int:product_id>")
+def spare_part_detail(product_id):
+    """A spare part's own page.
+
+    related_by="category" rather than machinery's "brand", for the same reason the
+    materials pages use it: 463 of the 754 parts carry one single brand and 59 more
+    carry SAP's "Unbranded" fallback, so "more from JINGUANG" is 462 unrelated parts
+    while "more Circuit Boards" is the shelf the shopper is standing at.
+    """
+    context = detail_context(product_id, SPARE_PARTS_SECTION, related_by="category")
+    if not isinstance(context, dict):
+        return context
+    return render_template("products/spare_part_detail.html", **context)
 
 
 @catalog_bp.route("/manuals")

@@ -158,6 +158,14 @@
                         <span class="mini-value">{{ '{:,}'.format(catalog.machinery) }}</span>
                         <span class="mini-label">Machinery products</span>
                     </a>
+                    {# Beside Machinery, not under it: spare parts are sold in that
+                       shop but are their own catalogue with their own page and their
+                       own nightly SAP run, so the count that matters is theirs. #}
+                    <a class="dash-mini" href="{{ url_for('admin.products', section='spare_parts') }}">
+                        <span class="mini-icon spare-parts"><i class="fas fa-screwdriver-wrench"></i></span>
+                        <span class="mini-value">{{ '{:,}'.format(catalog.spare_parts) }}</span>
+                        <span class="mini-label">Spare parts from SAP</span>
+                    </a>
                     <a class="dash-mini" href="{{ url_for('admin.products', section='materials') }}">
                         <span class="mini-icon materials"><i class="fas fa-flask"></i></span>
                         <span class="mini-value">{{ '{:,}'.format(catalog.materials) }}</span>

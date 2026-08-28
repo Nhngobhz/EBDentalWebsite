@@ -1801,6 +1801,14 @@ a.sidebar-brand:hover {
     border-color: rgba(217, 119, 6, 0.28);
     color: #b45309;
 }
+/* Slate, deliberately close to neither: spare parts are sold in the machinery shop
+   but are their own catalogue, and a pill that borrowed the machinery blue would
+   make the column it sits in useless for telling the two apart at a glance. */
+.section-pill.spare-parts {
+    background: rgba(71, 85, 105, 0.1);
+    border-color: rgba(71, 85, 105, 0.3);
+    color: #475569;
+}
 /* The pills carry their colour as a tint of the page, so on the dark theme the tint
    disappears into the surface and only the text needs lifting. */
 [data-theme="dark"] .section-pill.machinery {
@@ -1808,6 +1816,9 @@ a.sidebar-brand:hover {
 }
 [data-theme="dark"] .section-pill.materials {
     color: #fcd34d;
+}
+[data-theme="dark"] .section-pill.spare-parts {
+    color: #cbd5e1;
 }
 
 /* Quote vs order on the dashboard's list. Shaped exactly like .section-pill so the two
@@ -2269,6 +2280,9 @@ a.sidebar-brand:hover {
 }
 .mini-icon.materials {
     color: #b45309;
+}
+.mini-icon.spare-parts {
+    color: #475569;
 }
 .mini-value {
     font-size: 1.35rem;

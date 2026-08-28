@@ -157,7 +157,7 @@ SORTS = {
 }
 DEFAULT_SORT = "name"
 
-SECTIONS = ("all", "machinery", "materials")
+SECTIONS = ("all", "machinery", "spare_parts", "materials")
 
 
 @admin_bp.route("/products")

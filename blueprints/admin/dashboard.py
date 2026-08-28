@@ -145,12 +145,12 @@ def dashboard():
         # Counted through /products/count rather than by len()-ing a page: the
         # catalogue is past 8,000 rows and the biggest page store-api serves is 500,
         # so a length was a wrong number dressed as a fact.
-        for key, section in (("machinery", "machinery"), ("materials", "materials")):
-            catalog[key] = client.get(
+        for section in ("machinery", "spare_parts", "materials"):
+            catalog[section] = client.get(
                 "/products/count", params={"section": section}
             ).get("count", 0)
     except StoreAPIError:
-        catalog = {"machinery": 0, "materials": 0}
+        catalog = {"machinery": 0, "spare_parts": 0, "materials": 0}
 
     customer_count = None
     if has_permission("customer_management"):

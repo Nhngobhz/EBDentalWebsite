@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.product_name }}{% endblock %}
+
+{% block extra_css %}
+{# materials.css, on a machinery-shop page, on purpose. What that file holds is the
+   SAP-catalogue components - the .mat-* card and rail, the .md-* item page - and
+   spare parts are the second catalogue built from them. Copying it under another
+   name would be 600 duplicated lines that drift apart at the first tweak. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/materials.css') }}">
+{% endblock %}
+
+{% block content %}
+{# One spare part. The page itself is products/_sap_item_detail.html, shared with
+   materials - see that file. This template is only the machinery shop's half of
+   it: which listing the breadcrumb and the filter links point back to. #}
+{% set page_id = "sparePartDetail" %}
+{% set root_label = "Spare Parts" %}
+{% set root_url = url_for('catalog.spare_parts') %}
+{% set catalog_endpoint = "catalog.spare_parts" %}
+{% set detail_endpoint = "catalog.spare_part_detail" %}
+{% set back_label = "Back to all spare parts" %}
+{% include "products/_sap_item_detail.html" %}
+{% endblock %}
+
+{% block extra_js %}
+{% include "products/_sap_item_buy_js.html" %}
+{% endblock %}

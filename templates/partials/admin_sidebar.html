@@ -50,6 +50,10 @@
                    href="{{ url_for('admin.products', section='machinery') }}">
                     <i class="fas fa-gear"></i> Machinery
                 </a>
+                <a class="nav-item sub {{ 'active' if request.endpoint == 'admin.products' and request.args.get('section') == 'spare_parts' }}"
+                   href="{{ url_for('admin.products', section='spare_parts') }}">
+                    <i class="fas fa-screwdriver-wrench"></i> Spare Parts
+                </a>
                 <a class="nav-item sub {{ 'active' if request.endpoint == 'admin.products' and request.args.get('section') == 'materials' }}"
                    href="{{ url_for('admin.products', section='materials') }}">
                     <i class="fas fa-flask"></i> Materials

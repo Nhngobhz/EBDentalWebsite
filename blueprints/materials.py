@@ -19,33 +19,29 @@ materials.catalog, materials.categories, materials.brands, materials.detail.
 """
 from urllib.parse import urlencode
 
-import site_cache
+import sap_catalog
 from flask import Blueprint, render_template, request, url_for
 
 from blueprints.catalog import detail_context
+from sap_catalog import (
+    DEFAULT_SORT,
+    PAGE_SIZE,
+    SORT_OPTIONS,
+    SORT_VALUES,
+    initials as _initials,
+    page_numbers as _page_numbers,
+    rail as _rail,
+)
 from formatting import adapt_product, adapt_promotion
 from store_api import StoreAPIError, get_api_client
 
 materials_bp = Blueprint("materials", __name__, url_prefix="/materials")
 
 
-# How many materials cards fill one page. 24 divides evenly into the 2/3/4-column
-# grid at every breakpoint, so the last row is never a lone orphan card.
-PAGE_SIZE = 24
-
-# How many numbered page links to show at once. The materials catalog runs to ~340
-# pages; rendering one link each would be a longer list than the products.
-PAGE_WINDOW = 7
-
 # How many category tiles / brand cards the home page leads with before handing
 # over to the full index. Twelve fills three or four grid rows and stops well
 # short of the point where a "browse" turns back into a list nobody reads.
 HOME_FACET_COUNT = 12
-
-# How many of each facet the catalog's filter rail offers inline. Shorter than the
-# home page's: the rail sits beside the results and has to stay scannable at a
-# glance, and "all 824" is one click away underneath it.
-RAIL_FACET_COUNT = 10
 
 # How many deals the home page's promotion strip carries. Three or six fit its row at
 # every breakpoint; more than that and a strip meant to be read at a glance turns into
@@ -60,69 +56,14 @@ HOME_PROMO_COUNT = 6
 # because 1,671 items still have to be reachable by the only name they have.
 FALLBACK_BRAND_NAME = "Unbranded"
 
-# How the storefront lets a shopper reorder the catalog, as (value, label) pairs. The
-# values are store-api's own (schemas.ProductSort) rather than a translation, so the
-# select posts straight through to the query string it filters by.
-#
-# Deliberately short. Sorting 8,000 items is genuinely useful - by price above all,
-# which is the question a clinic ordering consumables actually asks - but a menu of ten
-# orderings is a menu nobody reads. Stock is offered because materials are the half of
-# the catalogue that HAS a stock figure (machinery never enters SAP).
-SORT_OPTIONS = (
-    ("name", "Name (A-Z)"),
-    ("price_asc", "Price: low to high"),
-    ("price_desc", "Price: high to low"),
-    ("stock_desc", "Most in stock"),
-    ("newest", "Recently added"),
-)
-SORT_VALUES = {value for value, _ in SORT_OPTIONS}
-DEFAULT_SORT = "name"
-
-# The unfiltered facet counts - every materials category and brand with the number
-# of items behind it. Three pages open with this exact figure and it moves only
-# when the SAP sync runs (nightly), so it is fetched once per site_cache.TTL
-# instead of once per visitor.
-FACETS_CACHE_KEY = ("materials_facets", "all")
-
-# How many materials there are in total, for the home page's headline figure.
-# Cached beside the facets and for the same reason - it is the same number for
-# every visitor and moves only when the SAP sync runs.
-TOTAL_CACHE_KEY = ("materials_total", "all")
+def _facets(**filters):
+    """This shop's slice of sap_catalog.facets - see there for the caching rule."""
+    return sap_catalog.facets("materials", **filters)
 
 
 def _total_items():
-    """Every purchasable, listed material.
-
-    NOT the sum of the category facet: that JOINs categories, so the 131 items
-    that arrived from SAP with no U_Sub_Group are missing from it, and the home
-    page would advertise 7,994 items over a catalogue whose own first page says
-    8,125.
-    """
-    return site_cache.cached(
-        TOTAL_CACHE_KEY,
-        lambda: get_api_client()
-        .get("/products/count", params={"section": "materials"})
-        .get("count", 0),
-    )
-
-
-def _facets(**filters):
-    """Categories and brands present in a filter set, biggest first.
-
-    See GET /products/facets in store-api. Only the unfiltered call is cached:
-    that one is asked for by every visit to the home, categories and brands pages,
-    while a filtered one is particular to whatever a single shopper has ticked, and
-    caching those would be an unbounded dictionary keyed by search strings.
-    """
-    params = {"section": "materials"}
-    params.update({k: v for k, v in filters.items() if v})
-
-    def fetch():
-        return get_api_client().get("/products/facets", params=params)
-
-    if list(params) == ["section"]:
-        return site_cache.cached(FACETS_CACHE_KEY, fetch)
-    return fetch()
+    """Every purchasable, listed material - see sap_catalog.total_items."""
+    return sap_catalog.total_items("materials")
 
 
 # Category name -> a Font Awesome glyph, first match wins. Materials arrive from
@@ -210,20 +151,6 @@ def _promoted_brands(brands, limit):
     where "Unbranded" is a legitimate thing to click.
     """
     return [b for b in brands if b["name"] != FALLBACK_BRAND_NAME][:limit]
-
-
-def _initials(name):
-    """Two letters standing in for a brand with no logo, which is most of them:
-    173 materials brands arrived from SAP's U_Brand field, and not one of them
-    brought a picture."""
-    # Punctuation is a word break, not a letter: "N/A" reads as NA, "D+Z" as DZ.
-    cleaned = "".join(c if c.isalnum() else " " for c in (name or ""))
-    words = cleaned.split()
-    if not words:
-        return "?"
-    if len(words) == 1:
-        return words[0][:2].upper()
-    return (words[0][0] + words[1][0]).upper()
 
 
 @materials_bp.route("/")
@@ -341,20 +268,6 @@ def catalog():
     )
     selected_brand_obj = next((b for b in brands if b["id"] == selected_brand), None)
 
-    def rail(buckets, selected):
-        """The biggest RAIL_FACET_COUNT, with whatever is currently chosen pinned
-        to the top of them.
-
-        The pinning is the point: "Amalgam Carriers" is one of 824 categories and
-        nowhere near the biggest, so browsing into it would otherwise leave the
-        rail showing ten categories, none of them the one you are looking at, with
-        no highlighted row anywhere to say where you are."""
-        if selected is None:
-            return buckets[:RAIL_FACET_COUNT]
-        chosen = [b for b in buckets if b["id"] == selected]
-        rest = [b for b in buckets if b["id"] != selected]
-        return chosen + rest[: RAIL_FACET_COUNT - len(chosen)]
-
     if search_query:
         page_title = f'Results for "{search_query}"'
     elif selected_category_obj:
@@ -396,17 +309,13 @@ def catalog():
         # first page has exactly one URL however you arrive at it.
         return catalog_url(page=target if target > 1 else None)
 
-    # A window that stays PAGE_WINDOW wide at both ends instead of shrinking to
-    # three links on page 1 - clamping the start alone would do that.
-    half = PAGE_WINDOW // 2
-    start = max(1, min(page - half, total_pages - PAGE_WINDOW + 1))
-    page_numbers = list(range(start, min(total_pages, start + PAGE_WINDOW - 1) + 1))
+    page_numbers = _page_numbers(page, total_pages)
 
     return render_template(
         "materials/catalog.html",
         products=products,
-        categories=rail(categories, selected_category),
-        brands=rail(brands, selected_brand),
+        categories=_rail(categories, selected_category),
+        brands=_rail(brands, selected_brand),
         category_total=len(categories),
         brand_total=len(brands),
         selected_brand=selected_brand,

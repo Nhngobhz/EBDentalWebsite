@@ -56,13 +56,14 @@
         </div>
     </div>
 
-    {# Which shop, and in what order. A strip rather than two more selects in the
-       header: the section split is the first cut anyone makes on this screen, and it
-       reads better as three tabs than as a dropdown that hides two of its three
-       states. #}
+    {# Which catalogue, and in what order. A strip rather than two more selects in
+       the header: the section split is the first cut anyone makes on this screen, and
+       it reads better as tabs than as a dropdown that hides all but one of its
+       states. Spare parts sit beside Machinery because that is the shop they are
+       sold in - they are a separate catalogue, not a separate store. #}
     <div class="table-toolbar">
         <div class="seg">
-            {% for value, label, icon in [('all', 'All', 'fa-layer-group'), ('machinery', 'Machinery', 'fa-gear'), ('materials', 'Materials', 'fa-flask')] %}
+            {% for value, label, icon in [('all', 'All', 'fa-layer-group'), ('machinery', 'Machinery', 'fa-gear'), ('spare_parts', 'Spare Parts', 'fa-screwdriver-wrench'), ('materials', 'Materials', 'fa-flask')] %}
             <a class="seg-btn {{ 'active' if section == value }}" href="{{ filter_url(section=value if value != 'all' else None) }}">
                 <i class="fas {{ icon }}"></i> {{ label }}
             </a>
@@ -125,8 +126,15 @@
                     </td>
                     <td style="font-size:0.75rem; color:var(--text-light);">{{ p.product_code or '—' }}</td>
                     <td>
+                        {# Every section named explicitly, with machinery as the
+                           fallback only for a row that has no section at all. An
+                           `{% else %}` catching the unknown ones would have quietly
+                           labelled all 754 spare parts "Machinery" - true about the
+                           shop, wrong about the catalogue, and invisible. #}
                         {% if p.section == 'materials' %}
                         <span class="section-pill materials"><i class="fas fa-flask"></i> Materials</span>
+                        {% elif p.section == 'spare_parts' %}
+                        <span class="section-pill spare-parts"><i class="fas fa-screwdriver-wrench"></i> Spare Parts</span>
                         {% else %}
                         <span class="section-pill machinery"><i class="fas fa-gear"></i> Machinery</span>
                         {% endif %}
@@ -249,10 +257,14 @@
                 <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Storefront section *</label>
                 <select name="section" id="prodSection" required style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;font-family:inherit;background:var(--surface);color:var(--text);">
                     <option value="machinery">Machinery</option>
+                    <option value="spare_parts">Spare Parts</option>
                     <option value="materials">Materials</option>
                 </select>
                 <div style="font-size:0.7rem;color:var(--text-light);margin-top:4px;">
-                    Which half of the site this product appears in. Materials come from SAP Business One.
+                    Which catalogue this product appears in. Materials and Spare Parts
+                    both come from SAP Business One and are refreshed by the nightly
+                    sync &ndash; moving a product into one hands its name, price and
+                    category to SAP.
                 </div>
             </div>
             <div class="form-group" style="margin-bottom:12px;">

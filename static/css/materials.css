@@ -6,9 +6,12 @@
  * at all, so its card is built around the text - name, item code, category, unit -
  * and treats a picture as the bonus it currently is.
  *
- * Loaded only by the templates in templates/materials/ (via {% block extra_css %},
- * not the store.css bundle), and nothing else on the site defines a .mat-/.mh-/
- * .mi-/.md- class, so the rules here are written unprefixed. They used to be
+ * Loaded by the templates in templates/materials/ AND by the spare-parts pages in
+ * templates/products/ (via {% block extra_css %}, not the store.css bundle).
+ * Spare parts are the machinery shop's SAP catalogue and are built from exactly
+ * these components - the card, the rail, the pager, the item page - so they load
+ * this file rather than growing a second copy of it that drifts. Nothing else on
+ * the site defines a .mat-/.mh-/.mi-/.md- class, so the rules here are unprefixed. They used to be
  * scoped under #materialsPage; that stopped working the moment materials became
  * five pages instead of one, because the card, the search box and the section
  * heading are shared by all of them.
@@ -25,7 +28,9 @@
 #materialsHome,
 #materialsPage,
 #materialsIndex,
-#materialsDetail {
+#materialsDetail,
+#sparePartsPage,
+#sparePartDetail {
     padding: 24px 0 64px;
 }
 
@@ -882,6 +887,47 @@ a.mh-help-card:hover {
 
 .mat-facet-more:hover {
     text-decoration: underline;
+}
+
+/* The rest of a facet, folded away in the rail itself.
+ *
+ * Where .mat-facet-more sends you to a whole index page, this keeps the remaining
+ * options in place - the spare-parts catalogue has 194 categories and 33 brands,
+ * which is a list you can scroll, unlike the 824 that earned materials an index of
+ * its own. Capped and scrollable so opening it cannot push the results grid off
+ * the bottom of the screen. */
+.mat-facet-all {
+    margin: 8px 8px 0;
+}
+
+.mat-facet-all > summary {
+    cursor: pointer;
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--accent);
+    list-style: none;
+}
+
+.mat-facet-all > summary::-webkit-details-marker {
+    display: none;
+}
+
+.mat-facet-all > summary::after {
+    content: " be";
+}
+
+.mat-facet-all[open] > summary::after {
+    content: " b4";
+}
+
+.mat-facet-all > summary:hover {
+    text-decoration: underline;
+}
+
+.mat-facet-all ul {
+    max-height: 280px;
+    overflow-y: auto;
+    margin-top: 6px;
 }
 
 /* ============================================================
