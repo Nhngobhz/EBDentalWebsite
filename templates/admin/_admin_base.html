@@ -5,18 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}Admin{% endblock %} — EB Dental Supply</title>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    {# Self-hosted, same as the storefront - see templates/base.html and
+       scripts/vendor_assets.py. The @font-face rules arrive inside the admin.css
+       bundle. #}
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="{{ url_for('static', filename='fonts/inter-latin.woff2') }}">
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="{{ url_for('static', filename='fonts/fa-solid-900.woff2') }}">
 
     <!-- Admin pages don't need home/auth/landing CSS. The rest is the "admin.css"
          bundle in assets.py - same files in the same order as the six <link> tags
          that used to be here, concatenated into one request. -->
     <link rel="stylesheet" href="{{ url_for('static', filename=css_bundle('admin.css')) }}">
     {% block extra_css %}{% endblock %}
-    <link rel="preload" as="script" href="{{ url_for('static', filename='js/main.js') }}">
+    {# Same bundle the storefront serves, not the bare js/main.js this used to point
+       at: a staff member who browsed the shop before opening the dashboard already
+       has it in cache, and admin gains nothing from a second copy under a second
+       URL. lang-dropdown.js (the bundle's other half) returns early when the header
+       it drives is absent, which on an admin page it always is. #}
+    <link rel="preload" as="script" href="{{ url_for('static', filename=js_bundle('app.js')) }}">
     <style>
         /* Ensures min-height:100vh below actually reaches the true viewport
            bottom regardless of how short the page content is. */
@@ -128,7 +133,7 @@
     </script>
     <!-- jsPDF/html2canvas are NOT loaded here anymore - QuoteCart._ensurePdfLibs()
          (main.js) injects them on demand the first time a PDF is actually exported. -->
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename=js_bundle('app.js')) }}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

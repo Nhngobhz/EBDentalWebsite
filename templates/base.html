@@ -12,15 +12,27 @@
     <title>{% block title %}{{ site_settings().store_name }}{% endblock %}{% if site_settings().store_tagline %} — {{ site_settings().store_tagline }}{% endif %}</title>
 
     {# Browser-tab icon. Same mark as the header/footer logo; url_for('static')
-       fingerprints it with ?v=<mtime>, so replacing the file updates the tab. #}
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/eb.png') }}" />
-    <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/eb.png') }}" />
+       fingerprints it with ?v=<mtime>, so replacing the file updates the tab.
+       Two sizes rather than one: both of these used to point at a 1000x1000 PNG of
+       184KB, downloaded by every browser on every page to be drawn 16 pixels wide.
+       Both files are generated from that same source by scripts/optimize_images.py. #}
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/favicon-32.png') }}" />
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/eb.png') }}" />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    {# The fonts and Font Awesome are served from this box - see
+       scripts/vendor_assets.py. They used to be two render-blocking stylesheets on
+       fonts.googleapis.com and cdnjs, which put two DNS lookups, two TLS handshakes
+       and two public-internet round trips ahead of first paint on a site whose users
+       are all on the same LAN as the server. Their @font-face rules now ride at the
+       front of the CSS bundle below, so there is no extra request at all.
+
+       These two faces are on every page (Inter is the body font, fa-solid carries
+       every icon), and the browser would otherwise only discover them after it had
+       parsed the whole bundle - so they are asked for up front. The rest of the
+       families stay undeclared on purpose: Khmer and the latin-ext cuts are only
+       pulled when a glyph on the page actually needs them. #}
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="{{ url_for('static', filename='fonts/inter-latin.woff2') }}">
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="{{ url_for('static', filename='fonts/fa-solid-900.woff2') }}">
 
     {# One concatenated bundle instead of nine <link> tags - see assets.py for what
        goes into each and why the order inside them is not negotiable. Pages that

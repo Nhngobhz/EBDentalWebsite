@@ -1287,13 +1287,17 @@ const QuoteCart = {
     // needed for PDF export, so they're injected here on first use. The promise is
     // cached so repeated exports load them once; on failure it's cleared so a retry
     // can attempt the download again.
+    //
+    // Served from /static/vendor/ rather than cdnjs (see scripts/vendor_assets.py):
+    // still lazy, but "export this quote as a PDF" now works on a box with no route
+    // to the internet, which is the normal state of the office this runs in.
     _pdfLibsPromise: null,
     _ensurePdfLibs() {
         if (window.jspdf && window.html2canvas) return Promise.resolve();
         if (!this._pdfLibsPromise) {
             const urls = [
-                'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-                'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+                '/static/vendor/jspdf.umd.min.js',
+                '/static/vendor/html2canvas.min.js',
             ];
             this._pdfLibsPromise = Promise.all(urls.map(src => new Promise((resolve, reject) => {
                 const script = document.createElement('script');
@@ -1564,7 +1568,7 @@ const QuoteCart = {
         if (!this._qrLibPromise) {
             this._qrLibPromise = new Promise((resolve, reject) => {
                 const script = document.createElement('script');
-                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+                script.src = '/static/vendor/qrcode.min.js';
                 script.onload = resolve;
                 script.onerror = () => reject(new Error('Failed to load qrcode.js'));
                 document.head.appendChild(script);

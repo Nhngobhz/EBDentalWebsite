@@ -1618,10 +1618,140 @@ a.sidebar-brand:hover {
 .status-chip.off .status-chip-value i { color: var(--text-light); }
 .status-chip.off .status-chip-value { color: var(--text-soft); font-weight: 500; }
 
+/* Catalogue Sync tab (templates/admin/_sap_sync_panel.html): the controls, the state of
+   the run, its live console output and the reports each run leaves behind. */
+.sap-sync-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px 18px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+.sap-sync-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-soft);
+}
+.sap-sync-field select {
+    padding: 8px 11px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.82rem;
+    font-family: inherit;
+    min-width: 190px;
+}
+.sap-sync-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.sap-sync-buttons button[disabled] {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.sap-sync-status,
+.sap-sync-alert {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-top: 16px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    font-size: 0.8rem;
+    color: var(--text);
+    line-height: 1.5;
+}
+.sap-sync-status strong {
+    display: block;
+    font-size: 0.85rem;
+}
+.sap-sync-meta {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--text-soft);
+    margin-top: 2px;
+}
+.sap-sync-status i { margin-top: 2px; }
+.sap-sync-status.ok i { color: var(--success); }
+.sap-sync-status.running i { color: var(--accent); }
+.sap-sync-status.danger,
+.sap-sync-alert.danger {
+    border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+}
+.sap-sync-status.danger i,
+.sap-sync-alert.danger i { color: var(--danger); }
+.sap-sync-status.idle i { color: var(--text-light); }
+/* The failure message is the script's own last lines, so it keeps its line breaks -
+   "Refusing to delist 7,900 of 8,127 products" reads as one paragraph otherwise. */
+.sap-sync-error {
+    margin: 8px 0 0;
+    white-space: pre-wrap;
+    font-size: 0.72rem;
+    color: var(--danger);
+    font-family: inherit;
+}
+
+/* The run's console output while it happens. Fixed height and scrolled rather than
+   growing the page: it ends with the whole report, which is hundreds of lines, and a tab
+   that lengthens under you as it runs is unusable. */
+.sap-sync-output {
+    margin: 12px 0 0;
+    max-height: 260px;
+    overflow: auto;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text-soft);
+    font-size: 0.7rem;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.sap-sync-report {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    margin-bottom: 8px;
+}
+.sap-sync-report > summary {
+    cursor: pointer;
+    padding: 10px 14px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text);
+}
+.sap-sync-report > pre {
+    margin: 0;
+    padding: 0 14px 14px;
+    max-height: 420px;
+    overflow: auto;
+    font-size: 0.7rem;
+    line-height: 1.6;
+    color: var(--text-soft);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
 @media (max-width: 640px) {
     .setting-row {
         grid-template-columns: 1fr;
         gap: 6px;
+    }
+    .sap-sync-field select,
+    .sap-sync-buttons,
+    .sap-sync-buttons button {
+        width: 100%;
     }
 }
 

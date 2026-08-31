@@ -6,6 +6,7 @@ templates + routes are merged with the real backend"). No local data/ folder any
 every page fetches live from store-api.
 """
 import gzip
+import mimetypes
 import os
 import time
 from datetime import timedelta
@@ -197,6 +198,15 @@ def create_app():
     # so browsers can safely cache them for a long time - an edited file gets a new
     # mtime, hence a new URL, and is re-fetched immediately.
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 60 * 60 * 24 * 30
+
+    # Windows keeps its MIME table in the registry, and a stock Windows Server has no
+    # entry for .woff2 - so Python's `mimetypes` guesses application/octet-stream and
+    # Flask serves the self-hosted fonts under it. Browsers sniff the file and render
+    # it anyway, but a <link rel=preload as=font> whose response arrives with a
+    # mismatched type is discarded and fetched a second time, which turns the preload
+    # into a pessimisation. Registered here so it holds regardless of what the host
+    # registry says.
+    mimetypes.add_type("font/woff2", ".woff2")
 
     _static_version_cache = {}
 

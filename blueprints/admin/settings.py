@@ -12,7 +12,7 @@ separate jobs. store-api re-checks the same permission on every read and write, 
 decorator is the UX layer, not the security boundary.
 """
 import site_cache
-from flask import flash, redirect, render_template, request, url_for
+from flask import flash, jsonify, redirect, render_template, request, url_for
 
 from auth import permission_required
 from blueprints.admin import admin_bp
@@ -51,6 +51,16 @@ def settings():
         flash(e.detail, "error")
         qr_codes = []
 
+    # The "Catalogue Sync" tab. Its first paint comes from here so the panel is already
+    # filled in when the page opens - after that it polls the two JSON routes below. A
+    # store-api that is up enough to have served the settings above can still fail this
+    # one (an older build with no /sap-sync), and that is not a reason to lose the whole
+    # Settings screen, so it degrades to a panel that says so.
+    try:
+        sap_sync = client.get("/sap-sync/status", params={"include_reports": "true"})
+    except StoreAPIError as e:
+        sap_sync = {"error": e.detail}
+
     return render_template(
         "admin/settings.html",
         groups=data["groups"],
@@ -58,6 +68,7 @@ def settings():
         defaults=data["defaults"],
         status=data["status"],
         qr_codes=qr_codes,
+        sap_sync=sap_sync,
         # Which tab to reopen after a save redirect, so an admin who saves the
         # "Quote & Invoice" group isn't bounced back to "Store & Contact".
         active_group=request.args.get("group") or data["groups"][0]["id"],
@@ -134,3 +145,46 @@ def settings_reset(group_id):
     site_cache.invalidate(SITE_SETTINGS_CACHE_KEY)
     flash("Settings restored to their defaults.", "success")
     return redirect(url_for("admin.settings", group=group_id))
+
+
+# --- Catalogue Sync tab -------------------------------------------------------------
+# JSON rather than the post-and-redirect the rest of this screen uses, because the job
+# outlives the request: a sync of ~8,000 items takes minutes, so the button starts it and
+# the panel polls. Both routes are pass-throughs to store-api, which owns the run (see
+# its app/services/sap_sync_runner.py) - nothing about the sync is decided here.
+
+
+@admin_bp.route("/settings/sap-sync/status")
+@permission_required(SETTINGS_PERMISSION)
+def sap_sync_status():
+    client = get_api_client()
+    # The full report text is thousands of words; the panel asks for it when it loads and
+    # when a run ends, and polls without it in between.
+    include = "true" if request.args.get("reports") else "false"
+    try:
+        return jsonify(client.get("/sap-sync/status", params={"include_reports": include}))
+    except StoreAPIError as e:
+        return jsonify({"detail": e.detail}), (e.status_code or 502)
+
+
+@admin_bp.route("/settings/sap-sync/run", methods=["POST"])
+@permission_required(SETTINGS_PERMISSION)
+def sap_sync_run():
+    payload = request.get_json(silent=True) or {}
+    client = get_api_client()
+    try:
+        return jsonify(
+            client.post_json(
+                "/sap-sync/run",
+                {
+                    "catalogue": payload.get("catalogue") or "all",
+                    # Explicitly, and defaulting to a dry run: a missing or misspelled
+                    # flag then previews the run instead of repricing the catalogue.
+                    "apply": bool(payload.get("apply")),
+                },
+            )
+        )
+    except StoreAPIError as e:
+        # 409 (one is already running) reaches the panel as its own message rather than
+        # a generic failure - see SapSyncBusy in store-api.
+        return jsonify({"detail": e.detail}), (e.status_code or 400)

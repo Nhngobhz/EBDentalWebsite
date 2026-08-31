@@ -278,6 +278,20 @@ actually require - if you add a new admin page, add its link there inside
 the correctly-permissioned `<div class="nav-group">`, not a new ungated
 one.
 
+**When a screen starts a job rather than saving a record** (added 2026-08-31,
+Settings → Catalogue Sync, `templates/admin/_sap_sync_panel.html`): the
+post-and-redirect shape above does not fit, because the work outlives the
+request - a SAP catalogue sync takes minutes, and a form submit would sit on a
+white page until a proxy timeout made a working run look like a failed one. So
+that panel does the other thing: two thin JSON routes in
+`blueprints/admin/settings.py` (`sap_sync_run`, `sap_sync_status`) pass straight
+through to store-api's `/sap-sync`, the button `fetch`es the first, and the page
+polls the second every 3 seconds while a run is going. The first paint is still
+server-rendered - the `sap_sync` document the view already fetched - so the panel
+is filled in before any JS runs, and a run someone started in another browser is
+picked up on load. Copy that shape for any future "run it now" button; do not
+give a long job a form.
+
 ## 4. Quotes/Orders - the one non-CRUD flow
 
 This is the most involved part of the app; read this before touching

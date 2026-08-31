@@ -16,11 +16,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Back soon — {{ site_settings().store_name or 'EB Dental Supply' }}</title>
-    <link rel="icon" href="{{ url_for('static', filename='images/eb.png') }}" />
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/favicon-32.png') }}" />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+    {# Self-hosted fonts (scripts/vendor_assets.py). This page in particular must not
+       depend on the internet: it is what visitors see while the site is being worked
+       on, and "the API is down" and "the office link is down" are not rare together.
+       Linked directly rather than through a bundle - this page deliberately doesn't
+       extend base.html, and two small files beat pulling in the whole storefront CSS. #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/fonts.css') }}">
     {# base.css alone: this page needs the colour tokens and nothing else. #}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     <style>

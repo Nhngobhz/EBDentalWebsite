@@ -1,0 +1,242 @@
+{#
+  The "Catalogue Sync" tab on the Settings screen.
+
+  Starts store-api's SAP item sync (its scripts/sap_sync.py, the same job Task Scheduler
+  runs at 02:30) and watches it. Everything below is rendered from one status document -
+  first from `sap_sync`, painted server-side so the panel is already filled in when the
+  page opens, and after that from the two JSON routes in blueprints/admin/settings.py,
+  which the JS polls while a run is going.
+
+  Not post-and-redirect like the rest of this screen, because the job outlives the
+  request: a full sync of ~8,000 items takes minutes, and a form submit would sit on a
+  white page until a gateway timeout made a working run look like a broken one.
+
+  Included once by admin/settings.html, so the ids below stay unique on the page.
+#}
+<div class="dash-card">
+    <div class="card-header">
+        <div>
+            <h5><i class="fas fa-rotate"></i> SAP Catalogue Sync</h5>
+            <p class="settings-blurb">
+                Brings <strong>Materials</strong> and <strong>Spare parts</strong> into line with
+                SAP: names, prices, units, brands and categories, plus hiding anything SAP has
+                stopped offering. Photographs, descriptions, badges and discounts are set here and
+                are never touched by a sync. Runs on its own each night — this is for when you
+                need the change now.
+            </p>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if sap_sync.error %}
+        {# store-api answered the rest of this screen but not this endpoint - an older
+           build, most likely. Say so plainly instead of showing dead buttons. #}
+        <div class="sap-sync-alert danger">
+            <i class="fas fa-triangle-exclamation"></i>
+            <div>Catalogue sync is unavailable: {{ sap_sync.error }}</div>
+        </div>
+        {% else %}
+        <div class="sap-sync-controls">
+            <label class="sap-sync-field">
+                <span>Catalogue</span>
+                <select id="sapSyncCatalogue">
+                    {% for c in sap_sync.catalogues %}
+                    <option value="{{ c.value }}">{{ c.label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <div class="sap-sync-buttons">
+                {# Preview first, and it is the plain button: it does the entire run and rolls
+                   it back, so "what would this change?" is answerable without changing
+                   anything. The one that writes is the one that asks. #}
+                <button type="button" class="btn-dash outline" id="sapSyncDryRun" onclick="sapSyncStart(false)">
+                    <i class="fas fa-eye"></i> Preview changes
+                </button>
+                <button type="button" class="btn-dash primary" id="sapSyncApply" onclick="sapSyncStart(true)">
+                    <i class="fas fa-rotate"></i> Run sync now
+                </button>
+            </div>
+        </div>
+
+        <div id="sapSyncStatus" class="sap-sync-status"></div>
+        <pre id="sapSyncOutput" class="sap-sync-output" hidden></pre>
+        <div id="sapSyncReports" class="sap-sync-reports"></div>
+        {% endif %}
+    </div>
+</div>
+
+{% if not sap_sync.error %}
+<script>
+    // The status document, in the shape store-api's GET /sap-sync/status returns. The
+    // first one is painted by Flask; every later one replaces it.
+    let sapSyncState = {{ sap_sync|tojson }};
+    let sapSyncTimer = null;
+
+    function sapSyncFmtTime(iso) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        return isNaN(d) ? iso : d.toLocaleString();
+    }
+
+    function sapSyncFmtDuration(seconds) {
+        if (seconds === null || seconds === undefined) return '';
+        if (seconds < 60) return `${Math.round(seconds)}s`;
+        return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
+    }
+
+    function sapSyncRender() {
+        const run = sapSyncState.run;
+        const running = !!sapSyncState.running;
+        const statusEl = document.getElementById('sapSyncStatus');
+        const outputEl = document.getElementById('sapSyncOutput');
+
+        document.getElementById('sapSyncDryRun').disabled = running;
+        document.getElementById('sapSyncApply').disabled = running;
+        document.getElementById('sapSyncCatalogue').disabled = running;
+
+        if (!run) {
+            statusEl.className = 'sap-sync-status idle';
+            statusEl.innerHTML =
+                '<i class="fas fa-circle-minus"></i><div>No sync has been run from here yet.' +
+                ' Reports from the nightly run appear below.</div>';
+        } else {
+            const tone = running ? 'running' : (run.state === 'succeeded' ? 'ok' : 'danger');
+            const icon = running ? 'fa-spinner fa-spin'
+                : (run.state === 'succeeded' ? 'fa-circle-check' : 'fa-circle-exclamation');
+            const what = `${run.catalogue_label} · ${run.apply ? 'applied' : 'preview only'}`;
+            const when = running
+                ? `started ${sapSyncFmtTime(run.started_at)}`
+                : `finished ${sapSyncFmtTime(run.finished_at)} · took ${sapSyncFmtDuration(run.duration_seconds)}`;
+            const headline = running ? 'Running…'
+                : (run.state === 'succeeded'
+                    ? (run.apply ? 'Sync complete' : 'Preview complete — nothing was written')
+                    : 'Sync failed');
+
+            statusEl.className = 'sap-sync-status ' + tone;
+            // textContent for anything the server produced (item names, SQL errors); the
+            // markup around it is built here.
+            statusEl.innerHTML =
+                `<i class="fas ${icon}"></i>` +
+                '<div><strong class="sap-sync-headline"></strong>' +
+                '<span class="sap-sync-meta"></span>' +
+                '<pre class="sap-sync-error" hidden></pre></div>';
+            statusEl.querySelector('.sap-sync-headline').textContent = headline;
+            statusEl.querySelector('.sap-sync-meta').textContent =
+                `${what} · ${when}${run.started_by ? ' · by ' + run.started_by : ''}`;
+            const errorEl = statusEl.querySelector('.sap-sync-error');
+            errorEl.hidden = !run.error;
+            errorEl.textContent = run.error || '';
+
+            const lines = run.output || [];
+            outputEl.hidden = lines.length === 0;
+            const stuck = outputEl.scrollHeight - outputEl.scrollTop - outputEl.clientHeight < 40;
+            outputEl.textContent = lines.join('\n');
+            // Follow the tail while it runs, unless the admin has scrolled up to read
+            // something - then leave them where they are.
+            if (running && stuck) outputEl.scrollTop = outputEl.scrollHeight;
+        }
+
+        sapSyncRenderReports();
+    }
+
+    function sapSyncRenderReports() {
+        const host = document.getElementById('sapSyncReports');
+        const reports = sapSyncState.reports || [];
+        host.innerHTML = '';
+        if (!reports.length) return;
+
+        const heading = document.createElement('p');
+        heading.className = 'settings-blurb';
+        heading.style.margin = '18px 0 8px';
+        heading.textContent = 'Latest run reports — what each catalogue actually changed, '
+            + 'including anything skipped and why. Written by every run, scheduled or manual.';
+        host.appendChild(heading);
+
+        reports.forEach((report) => {
+            const details = document.createElement('details');
+            details.className = 'sap-sync-report';
+            const summary = document.createElement('summary');
+            summary.textContent = `${report.label} — ${sapSyncFmtTime(report.modified_at)}`;
+            details.appendChild(summary);
+            const body = document.createElement('pre');
+            // Markdown, shown as the plain text it is: these reports are read once after
+            // a run, and rendering them would mean shipping a parser to do it.
+            body.textContent = report.text || 'Open the tab again to load this report.';
+            details.appendChild(body);
+            host.appendChild(details);
+        });
+    }
+
+    async function sapSyncFetchStatus(withReports) {
+        const url = '{{ url_for("admin.sap_sync_status") }}' + (withReports ? '?reports=1' : '');
+        const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || 'Could not read the sync status.');
+        // A poll without reports carries none - keep the ones already on the page rather
+        // than blanking the panel every 3 seconds.
+        if (!withReports && sapSyncState.reports) data.reports = sapSyncState.reports;
+        sapSyncState = data;
+        return data;
+    }
+
+    function sapSyncPoll() {
+        clearTimeout(sapSyncTimer);
+        sapSyncTimer = setTimeout(async () => {
+            try {
+                const wasRunning = sapSyncState.running;
+                await sapSyncFetchStatus(false);
+                if (sapSyncState.running) {
+                    sapSyncRender();
+                    sapSyncPoll();
+                } else {
+                    // It just finished: pick the fresh reports up in one final call.
+                    if (wasRunning) await sapSyncFetchStatus(true);
+                    sapSyncRender();
+                }
+            } catch (err) {
+                // A poll that fails is usually store-api being restarted mid-run. Keep
+                // trying rather than freezing the panel on a stale "Running…".
+                sapSyncPoll();
+            }
+        }, 3000);
+    }
+
+    async function sapSyncStart(apply) {
+        const catalogue = document.getElementById('sapSyncCatalogue');
+        const label = catalogue.options[catalogue.selectedIndex].text;
+        if (apply) {
+            const ok = await ebConfirm(
+                `Sync ${label} from SAP now? Names, prices, units, brands and categories are `
+                + 'overwritten from SAP, and anything SAP no longer offers is hidden from the '
+                + 'shop. Photos, descriptions and discounts are left alone.',
+                { title: 'Run the catalogue sync', tone: 'warning', confirmText: 'Run sync' }
+            );
+            if (!ok) return;
+        }
+
+        document.getElementById('sapSyncDryRun').disabled = true;
+        document.getElementById('sapSyncApply').disabled = true;
+        try {
+            const response = await fetch('{{ url_for("admin.sap_sync_run") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ catalogue: catalogue.value, apply: apply }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || 'The sync could not be started.');
+            data.reports = sapSyncState.reports;
+            sapSyncState = data;
+            sapSyncRender();
+            sapSyncPoll();
+        } catch (err) {
+            sapSyncRender();  // re-enables the buttons
+            ebAlert(err.message, { title: 'Catalogue sync' });
+        }
+    }
+
+    sapSyncRender();
+    // A run started from another browser (or still going from before this page loaded)
+    // is picked up on its own - the panel is a view of the server's one run, not of
+    // whatever this tab started.
+    if (sapSyncState.running) sapSyncPoll();
+</script>
+{% endif %}

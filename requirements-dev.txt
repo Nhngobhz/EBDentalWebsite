@@ -1,0 +1,19 @@
+# Build-time only. The app never imports any of these, so they are deliberately NOT
+# in requirements.txt - the server's venv should not carry a font compiler and an
+# image library it will never call.
+#
+# Install them on whichever machine regenerates the assets:
+#     python -m pip install -r requirements-dev.txt
+#     python scripts/vendor_assets.py
+#     python scripts/optimize_images.py
+#
+# Both scripts' outputs are committed, so a deploy needs neither these packages nor
+# an internet connection.
+
+# scripts/vendor_assets.py - subsets the Font Awesome webfonts to the icons in use.
+# brotli is what fonttools uses to write woff2; without it the subset step fails.
+fonttools
+brotli
+
+# scripts/optimize_images.py - re-encodes static/images at display size.
+pillow

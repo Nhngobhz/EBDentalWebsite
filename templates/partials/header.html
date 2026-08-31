@@ -43,16 +43,16 @@
     <div class="header-right">
         <div class="lang-dropdown" id="langDropdown">
     <button class="lang-dropdown-btn" id="langDropdownBtn" type="button">
-        <img src="https://flagcdn.com/w40/gb.png" alt="EN" id="langFlagIcon" />
+        <img src="{{ url_for('static', filename='images/flags/gb.png') }}" alt="EN" id="langFlagIcon" width="40" height="30" />
         <span id="langLabel">EN</span>
         <i class="fas fa-chevron-down" style="font-size:0.7rem;"></i>
     </button>
     <div class="lang-dropdown-menu" id="langDropdownMenu">
-        <button type="button" class="lang-option" data-lang="en" data-flag="https://flagcdn.com/w40/gb.png" >
-            <img src="https://flagcdn.com/w40/gb.png" alt="EN" /> English
+        <button type="button" class="lang-option" data-lang="en" data-flag="{{ url_for('static', filename='images/flags/gb.png') }}" >
+            <img src="{{ url_for('static', filename='images/flags/gb.png') }}" alt="EN" /> English
         </button>
-        <button type="button" class="lang-option" data-lang="km" data-flag="https://flagcdn.com/w40/kh.png" >
-            <img src="https://flagcdn.com/w40/kh.png" alt="KH" /> Khmer
+        <button type="button" class="lang-option" data-lang="km" data-flag="{{ url_for('static', filename='images/flags/kh.png') }}" >
+            <img src="{{ url_for('static', filename='images/flags/kh.png') }}" alt="KH" /> Khmer
         </button>
     </div>
 </div>
