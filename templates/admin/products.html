@@ -395,9 +395,9 @@
     // Only the rows on this page - the modal seeds from whatever row was clicked, and
     // nothing else on the screen reads this.
     const PRODUCTS_DATA = {{ products_json|tojson }};
-    {# The "Comes With (Free)" dropdowns pick from the whole catalogue, not from this
-       page's 50 rows - see admin.products' bundle_options. #}
-    const BUNDLE_PRODUCTS = {{ bundle_options|tojson }};
+    {# The "Comes With (Free)" picker searches the whole catalogue, not this page's
+       50 rows and not a 500-row list embedded here - see ebProductPicker. #}
+    const PRODUCT_SEARCH_URL = {{ url_for('admin.products_search')|tojson }};
     {% if has_permission('product_management') %}
     const PRODUCT_NEW_URL = {{ url_for('admin.products_new')|tojson }};
     {% endif %}

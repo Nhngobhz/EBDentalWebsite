@@ -4,7 +4,7 @@ from flask import flash, redirect, render_template, request, url_for
 
 from auth import permission_required
 from blueprints.admin import admin_bp, bundle_items_from_form
-from formatting import adapt_product, adapt_set
+from formatting import adapt_set
 from store_api import StoreAPIError, get_api_client
 
 
@@ -101,14 +101,12 @@ def _upload_set_images(client, set_id):
 def sets():
     client = get_api_client()
     raw_sets = client.get("/sets/", params={"limit": 200})
-    # The full catalog feeds the modal's "Included Products" picker.
-    # include_unpurchasable: a bundle may legitimately contain a gift-only product.
-    products = client.get("/products/", params={"limit": 500, "include_unpurchasable": "true"})
+    # No product list travels with this page - see the same note in promotions();
+    # both modals search the catalogue through admin.products_search instead.
     brands = client.get("/brands/", params={"limit": 200})
     return render_template(
         "admin/sets.html",
         sets=[adapt_set(s) for s in raw_sets],
-        products=[adapt_product(p) for p in products],
         brands=brands,
     )
 

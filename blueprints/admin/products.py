@@ -1,10 +1,10 @@
 from urllib.parse import urlencode
 
-from flask import flash, redirect, render_template, request, url_for
+from flask import flash, jsonify, redirect, render_template, request, url_for
 
 from auth import permission_required
 from blueprints.admin import admin_bp, bundle_items_from_form
-from formatting import adapt_product
+from formatting import adapt_product, to_number
 from store_api import StoreAPIError, get_api_client
 
 
@@ -223,22 +223,6 @@ def products():
     brands = client.get("/brands/", params={"limit": 200})
     categories = client.get_all("/categories/")
 
-    # The catalogue behind the modal's "Comes With (Free)" picker. Its own fetch,
-    # because that list must not shrink to whatever 50 rows this page happens to be
-    # showing - a bundle is built by searching the whole catalogue.
-    #
-    # KNOWN LIMITATION: 500 is the server's maximum page, so the picker offers the
-    # first 500 by name across both sections. Unchanged from before this screen was
-    # paged; a free-item list is a machinery feature in practice, and machinery is
-    # ~110 products.
-    bundle_options = [
-        {"id": p["id"], "product_name": p["product_name"], "product_code": p.get("product_code")}
-        for p in client.get(
-            "/products/",
-            params={"limit": 500, "include_unpurchasable": "true", "section": "all"},
-        )
-    ]
-
     def products_url(**overrides):
         query = {
             "q": search_query or None,
@@ -272,7 +256,6 @@ def products():
     return render_template(
         "admin/products.html",
         products=products_list,
-        bundle_options=bundle_options,
         brands=brands,
         categories=categories,
         search_query=search_query,
@@ -288,6 +271,92 @@ def products():
         filter_url=filter_url,
         page_url=page_url,
     )
+
+
+# How many matches one picker search hands back. Small on purpose: this is a
+# type-to-narrow list you read at a glance, not a page of the catalogue. One extra
+# row is fetched beyond it purely to know whether to say "keep typing".
+SEARCH_LIMIT = 25
+
+# The ceiling on the `ids` lookup, which resolves ids a bundle already holds into
+# names and prices. Each id is a separate store-api call, and no bundle on this site
+# is anywhere near this long - it is a bound on a URL a browser composes, not a
+# feature.
+MAX_LOOKUP_IDS = 40
+
+
+def _picker_row(product):
+    """One product as the bundle picker needs it: enough to recognise it by and to
+    price an upgrade with, and nothing else. `price` comes through to_number, so a
+    staffer without price access gets the masked sentinel rather than a real figure -
+    the picker just shows no price then."""
+    return {
+        "id": product["id"],
+        "product_name": product["product_name"],
+        "product_code": product.get("product_code"),
+        "uom": product.get("uom"),
+        "section": product.get("section") or "machinery",
+        "price": to_number(product.get("price")),
+    }
+
+
+@admin_bp.route("/products/search")
+@permission_required("product_management")
+def products_search():
+    """The catalogue behind every admin bundle picker, searched one query at a time.
+
+    The pickers used to be <select>s filled from a single `limit=500` fetch embedded
+    in the page. That was fine at ~110 machinery products and became wrong the moment
+    the SAP import landed: 500 of 8,000+ rows alphabetically means the list opens on
+    materials whose names begin with a quote character, and no machinery product is
+    reachable at all - which is exactly what the "Comes With (Free)" picker was
+    showing.
+
+    Two modes, one route:
+      ?q=&section=   the search itself - what the admin types.
+      ?ids=1,2,3     resolve ids a bundle already holds into names/prices, so an
+                     existing row renders as the product it is rather than as a
+                     number. An id that no longer exists is skipped rather than
+                     failing the lookup - a product can be deleted out from under a
+                     bundle that still lists it.
+
+    include_unpurchasable: gift-only products exist to be put in these lists, so the
+    one picker that must offer them is this one. Delisted products stay out of the
+    search (nothing new should be built out of a withdrawn item) but are still
+    resolved by id, since one may already be in the bundle being edited.
+    """
+    client = get_api_client()
+
+    ids = request.args.get("ids", "")
+    if ids:
+        products = []
+        for raw in ids.split(",")[:MAX_LOOKUP_IDS]:
+            raw = raw.strip()
+            if not raw.isdigit():
+                continue
+            try:
+                products.append(client.get(f"/products/{int(raw)}"))
+            except StoreAPIError:
+                continue
+        return jsonify({"products": [_picker_row(p) for p in products], "more": False})
+
+    section = request.args.get("section", "all")
+    if section not in SECTIONS:
+        section = "all"
+    rows = client.get(
+        "/products/",
+        params={
+            "q": request.args.get("q", "").strip() or None,
+            "section": section,
+            "include_unpurchasable": "true",
+            "sort": "name",
+            "limit": SEARCH_LIMIT + 1,
+        },
+    )
+    return jsonify({
+        "products": [_picker_row(p) for p in rows[:SEARCH_LIMIT]],
+        "more": len(rows) > SEARCH_LIMIT,
+    })
 
 
 @admin_bp.route("/products/new", methods=["POST"])

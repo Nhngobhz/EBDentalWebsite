@@ -170,13 +170,9 @@
     {% endfor %}
     const PROMOS_DATA = {{ promos_json|tojson }};
     const PROMO_NEW_URL = {{ url_for('admin.promotions_new')|tojson }};
-    {# Feeds the "Included Products" dropdowns - see ebBundlePicker in main.js.
-       Slimmed to what the dropdown labels need; prices/images aren't wanted here. #}
-    {% set product_options = [] %}
-    {% for p in products %}
-    {% set _ = product_options.append({'id': p.id, 'product_name': p.product_name, 'product_code': p.product_code}) %}
-    {% endfor %}
-    const BUNDLE_PRODUCTS = {{ product_options|tojson }};
+    {# The "Included Products" picker searches the catalogue as you type rather
+       than choosing from a list shipped with the page - see ebProductPicker. #}
+    const PRODUCT_SEARCH_URL = {{ url_for('admin.products_search')|tojson }};
 
     function openPromoModal(promoId) {
         const promo = promoId ? PROMOS_DATA.find(p => p.id === promoId) : null;

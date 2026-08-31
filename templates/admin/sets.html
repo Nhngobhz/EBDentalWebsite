@@ -174,15 +174,10 @@
     {% endfor %}
     const SETS_DATA = {{ sets_json|tojson }};
     const SET_NEW_URL = {{ url_for('admin.sets_new')|tojson }};
-    {# Feeds the "Included Products" dropdowns - see ebBundlePicker in main.js.
-       Slimmed to what the dropdown labels need; prices/images aren't wanted here. #}
-    {% set product_options = [] %}
-    {% for p in products %}
-    {# `price` is extra on this page only: the upgrade editor shows what an
-       "auto" upcharge currently works out to (see ebOptionGroupPicker). #}
-    {% set _ = product_options.append({'id': p.id, 'product_name': p.product_name, 'product_code': p.product_code, 'price': p.price}) %}
-    {% endfor %}
-    const BUNDLE_PRODUCTS = {{ product_options|tojson }};
+    {# Both pickers on this page - "Included Products" and the upgrade slots -
+       search the catalogue as you type. Prices for the "auto (…)" upcharge hints
+       come back with those searches (see ebProductPicker). #}
+    const PRODUCT_SEARCH_URL = {{ url_for('admin.products_search')|tojson }};
 
     function openSetModal(setId) {
         const set_ = setId ? SETS_DATA.find(s => s.id === setId) : null;

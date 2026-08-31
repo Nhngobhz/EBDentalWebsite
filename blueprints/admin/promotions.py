@@ -4,7 +4,7 @@ from flask import flash, redirect, render_template, request, url_for
 
 from auth import permission_required
 from blueprints.admin import admin_bp, bundle_items_from_form
-from formatting import adapt_product, adapt_promotion
+from formatting import adapt_promotion
 from store_api import StoreAPIError, get_api_client
 
 
@@ -73,20 +73,11 @@ def promotions():
         promo["start_date_short"] = _iso_to_date(promo["start_date"])
         promo["end_date_short"] = _iso_to_date(promo["end_date"])
         promos.append(promo)
-    # The full catalog feeds the modal's "Included Products" picker.
-    # include_unpurchasable: a bundle may legitimately contain a gift-only product.
-    # section=all: a deal is advertised in one shop, but nothing stops it from
-    # containing an item out of the other - a scanner bundled with its consumables is
-    # the obvious case - so the picker offers both and labels which is which.
-    products = client.get(
-        "/products/",
-        params={"limit": 500, "include_unpurchasable": "true", "section": "all"},
-    )
-    return render_template(
-        "admin/promotions.html",
-        promotions=promos,
-        products=[adapt_product(p) for p in products],
-    )
+    # No product list travels with this page: the modal's "Included Products" picker
+    # searches the catalogue as you type (admin.products_search). It used to embed the
+    # first 500 products here, which stopped meaning "the catalogue" the moment the
+    # SAP import took it past 8,000 rows.
+    return render_template("admin/promotions.html", promotions=promos)
 
 
 @admin_bp.route("/promotions/new", methods=["POST"])

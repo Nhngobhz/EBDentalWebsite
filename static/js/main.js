@@ -2205,6 +2205,353 @@ document.addEventListener('change', (e) => {
 });
 
 /* ------------------------------------------------------------
+   PRODUCT PICKER (admin) — one searchable combobox over the whole
+   catalogue, used everywhere a bundle row has to name a product.
+
+   It replaces a <select> that was filled from a single limit=500
+   fetch embedded in the page. That was a complete list while the
+   catalogue was ~110 machines; after the SAP import it was 500 of
+   8,000+ rows in name order, so every picker opened on materials
+   whose names begin with a quote character and no machinery
+   product could be reached at all.
+
+   So the list is searched server-side, one query at a time, and
+   the browser never holds the catalogue. Needs PRODUCT_SEARCH_URL
+   on the page (admin.products_search).
+
+   What is chosen lives in a hidden input carrying whatever class
+   the caller asks for (.bundle-row-product / .option-choice-product)
+   and fires `change` when it moves, so ebBundlePicker and
+   ebOptionGroupPicker keep reading it exactly as they read the
+   <select> it replaced.
+------------------------------------------------------------- */
+const ebProductPicker = {
+    /* Everything the picker has seen this page-load, id -> row. Filled by
+       searches and by lookup(), and read for the labels and prices of products
+       already sitting in a bundle - the two things a bare id cannot render. */
+    _cache: new Map(),
+    _searchDelay: 200,
+    _openPicker: null,
+
+    _url() {
+        return (typeof PRODUCT_SEARCH_URL !== 'undefined' && PRODUCT_SEARCH_URL) || '';
+    },
+
+    /* `partial` marks a row that came down inside a bundle rather than from a
+       search: it carries a name and a code but no price, which is enough to render
+       the row and not enough to price an upgrade against. Such a row never
+       overwrites a full one, and lookup() below treats it as still missing. */
+    _remember(product, partial) {
+        if (!product || product.id == null) return product;
+        const key = String(product.id);
+        const known = this._cache.get(key);
+        if (partial && known && !known._partial) return known;
+        this._cache.set(key, { ...product, _partial: !!partial });
+        return product;
+    },
+
+    get(productId) {
+        return this._cache.get(String(productId)) || null;
+    },
+
+    /* The price of a product the picker has seen, or null - null meaning "not
+       known", never "free". ebOptionGroupPicker shows an upcharge hint only when
+       both ends of the comparison answer a real number. */
+    priceOf(productId) {
+        const found = this.get(productId);
+        return found && typeof found.price === 'number' ? found.price : null;
+    },
+
+    /* Resolve ids already sitting in a bundle into full rows. One request for
+       whatever is still unknown; resolves once the cache holds them, so a caller
+       can await it before rendering anything that needs a price. */
+    lookup(productIds) {
+        const missing = [...new Set((productIds || []).map(String))]
+            .filter(id => {
+                if (!id || id === 'null' || id === 'undefined') return false;
+                const known = this._cache.get(id);
+                return !known || known._partial;
+            });
+        if (!missing.length || !this._url()) return Promise.resolve();
+        return fetch(this._url() + '?ids=' + encodeURIComponent(missing.join(',')), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        })
+            .then(res => (res.ok ? res.json() : { products: [] }))
+            .then(data => (data.products || []).forEach(p => this._remember(p)))
+            // A failed lookup costs a price hint, not the editor - the row still
+            // shows whatever name came down with the bundle itself.
+            .catch(() => {});
+    },
+
+    /* Repaint every idle picker under `root`. Called after lookup() fills in what
+       a bundle payload could not carry, so a row that opened knowing only a name
+       picks up its code, shop and price. Pickers with their list open are left
+       alone - repainting one under the cursor would close it. */
+    refreshIn(root) {
+        (root || document).querySelectorAll('.prodpick').forEach(el => {
+            if (el._pick && el._pick.menu.hidden) this._paint(el._pick);
+        });
+    },
+
+    /* A picker, as a detached element the caller drops into its own row.
+
+       `product` is what the row already holds, in either shape the server sends:
+       a bundle item ({product_id, product_name, ...}) or a catalogue row
+       ({id, ...}). Passing it means the row renders its selection immediately,
+       without waiting for a round trip. */
+    create({ name, className, product, onChange }) {
+        const wrap = document.createElement('div');
+        wrap.className = 'prodpick';
+        wrap.innerHTML = `
+            <input type="hidden"${name ? ` name="${ebEscapeHtml(name)}"` : ''} class="${ebEscapeHtml(className || '')}">
+            <button type="button" class="prodpick-chosen" hidden>
+                <span class="prodpick-chosen-text"></span>
+                <i class="fas fa-pen prodpick-chosen-edit"></i>
+            </button>
+            <div class="prodpick-search">
+                <i class="fas fa-search prodpick-search-icon"></i>
+                <input type="text" class="prodpick-input" autocomplete="off" spellcheck="false"
+                       placeholder="Search the catalogue by name or code…">
+            </div>
+            <div class="prodpick-menu" hidden>
+                <div class="prodpick-tabs">
+                    <button type="button" class="prodpick-tab is-on" data-section="all">All</button>
+                    <button type="button" class="prodpick-tab" data-section="machinery">Machinery</button>
+                    <button type="button" class="prodpick-tab" data-section="materials">Materials</button>
+                    <button type="button" class="prodpick-tab" data-section="spare_parts">Spare parts</button>
+                </div>
+                <div class="prodpick-results"></div>
+                <div class="prodpick-note"></div>
+            </div>`;
+
+        const state = {
+            wrap,
+            hidden: wrap.querySelector('input[type="hidden"]'),
+            chosen: wrap.querySelector('.prodpick-chosen'),
+            chosenText: wrap.querySelector('.prodpick-chosen-text'),
+            search: wrap.querySelector('.prodpick-search'),
+            input: wrap.querySelector('.prodpick-input'),
+            menu: wrap.querySelector('.prodpick-menu'),
+            results: wrap.querySelector('.prodpick-results'),
+            note: wrap.querySelector('.prodpick-note'),
+            section: 'all',
+            rows: [],
+            active: -1,
+            seq: 0,
+            timer: null,
+            onChange,
+        };
+        wrap._pick = state;
+
+        const initialId = product && (product.product_id != null ? product.product_id : product.id);
+        if (initialId != null && initialId !== '') {
+            // Bundle items travel with their own name and code, so a saved row
+            // reads properly the moment the modal opens, before any search runs.
+            const hasPrice = typeof product.price === 'number';
+            this._remember({
+                id: initialId,
+                product_name: product.product_name || '',
+                product_code: product.product_code || null,
+                section: product.section || null,
+                price: hasPrice ? product.price : null,
+            }, !hasPrice);
+            state.hidden.value = String(initialId);
+        }
+        this._paint(state);
+
+        state.chosen.addEventListener('click', () => this._open(state));
+        state.input.addEventListener('input', () => {
+            this._openMenu(state);
+            this._schedule(state);
+        });
+        state.input.addEventListener('focus', () => this._openMenu(state));
+        state.input.addEventListener('keydown', e => this._onKey(state, e));
+        wrap.querySelectorAll('.prodpick-tab').forEach(tab => {
+            tab.addEventListener('mousedown', e => e.preventDefault());  // keep focus in the box
+            tab.addEventListener('click', () => {
+                state.section = tab.dataset.section;
+                wrap.querySelectorAll('.prodpick-tab').forEach(t => t.classList.toggle('is-on', t === tab));
+                state.input.focus();
+                this._search(state);
+            });
+        });
+        // mousedown rather than click: blur fires first otherwise, and the row
+        // being clicked is gone by the time the click lands.
+        state.results.addEventListener('mousedown', e => {
+            const option = e.target.closest('.prodpick-opt');
+            if (!option) return;
+            e.preventDefault();
+            this._choose(state, option.dataset.id);
+        });
+        state.input.addEventListener('blur', () => {
+            // Leaving the box abandons whatever was half-typed: the selection is
+            // the hidden field, and that only ever moves through _choose().
+            setTimeout(() => this._close(state), 120);
+        });
+
+        return wrap;
+    },
+
+    _label(product) {
+        return product ? (product.product_name || ('#' + product.id)) : '';
+    },
+
+    _sectionLabel(section) {
+        return { machinery: 'Machinery', materials: 'Materials', spare_parts: 'Spare parts' }[section] || '';
+    },
+
+    _metaHtml(product, withPrice) {
+        const bits = [];
+        if (product.product_code) {
+            bits.push(`<span class="prodpick-code">${ebEscapeHtml(product.product_code)}</span>`);
+        }
+        const sectionLabel = this._sectionLabel(product.section);
+        if (sectionLabel) bits.push(`<span class="prodpick-sec">${sectionLabel}</span>`);
+        if (withPrice && typeof product.price === 'number') {
+            bits.push(`<span class="prodpick-price">$${product.price.toFixed(2)}</span>`);
+        }
+        return bits.join('');
+    },
+
+    /* Chosen or empty - the two faces of the control. Chosen shows the product as
+       a line you click to change it; empty shows the search box itself, so a row
+       just added is already waiting to be typed into. */
+    _paint(state) {
+        const product = this.get(state.hidden.value);
+        const isChosen = !!(state.hidden.value && product);
+        state.wrap.classList.toggle('is-chosen', isChosen);
+        state.chosen.hidden = !isChosen;
+        state.search.hidden = isChosen;
+        if (!isChosen) return;
+
+        const meta = this._metaHtml(product, false);
+        state.chosenText.innerHTML =
+            `<span class="prodpick-name">${ebEscapeHtml(this._label(product))}</span>` +
+            (meta ? `<span class="prodpick-meta">${meta}</span>` : '');
+    },
+
+    _open(state) {
+        state.wrap.classList.remove('is-chosen');
+        state.chosen.hidden = true;
+        state.search.hidden = false;
+        state.input.value = '';
+        state.input.focus();
+        this._openMenu(state);
+    },
+
+    _openMenu(state) {
+        // One list open at a time, so a menu left hanging above another row can't
+        // be mistaken for that row's own.
+        if (this._openPicker && this._openPicker !== state) this._close(this._openPicker);
+        this._openPicker = state;
+        if (state.menu.hidden) {
+            state.menu.hidden = false;
+            this._search(state);
+        }
+        this._placeMenu(state);
+    },
+
+    /* Drops the list upward when the row sits near the bottom of the space it has
+       to open into. That space is the modal, not the window: .dash-modal-box is a
+       scroll box of its own, so a list opening downward from its last row is
+       clipped by the modal's edge however much screen is left below it. */
+    _placeMenu(state) {
+        const box = state.wrap.getBoundingClientRect();
+        const host = state.wrap.closest('.dash-modal-box');
+        const bounds = host ? host.getBoundingClientRect() : null;
+        const floor = bounds ? Math.min(bounds.bottom, window.innerHeight) : window.innerHeight;
+        const ceiling = bounds ? Math.max(bounds.top, 0) : 0;
+        const below = floor - box.bottom;
+        const above = box.top - ceiling;
+        state.wrap.classList.toggle('menu-up', below < 240 && above > below);
+    },
+
+    _close(state) {
+        state.menu.hidden = true;
+        state.active = -1;
+        if (this._openPicker === state) this._openPicker = null;
+        this._paint(state);  // back to the chosen line, or to an empty search box
+    },
+
+    _schedule(state) {
+        clearTimeout(state.timer);
+        state.timer = setTimeout(() => this._search(state), this._searchDelay);
+    },
+
+    _search(state) {
+        const url = this._url();
+        if (!url) return;
+        const query = state.input.value.trim();
+        const seq = ++state.seq;
+        state.note.textContent = 'Searching…';
+        fetch(`${url}?q=${encodeURIComponent(query)}&section=${encodeURIComponent(state.section)}`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        })
+            .then(res => (res.ok ? res.json() : Promise.reject(new Error(res.status))))
+            .then(data => {
+                // A slow earlier request must not overwrite a later answer.
+                if (seq !== state.seq) return;
+                (data.products || []).forEach(p => this._remember(p));
+                this._renderResults(state, data);
+            })
+            .catch(() => {
+                if (seq !== state.seq) return;
+                state.results.innerHTML = '';
+                state.note.textContent = 'Could not search the catalogue.';
+            });
+    },
+
+    _renderResults(state, data) {
+        const products = data.products || [];
+        state.rows = products;
+        state.active = products.length ? 0 : -1;
+        state.results.innerHTML = products.map((p, i) => `
+            <div class="prodpick-opt${i === 0 ? ' is-active' : ''}" data-id="${p.id}">
+                <span class="prodpick-name">${ebEscapeHtml(this._label(p))}</span>
+                <span class="prodpick-meta">${this._metaHtml(p, true)}</span>
+            </div>`).join('');
+        state.note.textContent = !products.length
+            ? 'No products match.'
+            : (data.more ? 'First 25 matches — keep typing to narrow it down.' : '');
+        this._placeMenu(state);
+    },
+
+    _onKey(state, e) {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            this._move(state, e.key === 'ArrowDown' ? 1 : -1);
+        } else if (e.key === 'Enter') {
+            // Also stops a half-typed search from submitting the modal's form.
+            e.preventDefault();
+            const row = state.rows[state.active];
+            if (row) this._choose(state, row.id);
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            state.input.blur();
+        }
+    },
+
+    _move(state, step) {
+        if (!state.rows.length) return;
+        state.active = (state.active + step + state.rows.length) % state.rows.length;
+        const options = state.results.querySelectorAll('.prodpick-opt');
+        options.forEach((el, i) => el.classList.toggle('is-active', i === state.active));
+        if (options[state.active]) options[state.active].scrollIntoView({ block: 'nearest' });
+    },
+
+    _choose(state, productId) {
+        state.hidden.value = String(productId);
+        state.menu.hidden = true;
+        if (this._openPicker === state) this._openPicker = null;
+        this._paint(state);
+        // Bubbles, because that is what the <select> did here - the option-group
+        // editor listens on the row for it to re-derive its upcharge hints.
+        state.hidden.dispatchEvent(new Event('change', { bubbles: true }));
+        if (state.onChange) state.onChange(this.get(productId));
+    },
+};
+
+/* ------------------------------------------------------------
    BUNDLE PICKER (admin) — the repeatable "which products are in
    this?" list shared by three modals: a Promotion's contents, a
    Set's contents, and a Product's free "comes with" items. All
@@ -2212,31 +2559,31 @@ document.addEventListener('change', (e) => {
    item_qty[]), read back by bundle_items_from_form() in
    blueprints/admin/__init__.py.
 
-   The page must define BUNDLE_PRODUCTS (id / product_name /
-   product_code) before calling this — each admin page already
-   passes its catalog down for its own table.
+   Which product a row holds is chosen through ebProductPicker
+   above, so the page needs PRODUCT_SEARCH_URL rather than a
+   catalogue of its own.
 
    Zero rows is a meaningful state, not an empty form: it posts no
    item_product_id at all, which store-api reads as "this bundle
    now contains nothing" rather than "leave it alone".
 ------------------------------------------------------------- */
 const ebBundlePicker = {
-    _optionsHtml(selectedId) {
-        const products = (typeof BUNDLE_PRODUCTS !== 'undefined' && BUNDLE_PRODUCTS) || [];
-        return ['<option value="">Select a product…</option>'].concat(products.map(p => {
-            const label = p.product_code ? `${p.product_name} (${p.product_code})` : p.product_name;
-            const selected = String(p.id) === String(selectedId) ? ' selected' : '';
-            return `<option value="${p.id}"${selected}>${ebEscapeHtml(label)}</option>`;
-        })).join('');
-    },
-
-    // items: [{product_id, qty}] straight off a store-api bundle (or [] when creating).
+    // items: [{product_id, product_name, qty}] straight off a store-api bundle
+    // (or [] when creating).
     render(containerId, items) {
         const container = document.getElementById(containerId);
         if (!container) return;
         container.innerHTML = '';
         (items || []).forEach(item => this.addRow(containerId, item));
         this._syncEmptyHint(container);
+
+        // A bundle item carries a name and a code but not which shop it is from
+        // (see BundleItemOut), so the saved rows fill that in afterwards - a row
+        // added by hand shows it immediately, and the two should not disagree.
+        const ids = (items || []).map(item => item.product_id).filter(Boolean);
+        if (ids.length) {
+            ebProductPicker.lookup(ids).then(() => ebProductPicker.refreshIn(container));
+        }
     },
 
     addRow(containerId, item) {
@@ -2245,9 +2592,16 @@ const ebBundlePicker = {
         const row = document.createElement('div');
         row.className = 'bundle-row';
         row.innerHTML = `
-            <select name="item_product_id" class="bundle-row-product">${this._optionsHtml(item && item.product_id)}</select>
             <input type="number" name="item_qty" class="bundle-row-qty" min="1" step="1" value="${(item && item.qty) || 1}" title="Quantity included">
             <button type="button" class="bundle-row-remove" title="Remove"><i class="fas fa-times"></i></button>`;
+        // Built as an element rather than as markup in the string above: the picker
+        // wires up its own listeners. Prepended so the product leads the row, the
+        // way the <select> it replaced did.
+        row.prepend(ebProductPicker.create({
+            name: 'item_product_id',
+            className: 'bundle-row-product',
+            product: item,
+        }));
         row.querySelector('.bundle-row-remove').addEventListener('click', () => {
             row.remove();
             this._syncEmptyHint(container);
@@ -2273,8 +2627,10 @@ const ebBundlePicker = {
    structure is serialized into one hidden field on submit and parsed
    by option_groups_from_form() in blueprints/admin/sets.py.
 
-   Needs BUNDLE_PRODUCTS, and uses each entry's `price` (when the page
-   supplies one) to show what an upcharge WOULD be if left on auto.
+   Prices come from ebProductPicker's cache - filled by the searches
+   the admin runs, and warmed by render() for the products a saved
+   set already holds - and are used to show what an upcharge WOULD
+   be if left on auto.
 
    Leaving Upcharge blank stores NULL, which means "derive it from the
    price gap at order time" — the recommended state, because it can't
@@ -2289,9 +2645,7 @@ const ebOptionGroupPicker = {
     itemsContainerId: 'setItemsPicker',
 
     _priceOf(productId) {
-        const products = (typeof BUNDLE_PRODUCTS !== 'undefined' && BUNDLE_PRODUCTS) || [];
-        const found = products.find(p => String(p.id) === String(productId));
-        return found && typeof found.price === 'number' ? found.price : null;
+        return ebProductPicker.priceOf(productId);
     },
 
     // What is currently listed under "Included Products", in their order, as
@@ -2301,10 +2655,20 @@ const ebOptionGroupPicker = {
         const items = document.getElementById(this.itemsContainerId);
         if (!items) return [];
         return Array.from(items.querySelectorAll('.bundle-row'))
-            .map(row => ({
-                product_id: row.querySelector('.bundle-row-product').value,
-                qty: parseInt(row.querySelector('.bundle-row-qty').value, 10) || 1,
-            }))
+            .map(row => {
+                const productId = row.querySelector('.bundle-row-product').value;
+                // The name too, not just the id: a slot seeded from this list has
+                // to render as the product it took, and only the picker's cache
+                // knows what that id is called.
+                const known = ebProductPicker.get(productId);
+                return {
+                    product_id: productId,
+                    product_name: known ? known.product_name : '',
+                    product_code: known ? known.product_code : null,
+                    section: known ? known.section : null,
+                    qty: parseInt(row.querySelector('.bundle-row-qty').value, 10) || 1,
+                };
+            })
             .filter(item => item.product_id);
     },
 
@@ -2323,6 +2687,18 @@ const ebOptionGroupPicker = {
         container.innerHTML = '';
         (groups || []).forEach(group => this.addGroup(containerId, group));
         this._syncEmptyHint(container);
+
+        // The choices arrive with names but no prices (see SetOptionChoiceOut), so
+        // the "auto (…)" hints have nothing to compute from until the prices are
+        // fetched. Done after the rows exist, then the hints are re-derived - the
+        // editor is usable throughout, it just says a plain "auto" for a moment.
+        const ids = (groups || []).flatMap(g => (g.choices || []).map(c => c.product_id));
+        if (ids.length) {
+            ebProductPicker.lookup(ids).then(() => {
+                ebProductPicker.refreshIn(container);
+                container.querySelectorAll('.option-choices').forEach(el => this._refreshHints(el));
+            });
+        }
     },
 
     addGroup(containerId, group) {
@@ -2383,10 +2759,15 @@ const ebOptionGroupPicker = {
             ? choice.price_delta : '';
         row.innerHTML = `
             <input type="radio" name="${groupKey}-default" class="option-choice-default" title="The standard choice, already covered by the set price"${choice && choice.is_default ? ' checked' : ''}>
-            <select class="option-choice-product">${ebBundlePicker._optionsHtml(choice && choice.product_id)}</select>
             <input type="number" class="option-choice-qty" min="1" step="1" value="${(choice && choice.qty) || 1}" title="Quantity">
             <input type="number" class="option-choice-delta" step="0.01" placeholder="auto" value="${storedDelta}" title="Upcharge vs the standard choice. Leave blank to work it out from the products' prices.">
             <button type="button" class="bundle-row-remove" title="Remove"><i class="fas fa-times"></i></button>`;
+        // No `name`: a slot's rows are serialized into one hidden field on submit
+        // (see serialize below), not posted as form fields of their own.
+        row.querySelector('.option-choice-qty').before(ebProductPicker.create({
+            className: 'option-choice-product',
+            product: choice,
+        }));
 
         row.querySelector('.bundle-row-remove').addEventListener('click', () => {
             row.remove();
