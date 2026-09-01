@@ -3084,10 +3084,12 @@
 .eb-about-page .brand-marquee__row:nth-child(1) .brand-marquee__track {
     animation-delay: -37s;
 }
-/* Deliberately NOT paused on hover - the wall keeps drifting whatever the pointer is
-   doing. Keyboard focus still stops it: a couple of these tiles are real links to a
-   filtered product list, and tabbing to a target that's sliding out from under you
-   isn't a usable control. A pointer user can just wait for the logo to come round. */
+/* Paused while the pointer is on the wall, and while anything in it has keyboard
+   focus. Most of these tiles are real links to a filtered product list, and a link
+   that slides out from under the pointer between mousedown and mouseup fires no click
+   at all - so a shopper aiming at a logo would press it and simply have nothing
+   happen. The wall drifting past is decoration; being able to click it is not. */
+.eb-about-page .brand-marquee:hover .brand-marquee__track,
 .eb-about-page .brand-marquee:focus-within .brand-marquee__track {
     animation-play-state: paused;
 }
@@ -3110,6 +3112,16 @@
 .eb-about-page .brand-marquee__item:hover {
     border-color: var(--accent-light);
     box-shadow: var(--shadow);
+}
+/* A logo with no catalogue brand behind it (see brand_showcase_logos()) - a partner
+   mark, not a link. It keeps its place in the wall but not the hover treatment, so it
+   doesn't offer a click it can't answer. */
+.eb-about-page .brand-marquee__item.is-static {
+    cursor: default;
+}
+.eb-about-page .brand-marquee__item.is-static:hover {
+    border-color: var(--border);
+    box-shadow: none;
 }
 .eb-about-page .brand-marquee__item img {
     max-width: 100%;

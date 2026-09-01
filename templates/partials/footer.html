@@ -6,54 +6,146 @@
    site_section() in app.py): the mark, the browse column and the brand column all
    belong to whichever half of the site is being rendered. `footer_brands` is the
    brands that half actually has products in - not GET /brands/, which since the SAP
-   import returns all 175 of them regardless of section (see section_brands()). #}
+   import returns all 175 of them regardless of section (see section_brands()).
+
+   The shop switcher above the columns is the exception, and the reason this footer
+   exists in this shape: it is the ONE part of the shell that shows both halves of
+   the site at once. The header, the nav and the columns below all belong to the shop
+   you are standing in, so before this there was no signposted way from a materials
+   page to machinery - just a text link buried fourth in a list of browse links. Both
+   cards are always rendered, the current one marked (not hidden): a switcher that
+   drops the option you are on reads as one link rather than a choice between two. #}
 {% set s = site_settings() %}
 {% set in_materials = site_section() == 'materials' %}
 <footer class="footer eb-footer" id="ebFooter">
     <div class="container">
+
+        <nav class="footer-shops" aria-label="Choose a store">
+            {# aria-current marks the shop being rendered; .is-current is only the
+               styling hook. Order is fixed - machinery then materials - so the two
+               cards don't swap places as a visitor moves between the shops. #}
+            <a class="footer-shop {{ 'is-current' if not in_materials }}"
+               href="{{ url_for('main.home') }}"
+               {% if not in_materials %}aria-current="true"{% endif %}>
+                <span class="footer-shop__mark">
+                    <img src="{{ url_for('static', filename='images/machinery-logo.png') }}"
+                         alt="" loading="lazy" />
+                </span>
+                <span class="footer-shop__body">
+                    <span class="footer-shop__name">Machinery</span>
+                    <span class="footer-shop__desc">Chairs, motors, imaging, lab equipment and spare parts.</span>
+                </span>
+                <span class="footer-shop__go">
+                    {% if not in_materials %}You are here{% else %}Visit store{% endif %}
+                    <i class="fas fa-arrow-right"></i>
+                </span>
+            </a>
+            <a class="footer-shop {{ 'is-current' if in_materials }}"
+               href="{{ url_for('materials.home') }}"
+               {% if in_materials %}aria-current="true"{% endif %}>
+                <span class="footer-shop__mark">
+                    <img src="{{ url_for('static', filename='images/home-49.png') }}"
+                         alt="" loading="lazy" />
+                </span>
+                <span class="footer-shop__body">
+                    <span class="footer-shop__name">Materials <span class="footer-shop__sub">HOME 49</span></span>
+                    <span class="footer-shop__desc">Consumables and restorative materials for daily practice.</span>
+                </span>
+                <span class="footer-shop__go">
+                    {% if in_materials %}You are here{% else %}Visit store{% endif %}
+                    <i class="fas fa-arrow-right"></i>
+                </span>
+            </a>
+        </nav>
+
         <div class="footer-grid" id="ebFooterGrid">
             <div class="footer-brand">
-    <img src="{{ url_for('static', filename='images/home-49.png' if in_materials else 'images/machinery-logo.png') }}" alt="{{ s.store_name }}" class="footer-logo" />
+                <img src="{{ url_for('static', filename='images/home-49.png' if in_materials else 'images/machinery-logo.png') }}" alt="{{ s.store_name }}" class="footer-logo" />
                 {% if s.store_tagline %}<p class="eb-tagline">{{ s.store_tagline }}</p>{% endif %}
                 <p>{{ s.store_blurb }}</p>
                 {% if s.years_badge %}<div class="eb-years"> {{ s.years_badge }}</div>{% endif %}
-                {% if s.contact_phone %}
-                <div class="contact-phone"><i class="fas fa-phone"></i> {{ s.contact_phone }}</div>
-                {% endif %}
-                {% if s.contact_email %}
-                <div style="margin-top:6px; font-size:0.8rem; color:#94a3b8;"><i class="fas fa-envelope"></i> {{ s.contact_email }}</div>
+                <ul class="footer-contact">
+                    {% if s.contact_phone %}
+                    <li class="contact-phone"><i class="fas fa-phone"></i> <a href="tel:{{ s.contact_phone|replace(' ', '') }}">{{ s.contact_phone }}</a></li>
+                    {% endif %}
+                    {% if s.contact_email %}
+                    <li><i class="fas fa-envelope"></i> <a href="mailto:{{ s.contact_email }}">{{ s.contact_email }}</a></li>
+                    {% endif %}
+                    {% if s.contact_address %}
+                    <li><i class="fas fa-location-dot"></i> {{ s.contact_address }}</li>
+                    {% endif %}
+                    {% if s.business_hours %}
+                    <li><i class="fas fa-clock"></i> {{ s.business_hours }}</li>
+                    {% endif %}
+                </ul>
+                {# The shop runs a Facebook page per department (the same three the
+                   contact page lists). Each is optional - an empty setting drops its
+                   icon rather than linking to facebook.com. #}
+                {% set socials = [
+                    (link_url(s.facebook_machinery_url), 'Machinery on Facebook'),
+                    (link_url(s.facebook_materials_url), 'Materials on Facebook'),
+                    (link_url(s.facebook_slock_url), 'Slock Implant on Facebook'),
+                ]|selectattr('0')|list %}
+                {% if socials %}
+                <div class="footer-social">
+                    {% for url, label in socials %}
+                    <a href="{{ url }}" title="{{ label }}" aria-label="{{ label }}"
+                       target="_blank" rel="noopener noreferrer"><i class="fab fa-facebook-f"></i></a>
+                    {% endfor %}
+                </div>
                 {% endif %}
             </div>
+
             {% if in_materials %}
             <div class="footer-links">
-                <h4>Materials</h4>
+                <h4>Browse</h4>
+                <a href="{{ url_for('materials.home') }}">Materials home</a>
                 <a href="{{ url_for('materials.catalog') }}">Full catalogue</a>
                 <a href="{{ url_for('materials.categories') }}">All categories</a>
                 <a href="{{ url_for('materials.brands') }}">All brands</a>
-                <a href="{{ url_for('main.home') }}">Machinery store</a>
             </div>
             <div class="footer-links">
                 <h4>Brands</h4>
                 {% for brand in (footer_brands or []) %}
                 <a href="{{ url_for('materials.catalog', brand=brand.id) }}">{{ brand.brand_name }}</a>
                 {% endfor %}
+                <a class="footer-links__more" href="{{ url_for('materials.brands') }}">All brands <i class="fas fa-arrow-right"></i></a>
             </div>
             {% else %}
             <div class="footer-links">
-                <h4>Products</h4>
-                <a href="{{ url_for('catalog.products_catalog') }}">Endodontic</a>
-                <a href="{{ url_for('catalog.products_catalog') }}">Surgical</a>
-                <a href="{{ url_for('catalog.products_catalog') }}">Diagnostic</a>
-                <a href="{{ url_for('materials.home') }}">Materials store</a>
+                <h4>Browse</h4>
+                <a href="{{ url_for('main.home') }}">Machinery home</a>
+                <a href="{{ url_for('catalog.products_catalog') }}">All products</a>
+                <a href="{{ url_for('catalog.spare_parts') }}">Spare parts</a>
+                <a href="{{ url_for('catalog.promotions_page') }}">Promotions &amp; sets</a>
+                <a href="{{ url_for('catalog.manuals') }}">Manuals</a>
             </div>
             <div class="footer-links">
                 <h4>Brands</h4>
                 {% for brand in (footer_brands or []) %}
-                <a href="{{ url_for('catalog.products_catalog') }}?brand={{ brand.id }}">{{ brand.brand_name }}</a>
+                <a href="{{ url_for('catalog.products_catalog', brand=brand.id) }}">{{ brand.brand_name }}</a>
                 {% endfor %}
+                <a class="footer-links__more" href="{{ url_for('catalog.products_catalog') }}">All products <i class="fas fa-arrow-right"></i></a>
             </div>
             {% endif %}
+
+            {# The pages that belong to both shops. Kept in a column of their own so
+               they don't compete with the browse links for a section that owns them -
+               About and Contact are the same page whichever half you reach them from. #}
+            <div class="footer-links">
+                <h4>Company</h4>
+                <a href="{{ url_for('main.about') }}">About us</a>
+                <a href="{{ url_for('main.contact') }}">Contact</a>
+                {% if is_logged_in() %}
+                <a href="{{ url_for('auth.profile') }}">My account</a>
+                {% if is_customer() %}<a href="{{ url_for('auth.my_orders') }}">My orders</a>{% endif %}
+                {% else %}
+                <a href="{{ url_for('auth.login') }}">Sign in</a>
+                <a href="{{ url_for('auth.register') }}">Create an account</a>
+                {% endif %}
+            </div>
         </div>
+
         <div class="footer-bottom">{{ s.footer_copyright }}</div>
     </div>
 </footer>

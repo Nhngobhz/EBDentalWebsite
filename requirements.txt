@@ -14,3 +14,7 @@ requests
 # Production WSGI server - `python app.py` runs Werkzeug's development server,
 # which is single-threaded and explicitly not for real traffic.
 waitress
+# Monitoring: request counters + latency histogram exposed at /metrics for the
+# Prometheus service on the server to scrape (metrics.py).
+prometheus-client
+prometheus-flask-exporter

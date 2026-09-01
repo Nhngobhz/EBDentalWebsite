@@ -99,13 +99,18 @@ def _brand_logo_files():
 
 
 def carried_brands():
-    """Every brand with products behind it, each carrying the sections it has them
-    in: [{id, brand_name, brand_image, sections: [...]}].
+    """Every brand with products behind it, each carrying how many it has per
+    section: [{id, brand_name, brand_image, sections: {section: count}}].
 
     Built from the per-section facets rather than GET /brands/, because that endpoint
     knows nothing about sections. Since the SAP import it returns 190 brands of which
     only four have a single machine between them, so a wall built from it sent every
     tile to the machinery catalog and most of them landed on an empty grid.
+
+    The COUNT per section, not just the list of sections, because plenty of brands
+    straddle two of them very unevenly - CORICAMA is one spare part and 386 materials
+    - and which catalogue such a tile should open is a question only the counts can
+    answer. See _brand_link.
 
     A brand missing from all three lists has nothing to sell and simply isn't here.
     """
@@ -116,9 +121,20 @@ def carried_brands():
         except StoreAPIError:
             continue
         for row in rows:
-            brands.setdefault(row["id"], {**row, "sections": []})["sections"].append(
-                section
+            # Deliberately not `{**row}`: that would carry the first section's
+            # product_count onto a brand whose counts are now per-section, leaving a
+            # plausible-looking field that means "however many the machinery
+            # catalogue happens to have" to anyone who reads it as a total.
+            brand = brands.setdefault(
+                row["id"],
+                {
+                    "id": row["id"],
+                    "brand_name": row["brand_name"],
+                    "brand_image": row["brand_image"],
+                    "sections": {},
+                },
             )
+            brand["sections"][section] = row["product_count"]
     return list(brands.values())
 
 
@@ -136,11 +152,26 @@ def brand_link_order():
 
 
 def _brand_link(brand):
-    """The catalogue this brand's tile opens, or None if it sells nothing anywhere."""
-    for section in brand_link_order():
-        if section in brand["sections"]:
-            return url_for(BRAND_CATALOG_ENDPOINTS[section], brand=brand["id"])
-    return None
+    """The catalogue this brand's tile opens, or None if it sells nothing anywhere.
+
+    Ranked by how much of the brand each catalogue actually holds, and only then by
+    brand_link_order() - i.e. the shopper's own shop breaks a tie but does not win an
+    argument. Section preference alone used to decide it, and on a catalogue where a
+    brand's range is split very unevenly that sent a machinery visitor clicking
+    CORICAMA to the spare-parts page's single item instead of the 386 the materials
+    catalogue has under that name. Preference still settles the cases it should:
+    Woodpecker has 68 machines and 68 materials, and a machinery shopper gets the
+    machines.
+    """
+    order = brand_link_order()
+    best = max(
+        brand["sections"],
+        key=lambda section: (brand["sections"][section], -order.index(section)),
+        default=None,
+    )
+    if best is None:
+        return None
+    return url_for(BRAND_CATALOG_ENDPOINTS[best], brand=brand["id"])
 
 
 def _match_logo_file(key, files_by_key):

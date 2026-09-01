@@ -139,7 +139,11 @@
                                 <img src="{{ logo.image }}" alt="" loading="lazy" />
                             </a>
                             {% else %}
-                            <span class="brand-marquee__item" {% if logo.decorative %}aria-hidden="true"{% endif %}>
+                            {# No catalogue brand behind this logo - a partner mark
+                               with nothing to list. `is-static` drops the hover lift
+                               the real tiles get, so it stops inviting a click that
+                               was never going anywhere. #}
+                            <span class="brand-marquee__item is-static" {% if logo.decorative %}aria-hidden="true"{% else %}title="{{ logo.name }}"{% endif %}>
                                 <img src="{{ logo.image }}" alt="{{ '' if logo.decorative else logo.name }}" loading="lazy" />
                             </span>
                             {% endif %}

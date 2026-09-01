@@ -560,6 +560,14 @@ Two traps in this half specifically:
    `category_icon` column as an override. The `category_image` column is gone. If you
    add a call site, pass the override too - four screens draw these tiles and they
    must not disagree about what a bur looks like.
+5. **A brand tile picks its catalogue by stock, not by section preference.** Brands
+   straddle the three sections very unevenly - CORICAMA is 1 spare part and 386
+   materials, Qualident 2 and 46 - so `_brand_link()` (blueprints/main.py) ranks a
+   brand's sections by how many products each holds and uses `brand_link_order()`,
+   i.e. the shopper's own shop, only to break a tie. Ranking by preference alone is
+   what sent an About-page click on CORICAMA to a spare-parts page with one item on
+   it. `carried_brands()` therefore carries `sections` as `{section: count}`, not as
+   a list.
 
 ## 6. Common agent mistakes to avoid
 

@@ -158,6 +158,111 @@
     margin-top: 60px;
     transition: var(--transition);
 }
+
+/* --- Store switcher -----------------------------------------------------
+   The one place in the shell that shows both halves of the site at once, so it
+   sits above the columns rather than inside them: everything below this row
+   belongs to the shop you are already in. Two cards, side by side and equal -
+   the current one is marked, never dropped, because a switcher that hides
+   where you are stops reading as a choice between two stores. */
+.footer .footer-shops {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    padding-bottom: 40px;
+    margin-bottom: 40px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.footer .footer-shop {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.03);
+    color: inherit;
+    transition: var(--transition);
+}
+.footer .footer-shop:hover {
+    border-color: rgba(6, 182, 212, 0.5);
+    background: rgba(6, 182, 212, 0.08);
+    transform: translateY(-2px);
+}
+/* The shop being rendered. Kept legible rather than dimmed - it is still the
+   link home for the section you are standing in. */
+.footer .footer-shop.is-current {
+    border-color: rgba(6, 182, 212, 0.45);
+    background: rgba(6, 182, 212, 0.1);
+}
+/* The marks are artwork drawn for white paper - the same reason the About
+   page's brand tiles keep a light backdrop in dark mode. On the near-black
+   footer they would all but disappear without one. */
+.footer .footer-shop__mark {
+    flex: 0 0 auto;
+    width: 76px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.92);
+}
+.footer .footer-shop__mark img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+}
+.footer .footer-shop__body {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.footer .footer-shop__name {
+    display: block;
+    color: white;
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 4px;
+}
+.footer .footer-shop__sub {
+    color: #06b6d4;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-left: 6px;
+}
+.footer .footer-shop__desc {
+    display: block;
+    color: #94a3b8;
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+.footer .footer-shop__go {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #06b6d4;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+.footer .footer-shop.is-current .footer-shop__go {
+    color: #94a3b8;
+}
+.footer .footer-shop__go i {
+    transition: var(--transition);
+}
+.footer .footer-shop:hover .footer-shop__go i {
+    transform: translateX(3px);
+}
+
+/* --- Columns ------------------------------------------------------------ */
 .footer .footer-grid {
     display: grid;
     grid-template-columns: 2fr 1fr 1fr 1fr;
@@ -187,6 +292,19 @@
 .footer .footer-links a:hover {
     color: white;
 }
+/* "All brands" closing a truncated list - footer_brands is capped at
+   FOOTER_BRAND_COUNT and materials has 173. Set apart from the brands above it
+   so it doesn't read as one more brand. */
+.footer .footer-links__more {
+    margin-top: 14px;
+    color: #06b6d4 !important;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+.footer .footer-links__more i {
+    font-size: 0.7rem;
+    margin-left: 4px;
+}
 .footer .footer-bottom {
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     padding-top: 20px;
@@ -196,7 +314,7 @@
 }
 
 .footer.eb-footer .footer-grid {
-    grid-template-columns: 2fr 1fr 1fr;
+    grid-template-columns: 1.6fr 1fr 1fr 1fr;
 }
 .footer.eb-footer .footer-brand .eb-tagline {
     color: #06b6d4;
@@ -216,26 +334,116 @@
     font-size: 0.75rem;
     margin-top: 8px;
 }
+.footer .footer-contact {
+    list-style: none;
+    margin: 16px 0 0;
+    padding: 0;
+}
+.footer .footer-contact li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 8px;
+    color: #94a3b8;
+    font-size: 0.8rem;
+    line-height: 1.6;
+}
+/* Fixed-width icon column so all four rows' text starts on the same line
+   whatever glyph precedes it - a phone and a map pin are not the same width. */
+.footer .footer-contact li i {
+    flex: 0 0 auto;
+    width: 14px;
+    margin-top: 3px;
+    text-align: center;
+    color: #06b6d4;
+    font-size: 0.8rem;
+}
+.footer .footer-contact a {
+    color: inherit;
+    transition: var(--transition);
+}
+.footer .footer-contact a:hover {
+    color: white;
+}
 .footer.eb-footer .footer-brand .contact-phone {
+    font-size: 1rem;
+}
+.footer.eb-footer .footer-brand .contact-phone,
+.footer.eb-footer .footer-brand .contact-phone a {
     color: #06b6d4;
     font-weight: 700;
-    font-size: 1.1rem;
-    margin-top: 6px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
 }
-.footer.eb-footer .footer-brand .contact-phone i {
-    font-size: 0.9rem;
+.footer .footer-social {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+}
+.footer .footer-social a {
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    color: #94a3b8;
+    font-size: 0.85rem;
+    transition: var(--transition);
+}
+.footer .footer-social a:hover {
+    background: #06b6d4;
+    border-color: #06b6d4;
+    color: #0f172a;
 }
 
+/* Four columns don't fit a tablet, but one column each makes a very tall footer -
+   so the brand block takes a full row of its own and the three link columns keep
+   their row underneath it. The paragraph's desktop max-width comes off with it:
+   holding 420px inside a full-width row leaves the right half of the footer empty. */
+@media (max-width: 1000px) {
+    .footer .footer-grid,
+    .footer.eb-footer .footer-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 32px;
+    }
+    .footer .footer-brand {
+        grid-column: 1 / -1;
+    }
+    .footer .footer-brand p {
+        max-width: none;
+    }
+    /* The four contact rows read as a block of prose stretched across the page at
+       this width, so they run along it instead. */
+    .footer .footer-contact {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 24px;
+    }
+}
 @media (max-width: 720px) {
-    .footer .footer-grid {
+    .footer .footer-shops {
+        grid-template-columns: 1fr;
+    }
+    .footer .footer-grid,
+    .footer.eb-footer .footer-grid {
         grid-template-columns: 1fr;
         gap: 24px;
     }
-    .footer.eb-footer .footer-grid {
-        grid-template-columns: 1fr;
+}
+/* On a phone the "Visit store" tail pushes the description into three lines,
+   so the arrow alone carries it. */
+@media (max-width: 460px) {
+    .footer .footer-shop {
+        padding: 14px 16px;
+        gap: 12px;
+    }
+    .footer .footer-shop__go {
+        font-size: 0;
+        gap: 0;
+    }
+    .footer .footer-shop__go i {
+        font-size: 0.9rem;
     }
 }
 

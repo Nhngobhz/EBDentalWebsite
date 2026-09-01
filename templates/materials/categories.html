@@ -35,7 +35,7 @@
             </div>
         </header>
 
-        <section class="mi-featured reveal">
+        <section class="mi-featured reveal" id="matIndexFeatured">
             <h2>Biggest categories</h2>
             <div class="mh-cat-grid">
                 {% for cat in biggest %}
@@ -94,6 +94,7 @@
         const groups = Array.from(document.querySelectorAll('#matIndexList .mi-group'));
         const empty = document.getElementById('matIndexEmpty');
         const jump = document.querySelector('.mi-jump');
+        const featured = document.getElementById('matIndexFeatured');
 
         function apply() {
             const needle = input.value.trim().toLowerCase();
@@ -114,8 +115,11 @@
 
             empty.hidden = shown > 0;
             // The jump bar addresses sections that are no longer there once a
-            // filter is on, so it steps aside while one is.
+            // filter is on, so it steps aside while one is. The biggest-category
+            // shortcuts go with it: they ignore the filter, so leaving them up
+            // puts non-matching categories above the matches.
             if (jump) { jump.hidden = !!needle; }
+            if (featured) { featured.hidden = !!needle; }
         }
 
         input.addEventListener('input', apply);

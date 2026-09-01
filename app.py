@@ -19,6 +19,7 @@ load_dotenv()
 
 import assets
 import maps
+import metrics
 import site_cache
 import site_section
 import site_settings
@@ -285,6 +286,22 @@ def create_app():
     # has to `|tojson` it and because blueprints/quote.py imports the same accessor.
     app.jinja_env.globals["site_settings"] = site_settings.get
 
+    # Request counters + a latency histogram on every view, and the token-gated
+    # /metrics endpoint Prometheus scrapes. Set up before the gates below so its
+    # before_request hook - the one that starts the clock - runs first and times the
+    # gates too; a request rejected by expired_session_gate is still a request, and
+    # one that spends 300ms in maintenance_gate is worth seeing. No-op unless
+    # METRICS_TOKEN is set. See metrics.py.
+    metrics.setup_metrics(app)
+
+    # Endpoints that are machinery rather than pages, and must pass through every
+    # gate below untouched: Flask's own static handler, and the Prometheus scrape.
+    # Monitoring in particular has to keep answering during maintenance mode - that
+    # is the moment someone is actually looking at the dashboards - and it arrives
+    # with no session, so a gate that redirects anonymous callers would leave
+    # Prometheus scraping an HTML page and every panel blank.
+    INFRA_ENDPOINTS = {"static", metrics.METRICS_ENDPOINT}
+
     # Runs before every other before_request in this app - in particular before
     # maintenance_gate, which asks is_staff() and would otherwise trust a session whose
     # token is already dead.
@@ -298,7 +315,7 @@ def create_app():
     # agree on who you are: you get the login page, not an admin screen that can't write.
     @app.before_request
     def expired_session_gate():
-        if request.endpoint == "static" or not session_token_expired():
+        if request.endpoint in INFRA_ENDPOINTS or not session_token_expired():
             return None
         # Anywhere the answer depends on being signed in - the admin area, any write,
         # any fetch() call - hand over to the SessionExpired handler below, which ends
@@ -328,7 +345,7 @@ def create_app():
 
     @app.before_request
     def slide_customer_session():
-        if request.endpoint == "static" or session.get("account_type") != "customer":
+        if request.endpoint in INFRA_ENDPOINTS or session.get("account_type") != "customer":
             return None
         if not session.get("token"):
             return None
@@ -369,7 +386,7 @@ def create_app():
     def maintenance_gate():
         # Static files are served straight through: the maintenance page itself needs
         # the stylesheets, and checking a setting per asset request would be silly.
-        if request.endpoint is None or request.endpoint == "static":
+        if request.endpoint is None or request.endpoint in INFRA_ENDPOINTS:
             return None
         if request.blueprint in MAINTENANCE_OPEN_BLUEPRINTS or is_staff():
             return None
