@@ -17,13 +17,19 @@ circular import (the same reasoning that put site_cache.py in its own file).
 The override lives on `g`, i.e. it is scoped to one request and never leaks into the
 next one.
 """
-from flask import g
+from flask import g, session
 
 # Every value either half of this module may return. Anything else is a bug, not a
 # third shop.
 SECTIONS = ("machinery", "materials")
 
 DEFAULT_SECTION = "machinery"
+
+# Session key holding the last shop the visitor was actually in. Written by app.py,
+# which owns the endpoint map that decides what "in" means; named here so that a view
+# wanting the answer doesn't have to reach into app.py for the string (it can't -
+# app.py imports the blueprints).
+SESSION_KEY = "site_section"
 
 _OVERRIDE_KEY = "_site_section_override"
 
@@ -46,3 +52,14 @@ def override(section):
 def current_override():
     """The override this request set, or None. Read by app.py's _request_section."""
     return getattr(g, _OVERRIDE_KEY, None)
+
+
+def remembered():
+    """The shop the visitor was last in, or None if they haven't picked one yet.
+
+    For pages that belong to BOTH shops - About, Contact, sign-in - this is the only
+    thing that says which one the visitor came from, since their endpoint doesn't.
+    Views that offer a link into a catalogue read it so the link stays in the shop
+    the shopper is standing in.
+    """
+    return session.get(SESSION_KEY)

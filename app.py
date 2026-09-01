@@ -395,7 +395,7 @@ def create_app():
     # clicking "About" from the materials store swaps the logo to the machinery
     # mark, the nav to the machinery nav, and leaves the shopper standing in the
     # other shop with no obvious way back.
-    SECTION_KEY = "site_section"
+    SECTION_KEY = site_section.SESSION_KEY
 
     MACHINERY_ENDPOINTS = {
         "main.home",

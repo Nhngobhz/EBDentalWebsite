@@ -307,11 +307,9 @@ def spare_parts():
     selected_category = request.args.get("category", type=int)
     search_query = request.args.get("q", "").strip()
     page = max(1, request.args.get("page", 1, type=int))
-    # An unknown value (a stale link, a hand-typed URL) falls back to the default
-    # rather than 422-ing off store-api's Literal.
-    sort = request.args.get("sort", sap_catalog.DEFAULT_SORT)
-    if sort not in sap_catalog.SORT_VALUES:
-        sort = sap_catalog.DEFAULT_SORT
+    # Unknown values, and any ordering asked for by a shopper whose prices are
+    # masked, fall back to the default - see sap_catalog.resolve_sort.
+    sort = sap_catalog.resolve_sort(request.args.get("sort", sap_catalog.DEFAULT_SORT))
 
     filters = {"section": SPARE_PARTS_SECTION}
     if selected_brand:
@@ -437,6 +435,7 @@ def spare_parts():
         page_size=page_size,
         sort=sort,
         sort_options=sap_catalog.SORT_OPTIONS,
+        can_sort=sap_catalog.can_sort(),
         sort_url=sort_url,
         catalog_url=spare_parts_url,
         filter_url=filter_url,

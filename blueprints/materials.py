@@ -27,10 +27,11 @@ from sap_catalog import (
     DEFAULT_SORT,
     PAGE_SIZE,
     SORT_OPTIONS,
-    SORT_VALUES,
+    can_sort,
     initials as _initials,
     page_numbers as _page_numbers,
     rail as _rail,
+    resolve_sort,
 )
 from formatting import adapt_product, adapt_promotion
 from store_api import StoreAPIError, get_api_client
@@ -219,11 +220,9 @@ def catalog():
     selected_category = request.args.get("category", type=int)
     search_query = request.args.get("q", "").strip()
     page = max(1, request.args.get("page", 1, type=int))
-    # An unknown value (a stale link, a hand-typed URL) falls back to the default
-    # rather than 422-ing off store-api's Literal.
-    sort = request.args.get("sort", DEFAULT_SORT)
-    if sort not in SORT_VALUES:
-        sort = DEFAULT_SORT
+    # Unknown values, and any ordering asked for by a shopper whose prices are
+    # masked, fall back to the default - see sap_catalog.resolve_sort.
+    sort = resolve_sort(request.args.get("sort", DEFAULT_SORT))
 
     filters = {"section": "materials"}
     if selected_brand:
@@ -331,6 +330,7 @@ def catalog():
         page_size=PAGE_SIZE,
         sort=sort,
         sort_options=SORT_OPTIONS,
+        can_sort=can_sort(),
         sort_url=sort_url,
         catalog_url=catalog_url,
         filter_url=filter_url,

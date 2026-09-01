@@ -24,6 +24,7 @@ site_cache.py and site_section.py are: blueprints/catalog.py would otherwise hav
 to import from blueprints/materials.py, which already imports from it.
 """
 import site_cache
+from auth import can_view_prices
 from store_api import get_api_client
 
 # How many cards fill one page. 24 divides evenly into the 2/3/4-column grid at
@@ -55,6 +56,38 @@ SORT_OPTIONS = (
 )
 SORT_VALUES = {value for value, _ in SORT_OPTIONS}
 DEFAULT_SORT = "name"
+
+
+def can_sort():
+    """Whether this shopper is offered the Sort control at all.
+
+    Anyone whose prices are masked is not. "Price: low to high" over a grid of
+    "Login to view price" cards ranks the catalogue by the one figure the mask
+    exists to withhold, and an ordering is readable: page through it and every
+    item's price is pinned between its neighbours' without a single figure ever
+    being printed.
+
+    Dropped whole rather than trimmed to the three orderings that leak nothing,
+    because a Sort menu that quietly lacks the entry a shopper came for reads as
+    broken, where no menu reads as "prices first, then sorting" - which is what
+    this is. Only the presentation, though: store-api refuses a masked caller the
+    price orderings itself (GET /products/, _PRICE_SORTS), which is what holds
+    when the parameter is typed into the URL instead of chosen from a menu.
+    """
+    return can_view_prices()
+
+
+def resolve_sort(value):
+    """The ordering a request actually gets.
+
+    An unknown value - a stale link, a hand-typed URL - falls back to the default
+    rather than 422-ing off store-api's Literal, and so does any ordering asked
+    for by someone can_sort() says may not ask: the hidden control is a
+    convenience, not the rule that enforces it.
+    """
+    if can_sort() and value in SORT_VALUES:
+        return value
+    return DEFAULT_SORT
 
 
 def facets(section, **filters):

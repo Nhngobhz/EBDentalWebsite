@@ -3,6 +3,7 @@ import re
 
 import requests
 import site_cache
+import site_section
 import site_settings
 from flask import Blueprint, Response, abort, current_app, render_template, url_for
 
@@ -41,6 +42,22 @@ HERO_SLIDES_CACHE_KEYS = tuple(
 BRAND_LOGO_DIR = "images/brands"
 BRAND_LOGO_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".svg")
 _brand_logo_cache = None
+
+# Where a brand tile leads, keyed by the products.section its products are in. Three
+# catalogues, not two: spare parts are SAP items sold inside the machinery shop but
+# listed on a page of their own, so a brand whose only stock is parts has to link
+# there. Ordered as written for a machinery visitor - a machine before its parts,
+# the other shop last; brand_link_order() flips it for a materials one.
+BRAND_CATALOG_ENDPOINTS = {
+    "machinery": "catalog.products_catalog",
+    "spare_parts": "catalog.spare_parts",
+    "materials": "materials.catalog",
+}
+
+# Shortest logo filename allowed to claim a brand by prefix (see _match_logo_file).
+# "h.png" is the start of twelve brand names in this catalogue and belongs to none
+# of them.
+_BRAND_LOGO_PREFIX_MIN = 4
 
 
 def _brand_key(name):
@@ -81,42 +98,104 @@ def _brand_logo_files():
     return logos
 
 
+def carried_brands():
+    """Every brand with products behind it, each carrying the sections it has them
+    in: [{id, brand_name, brand_image, sections: [...]}].
+
+    Built from the per-section facets rather than GET /brands/, because that endpoint
+    knows nothing about sections. Since the SAP import it returns 190 brands of which
+    only four have a single machine between them, so a wall built from it sent every
+    tile to the machinery catalog and most of them landed on an empty grid.
+
+    A brand missing from all three lists has nothing to sell and simply isn't here.
+    """
+    brands = {}
+    for section in BRAND_CATALOG_ENDPOINTS:
+        try:
+            rows = section_brands(section)
+        except StoreAPIError:
+            continue
+        for row in rows:
+            brands.setdefault(row["id"], {**row, "sections": []})["sections"].append(
+                section
+            )
+    return list(brands.values())
+
+
+def brand_link_order():
+    """The sections a brand tile prefers to open, best first.
+
+    The shopper's own shop leads. About belongs to both halves of the site, so the
+    only thing saying which one a visitor came from is the remembered section - and
+    sending a HOME 49 shopper who clicked a logo into the machinery catalog strands
+    them in the other shop exactly the way app.py's endpoint map exists to prevent.
+    """
+    if site_section.remembered() == "materials":
+        return ("materials", "machinery", "spare_parts")
+    return tuple(BRAND_CATALOG_ENDPOINTS)
+
+
+def _brand_link(brand):
+    """The catalogue this brand's tile opens, or None if it sells nothing anywhere."""
+    for section in brand_link_order():
+        if section in brand["sections"]:
+            return url_for(BRAND_CATALOG_ENDPOINTS[section], brand=brand["id"])
+    return None
+
+
+def _match_logo_file(key, files_by_key):
+    """The logo file for a catalogue brand, as (file key, url), or (None, None).
+
+    An exact key match first. Failing that, a filename that is the START of the
+    brand's name - "lovage.png" for SAP's "Lovage Medical" - but only when exactly
+    one file matches and its name is long enough to mean something.
+    """
+    if key in files_by_key:
+        return key, files_by_key[key]
+    partial = [
+        k
+        for k in files_by_key
+        if len(k) >= _BRAND_LOGO_PREFIX_MIN and key.startswith(k)
+    ]
+    if len(partial) == 1:
+        return partial[0], files_by_key[partial[0]]
+    return None, None
+
+
 def brand_showcase_logos():
     """Every brand logo the About page marquee shows: the catalogue's own brands
-    first (each linking to its filtered product list), then any logo file that has
-    no catalogue brand of the same name. A catalogue brand with no uploaded image
-    borrows the matching file if there is one, and is skipped otherwise - a "no
-    image" placeholder in a wall of logos just looks broken."""
-    try:
-        brands = get_api_client().get("/brands/", params={"limit": 200})
-    except StoreAPIError:
-        brands = []
-
+    first (each linking to the catalogue that actually stocks it), then any logo file
+    with no catalogue brand behind it, as a plain tile. A catalogue brand with no
+    uploaded image borrows the matching file if there is one, and is skipped
+    otherwise - a "no image" placeholder in a wall of logos just looks broken."""
     files_by_key = {_brand_key(label): url for label, url in _brand_logo_files()}
-    catalog_url = url_for("catalog.products_catalog")
 
     logos = []
-    seen = set()
-    for brand in brands:
-        key = _brand_key(brand.get("brand_name"))
-        seen.add(key)
+    claimed = set()
+    for brand in carried_brands():
+        key = _brand_key(brand["brand_name"])
+        # Claimed whether or not this brand ends up shown: the leftover pass below is
+        # for files no brand answers to, and a brand skipped for having no image at
+        # all is still not one of those.
+        claimed.add(key)
         image = (
-            resolve_image_url(brand["brand_image"])
-            if brand.get("brand_image")
-            else files_by_key.get(key)
+            resolve_image_url(brand["brand_image"]) if brand["brand_image"] else None
         )
         if not image:
-            continue
+            file_key, image = _match_logo_file(key, files_by_key)
+            if not image:
+                continue
+            claimed.add(file_key)
         logos.append(
             {
-                "name": brand.get("brand_name") or "",
+                "name": brand["brand_name"] or "",
                 "image": image,
-                "url": f"{catalog_url}?brand={brand['id']}",
+                "url": _brand_link(brand),
             }
         )
 
     for label, image in _brand_logo_files():
-        if _brand_key(label) in seen:
+        if _brand_key(label) in claimed:
             continue
         logos.append({"name": label, "image": image, "url": None})
 

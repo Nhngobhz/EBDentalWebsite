@@ -60,24 +60,29 @@
                 <button type="submit">Search</button>
             </form>
 
-            {# Reordering is a new query, not a re-render of the 24 cards on screen -
-               see materials.catalog. A plain <form> so it works without JavaScript;
-               the onchange below just saves the extra click on the Go button, which
-               is hidden for anyone who has JS. #}
-            <form class="mat-sort" method="get" action="{{ url_for('materials.catalog') }}">
-                {% if selected_brand %}<input type="hidden" name="brand" value="{{ selected_brand }}">{% endif %}
-                {% if selected_category %}<input type="hidden" name="category" value="{{ selected_category }}">{% endif %}
-                {% if search_query %}<input type="hidden" name="q" value="{{ search_query }}">{% endif %}
-                {# `page` is deliberately absent: a new ordering means page 7 holds
-                   different items, so it starts at the first one. #}
-                <label for="matSort">Sort</label>
-                <select id="matSort" name="sort" onchange="this.form.submit()">
-                    {% for value, label in sort_options %}
-                    <option value="{{ value }}" {{ 'selected' if value == sort }}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-                <noscript><button type="submit">Go</button></noscript>
-            </form>
+            {# Sorting is offered only to shoppers who can see prices: an
+               ordering by price is the price list read sideways. See
+               sap_catalog.can_sort(), which store-api enforces for real. #}
+            {% if can_sort %}
+                {# Reordering is a new query, not a re-render of the 24 cards on screen -
+                   see materials.catalog. A plain <form> so it works without JavaScript;
+                   the onchange below just saves the extra click on the Go button, which
+                   is hidden for anyone who has JS. #}
+                <form class="mat-sort" method="get" action="{{ url_for('materials.catalog') }}">
+                    {% if selected_brand %}<input type="hidden" name="brand" value="{{ selected_brand }}">{% endif %}
+                    {% if selected_category %}<input type="hidden" name="category" value="{{ selected_category }}">{% endif %}
+                    {% if search_query %}<input type="hidden" name="q" value="{{ search_query }}">{% endif %}
+                    {# `page` is deliberately absent: a new ordering means page 7 holds
+                       different items, so it starts at the first one. #}
+                    <label for="matSort">Sort</label>
+                    <select id="matSort" name="sort" onchange="this.form.submit()">
+                        {% for value, label in sort_options %}
+                        <option value="{{ value }}" {{ 'selected' if value == sort }}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <noscript><button type="submit">Go</button></noscript>
+                </form>
+            {% endif %}
         </header>
 
         {# What is currently narrowing the list, each removable on its own. Without
