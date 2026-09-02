@@ -151,16 +151,17 @@
                 {% for brand in top_brands %}
                 <a class="mh-brand reveal" style="--i: {{ loop.index0 % 4 }};"
                    href="{{ url_for('materials.catalog', brand=brand.id) }}">
-                    {% if brand.image %}
-                    <span class="mh-brand-logo"><img src="{{ img(brand.image) }}" alt="{{ brand.name }}" loading="lazy" /></span>
-                    {% else %}
-                    {# 173 brands came out of SAP's U_Brand field and not one brought
-                       a picture, so initials are the normal case here, not a
-                       fallback for the odd missing file. #}
-                    <span class="mh-brand-logo mh-brand-initials">{{ initials(brand.name) }}</span>
-                    {% endif %}
+                    {# No {% if brand.image %} here, and none needed: img() returns
+                       the site's own placeholder for a null path (see
+                       formatting.resolve_image_url), which is the picture almost
+                       every one of these gets - 173 brands came out of SAP's
+                       U_Brand field and not one brought a logo. Drawing the same
+                       tile either way is what keeps this a wall of equal cards
+                       instead of a grid that changes shape per brand. #}
+                    <span class="mh-brand-logo">
+                        <img src="{{ img(brand.image) }}" alt="{{ brand.name }}" loading="lazy" />
+                    </span>
                     <span class="mh-brand-name">{{ brand.name }}</span>
-                    <span class="mh-brand-count">{{ '{:,}'.format(brand.count) }}</span>
                 </a>
                 {% endfor %}
             </div>

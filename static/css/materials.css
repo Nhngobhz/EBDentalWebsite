@@ -436,75 +436,137 @@
     color: var(--text-light);
 }
 
-/* ---- Brand cards ---- */
+/* ---- Brand cards ----
+ *
+ * The machinery home page's "Shop by Brand" tile: a white card, the logo standing
+ * in a soft panel of its own, the name in bold beneath it. Deliberately the same
+ * object as home.css's .category-card, down to the hover lift and the gradient
+ * border that fades in under it - a shopper crossing between the two shops should
+ * meet one way of picking a brand, not two.
+ *
+ * Not literally that class, though, because this one holds a logo rather than a
+ * photograph - and that changes the one thing that matters: the image is
+ * `contain`ed on a panel instead of `cover`ing the box. A wordmark is mostly
+ * whitespace and nearly always wider than it is tall, so `cover` crops the ends
+ * off it, which is the one thing a brand logo cannot survive.
+ *
+ * The card carries a logo and a name and nothing else - no item count. Both lists
+ * that draw it are still ordered biggest-range-first; the number itself was noise
+ * on a tile whose job is to be recognised at a glance.
+ *
+ * There is no initials tile any more. A brand that arrived from SAP without a
+ * picture - which is most of them - draws the site's own placeholder instead,
+ * because img() already returns it for a null path (see formatting.resolve_image_url).
+ * That keeps every card the same shape whether or not anyone has uploaded a logo
+ * yet, which is what this design is: a wall of equal tiles.
+ */
 
 .mh-brand-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+/* The brands index draws all 173 of them, not the front page's twelve, so the
+   same card is packed tighter - four across would be forty-odd rows of scrolling
+   for a page whose whole job is to let you find one brand quickly. */
+#materialsIndex .mh-brand-grid {
+    grid-template-columns: repeat(auto-fill, minmax(186px, 1fr));
     gap: 14px;
 }
 
+#materialsIndex .mh-brand-logo {
+    height: 116px;
+}
+
 .mh-brand {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
-    padding: 18px 14px;
+    padding: 16px 14px 18px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    box-shadow: var(--card-shadow);
+    box-shadow: var(--shadow);
     text-align: center;
     text-decoration: none;
     color: inherit;
-    transition: transform var(--transition), box-shadow var(--transition),
-                border-color var(--transition);
+    overflow: hidden;
+    transition: transform 0.35s cubic-bezier(.16, 1, .3, 1), box-shadow 0.35s ease,
+                border-color 0.35s ease;
+}
+
+/* The accent border, painted as a 1px gradient ring inside the card's own radius
+   and revealed on hover. Same trick .category-card uses: a real border cannot hold
+   a gradient, so this is a gradient background masked down to the padding box. */
+.mh-brand::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: linear-gradient(135deg, var(--accent-light), var(--accent));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    pointer-events: none;
 }
 
 .mh-brand:hover {
-    transform: translateY(-3px);
-    border-color: var(--accent);
-    box-shadow: var(--shadow);
+    transform: translateY(-6px);
+    border-color: transparent;
+    box-shadow: var(--shadow-lg);
+}
+
+.mh-brand:hover::before {
+    opacity: 1;
+}
+
+.mh-brand:active {
+    transform: scale(0.97);
 }
 
 .mh-brand-logo {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: var(--product-bg);
+    width: 100%;
+    height: 148px;
+    margin-bottom: 12px;
+    padding: 14px;
+    border-radius: 12px;
+    background: var(--bg);
     overflow: hidden;
 }
 
+/* Whole, never cropped - see the note above the card. The height cap keeps a tall
+   logo from pushing the panel out of shape; the width cap keeps a wide one inside
+   it. */
 .mh-brand-logo img {
-    max-width: 82%;
-    max-height: 82%;
+    max-width: 100%;
+    max-height: 100%;
     object-fit: contain;
+    transition: transform 0.45s cubic-bezier(.16, 1, .3, 1);
 }
 
-/* Initials are the normal case, not a fallback: 173 materials brands came out of
-   SAP's U_Brand field and not one of them brought a picture. */
-.mh-brand-initials {
-    background: rgba(8, 145, 178, 0.1);
-    color: var(--accent);
-    font-size: 1.05rem;
-    font-weight: 800;
-    letter-spacing: 0.02em;
+.mh-brand:hover .mh-brand-logo img {
+    transform: scale(1.06);
 }
 
 .mh-brand-name {
-    font-size: 0.85rem;
-    font-weight: 600;
+    font-size: 1.1rem;
+    font-weight: 700;
     line-height: 1.3;
     color: var(--text);
     overflow-wrap: anywhere;
+    transition: color 0.25s ease;
 }
 
-.mh-brand-count {
-    font-size: 0.72rem;
-    color: var(--text-light);
+.mh-brand:hover .mh-brand-name {
+    color: var(--accent);
 }
 
 /* ---- Help strip ---- */
@@ -887,6 +949,64 @@ a.mh-help-card:hover {
 
 .mat-facet-more:hover {
     text-decoration: underline;
+}
+
+/* The category panel: machinery's standing checkbox filter (.catalog-sidebar and
+ * the .cs-* rules in products.css), dropped into this rail. It carries that class
+ * so it IS that control - same markup, same styling, same initCatalogFilters()
+ * binding - and everything below only takes off the chrome of a panel that stands
+ * on its own, because inside .mat-rail-panel it is one section of a card, not a
+ * card of its own.
+ */
+.mat-boxes.catalog-sidebar {
+    position: static;
+    top: auto;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+/* The rail's own <summary> already says "Refine", so this section's heading drops
+ * to the weight of the "Brand" heading beside it rather than repeating a panel
+ * title over it. */
+.mat-boxes.catalog-sidebar .cs-head {
+    padding: 12px 16px 8px;
+    border-bottom: 0;
+}
+
+.mat-boxes.catalog-sidebar .cs-title {
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    color: var(--text-light);
+    font-weight: 700;
+}
+
+/* The list is capped against the viewport in products.css, where the panel is
+ * sticky and stands alone. Here it is the top half of a rail that also has to fit
+ * a brand list under it, so the cap is a fixed height instead - ten categories'
+ * worth, which is exactly what RAIL_FACET_COUNT puts in it. */
+.mat-boxes.catalog-sidebar .cs-list {
+    max-height: 340px;
+}
+
+.mat-boxes.catalog-sidebar .cs-name {
+    font-size: 0.8rem;
+}
+
+.mat-boxes.catalog-sidebar .mat-facet-more {
+    margin: 2px 16px 12px;
+}
+
+/* products.css hides the machinery panel below 1024px, because that page falls
+ * back to its category strip across the top. This rail has no strip - the panel IS
+ * the only category control here - and it already folds itself away into its
+ * <details> summary on a narrow screen, so obeying that rule would leave a phone
+ * unable to filter by category at all. */
+@media (max-width: 1024px) {
+    #materialsPage .mat-boxes.catalog-sidebar {
+        display: block;
+    }
 }
 
 /* The rest of a facet, folded away in the rail itself.
@@ -1459,6 +1579,15 @@ a.md-fact:hover {
         grid-template-columns: minmax(0, 1fr);
     }
 
+    /* Two across, like the machinery brand grid at the same width - the logo
+       panel needs the card's whole width, so three would shrink every wordmark
+       to something unreadable. */
+    .mh-brand-grid,
+    #materialsIndex .mh-brand-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+
     .mat-rail-panel {
         position: static;
     }
@@ -1502,10 +1631,26 @@ a.md-fact:hover {
         padding: 10px 18px;
     }
 
-    .mh-cat-grid,
-    .mh-brand-grid {
+    .mh-cat-grid {
         grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
         gap: 12px;
+    }
+
+    /* Still two across on a phone, with a shorter logo panel so a pair of cards
+       is a glance rather than a screenful. */
+    .mh-brand-logo,
+    #materialsIndex .mh-brand-logo {
+        height: 104px;
+        margin-bottom: 10px;
+        padding: 12px;
+    }
+
+    .mh-brand {
+        padding: 12px 10px 14px;
+    }
+
+    .mh-brand-name {
+        font-size: 0.95rem;
     }
 
     .mat-grid {

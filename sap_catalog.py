@@ -138,12 +138,26 @@ def rail(buckets, selected, count=RAIL_FACET_COUNT):
     nowhere near the biggest, so browsing into it would otherwise leave the rail
     showing ten categories, none of them the one you are looking at, with no
     highlighted row anywhere to say where you are.
+
+    `selected` is one id, a collection of them, or None. Both shapes are in use:
+    the materials category panel is a list of checkboxes and can hold several,
+    while its brand list and both of the spare-parts lists pick one at a time.
+
+    Ticking more than `count` boxes keeps every one of them - the slice of the
+    rest is floored at zero rather than going negative, which would otherwise
+    chop pinned rows off the end of the list they were just added to.
     """
     if selected is None:
+        wanted = set()
+    elif isinstance(selected, (list, tuple, set, frozenset)):
+        wanted = {s for s in selected if s is not None}
+    else:
+        wanted = {selected}
+    if not wanted:
         return buckets[:count]
-    chosen = [b for b in buckets if b["id"] == selected]
-    rest = [b for b in buckets if b["id"] != selected]
-    return chosen + rest[: count - len(chosen)]
+    chosen = [b for b in buckets if b["id"] in wanted]
+    rest = [b for b in buckets if b["id"] not in wanted]
+    return chosen + rest[: max(0, count - len(chosen))]
 
 
 def page_numbers(page, total_pages, width=PAGE_WINDOW):
@@ -155,16 +169,3 @@ def page_numbers(page, total_pages, width=PAGE_WINDOW):
     half = width // 2
     start = max(1, min(page - half, total_pages - width + 1))
     return list(range(start, min(total_pages, start + width - 1) + 1))
-
-
-def initials(name):
-    """Two letters standing in for a brand with no logo, which is most of them:
-    the brands that arrived from SAP's U_Brand field did not bring pictures."""
-    # Punctuation is a word break, not a letter: "N/A" reads as NA, "D+Z" as DZ.
-    cleaned = "".join(c if c.isalnum() else " " for c in (name or ""))
-    words = cleaned.split()
-    if not words:
-        return "?"
-    if len(words) == 1:
-        return words[0][:2].upper()
-    return (words[0][0] + words[1][0]).upper()

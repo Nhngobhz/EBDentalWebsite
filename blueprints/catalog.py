@@ -63,11 +63,13 @@ def products_catalog():
     brands = section_brands("machinery")
     categories = client.get_all("/categories/")
 
-    # Note what is NOT sent: `category_id`. store-api filters on one category at a
-    # time (see routers/products.py::list_products), which can't express "Endo Motor
-    # OR Apex Locator", so the category cut happens here instead - over the
-    # brand/search-filtered set, which is small enough (`limit` covers the whole
-    # catalog) that a second pass in Python is free.
+    # Note what is NOT sent: `category_id`. GET /products/ would take it - it reads a
+    # repeated `category_id` as "in any of these", which is what the materials
+    # catalog filters with - but this page wants the UNCUT set anyway, because
+    # `category_counts` below is counted over it: the number beside a checkbox has
+    # to say what ticking it would yield, which is a question about the products
+    # the category cut removes. `limit` covers the whole catalog here, so the
+    # second pass in Python is free and buys the counts with it.
     params = {"limit": 500}
     if selected_brand:
         params["brand_id"] = selected_brand
@@ -440,7 +442,6 @@ def spare_parts():
         catalog_url=spare_parts_url,
         filter_url=filter_url,
         page_url=page_url,
-        initials=sap_catalog.initials,
     )
 
 

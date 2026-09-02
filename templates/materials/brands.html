@@ -33,13 +33,12 @@
             {% for brand in brands %}
             <a class="mh-brand" data-name="{{ brand.name | lower }}"
                href="{{ url_for('materials.catalog', brand=brand.id) }}">
-                {% if brand.image %}
-                <span class="mh-brand-logo"><img src="{{ img(brand.image) }}" alt="{{ brand.name }}" loading="lazy" /></span>
-                {% else %}
-                <span class="mh-brand-logo mh-brand-initials">{{ initials(brand.name) }}</span>
-                {% endif %}
+                {# Placeholder rather than initials for a brand with no logo - see
+                   the note on the same card in materials/home.html. #}
+                <span class="mh-brand-logo">
+                    <img src="{{ img(brand.image) }}" alt="{{ brand.name }}" loading="lazy" />
+                </span>
                 <span class="mh-brand-name">{{ brand.name }}</span>
-                <span class="mh-brand-count">{{ '{:,}'.format(brand.count) }}</span>
             </a>
             {% endfor %}
         </div>

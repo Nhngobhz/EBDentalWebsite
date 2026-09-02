@@ -100,6 +100,13 @@
         // customer only browses costs nothing extra - and so an address they edited
         // one tab over can't be served stale from a cached page.
         const QUOTE_PREFILL_URL = {{ url_for('quote.prefill')|tojson }};
+        // The delivery-pin picker, injected on demand by QuoteCart (the map under the
+        // cart's Address box, and the modal behind Change). Built with url_for rather
+        // than written out as a path, because that is what appends the ?v=<mtime>
+        // fingerprint - static files are cached for 30 days, so a hand-written
+        // "/static/js/location-picker.js" pins whatever copy a browser fetched first
+        // and no later edit ever reaches it.
+        const LOCATION_PICKER_URL = {{ url_for('static', filename='js/location-picker.js')|tojson }};
         // "/quote/checkout/0/payment-status" - main.js swaps the 0 for a real checkout
         // id while the KHQR modal waits. A checkout is a pending payment, not an order:
         // the order is only created once that poll reports the money arrived.

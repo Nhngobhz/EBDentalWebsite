@@ -52,7 +52,9 @@
                    narrows the current view instead of resetting it. `page` is
                    deliberately absent: new search, first page. #}
                 {% if selected_brand %}<input type="hidden" name="brand" value="{{ selected_brand }}">{% endif %}
-                {% if selected_category %}<input type="hidden" name="category" value="{{ selected_category }}">{% endif %}
+                {# One per ticked box - searching inside a multi-category selection
+                   has to keep all of it. #}
+                {% for cid in selected_categories %}<input type="hidden" name="category" value="{{ cid }}">{% endfor %}
                 <i class="fas fa-search mat-search-icon" aria-hidden="true"></i>
                 <input type="search" name="q" value="{{ search_query or '' }}"
                        placeholder="Search by name or item code&hellip;"
@@ -70,7 +72,7 @@
                    is hidden for anyone who has JS. #}
                 <form class="mat-sort" method="get" action="{{ url_for('materials.catalog') }}">
                     {% if selected_brand %}<input type="hidden" name="brand" value="{{ selected_brand }}">{% endif %}
-                    {% if selected_category %}<input type="hidden" name="category" value="{{ selected_category }}">{% endif %}
+                    {% for cid in selected_categories %}<input type="hidden" name="category" value="{{ cid }}">{% endfor %}
                     {% if search_query %}<input type="hidden" name="q" value="{{ search_query }}">{% endif %}
                     {# `page` is deliberately absent: a new ordering means page 7 holds
                        different items, so it starts at the first one. #}
@@ -88,15 +90,20 @@
         {# What is currently narrowing the list, each removable on its own. Without
            this the only way back from "ECOLINE + Diamond Burs + rotary" is Clear
            all, which throws away the two filters you wanted to keep. #}
-        {% if selected_category_obj or selected_brand_obj or search_query %}
+        {% if selected_category_objs or selected_brand_obj or search_query %}
         <div class="mat-chips reveal">
             <span class="mat-chips-label">Filtered by</span>
-            {% if selected_category_obj %}
-            <a class="mat-chip" href="{{ filter_url(category=None) }}">
-                <i class="fas {{ category_icon(selected_category_obj.name, selected_category_obj.icon) }}"></i>
-                {{ selected_category_obj.name }} <i class="fas fa-xmark"></i>
+            {# One chip per ticked box, each clearing only itself. category_toggle_url
+               is the same action the checkbox of that name performs, so the chip and
+               the panel can never disagree about what removing a category means -
+               and it is the only control left for a category the panel has stopped
+               listing (see the orphan handling in materials.catalog). #}
+            {% for cat in selected_category_objs %}
+            <a class="mat-chip" href="{{ category_toggle_url(cat.id) }}">
+                <i class="fas {{ category_icon(cat.name, cat.icon) }}"></i>
+                {{ cat.name }} <i class="fas fa-xmark"></i>
             </a>
-            {% endif %}
+            {% endfor %}
             {% if selected_brand_obj %}
             <a class="mat-chip" href="{{ filter_url(brand=None) }}">
                 <i class="fas fa-tag"></i> {{ selected_brand_obj.name }} <i class="fas fa-xmark"></i>
@@ -122,22 +129,62 @@
                     <summary><i class="fas fa-sliders"></i> Refine</summary>
 
                     <div class="mat-rail-body">
-                        <section class="mat-facet">
-                            <h2>Category</h2>
-                            <ul>
-                                {% for cat in categories %}
-                                <li>
-                                    <a class="{{ 'active' if cat.id == selected_category }}"
-                                       href="{{ filter_url(category=None if cat.id == selected_category else cat.id) }}">
-                                        <span class="mat-facet-name">{{ cat.name }}</span>
-                                        <span class="mat-facet-count">{{ '{:,}'.format(cat.count) }}</span>
-                                    </a>
-                                </li>
-                                {% endfor %}
-                            </ul>
+                        {# The machinery catalog's standing category filter, dropped
+                           into this rail: a panel of checkboxes rather than a list of
+                           links, so "Diamond Burs OR Endo Files" is one view instead
+                           of two separate visits. It carries #catalogSidebar and the
+                           .cs-* classes on purpose - that is the id initCatalogFilters()
+                           binds to and the markup products.css already styles, so the
+                           two shops' filters are one control, not two that look alike.
+
+                           A real GET form, so it works with no JS at all: tick boxes,
+                           press Apply. With JS, changing a box navigates straight to
+                           that box's toggle URL and the Apply button is hidden. #}
+                        <section class="catalog-sidebar mat-boxes" id="catalogSidebar">
+                            <div class="cs-head">
+                                {# fa-layer-group, not the fa-sliders the machinery panel uses: the rail's own
+                                   <summary> above this already carries that glyph for "Refine",
+                                   and two identical icons stacked read as one control repeated. #}
+                                <span class="cs-title"><i class="fas fa-layer-group"></i> Category</span>
+                                {% if selected_categories %}
+                                <a class="cs-clear" href="{{ filter_url(category=None) }}">Clear{{ ' (%d)' % selected_categories|length }}</a>
+                                {% endif %}
+                            </div>
+
+                            <form class="cs-body" method="get" action="{{ url_for('materials.catalog') }}">
+                                {# The other filters have to survive a category change,
+                                   and a GET form submits only its own fields. `page` is
+                                   deliberately absent: a new selection is a new result
+                                   set, so it starts at its own first page. #}
+                                {% if selected_brand %}<input type="hidden" name="brand" value="{{ selected_brand }}">{% endif %}
+                                {% if search_query %}<input type="hidden" name="q" value="{{ search_query }}">{% endif %}
+                                {% if sort != default_sort %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+
+                                {% if categories %}
+                                <ul class="cs-list">
+                                    {% for cat in categories %}
+                                    <li>
+                                        <label class="cs-item">
+                                            <input type="checkbox" name="category" value="{{ cat.id }}"
+                                                   {{ 'checked' if cat.id in selected_categories }}
+                                                   data-href="{{ category_toggle_url(cat.id) }}">
+                                            <span class="cs-name">{{ cat.name }}</span>
+                                            <span class="cs-count">{{ '{:,}'.format(cat.count) }}</span>
+                                        </label>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                                {% else %}
+                                <p class="cs-empty">{% if selected_brand or search_query %}No categories match this{% if search_query %} search{% else %} brand{% endif %}.{% else %}No categories yet.{% endif %}</p>
+                                {% endif %}
+
+                                <button type="submit" class="cs-apply">Apply filters</button>
+                            </form>
+
                             {# Only the biggest handful are listed here; the rest of
                                the 800-odd live on their own page, where they are
-                               grouped and searchable rather than stacked. #}
+                               grouped and searchable rather than stacked. Outside the
+                               form - it is a link to another page, not a filter. #}
                             {% if category_total > categories|length %}
                             <a class="mat-facet-more" href="{{ url_for('materials.categories') }}">
                                 All {{ '{:,}'.format(category_total) }} categories <i class="fas fa-arrow-right"></i>
@@ -176,6 +223,7 @@
                         <h3>Nothing found</h3>
                         <p>
                             {% if search_query %}No materials match &ldquo;{{ search_query }}&rdquo;.
+                            {% elif selected_categories %}Nothing in the selected categories{% if selected_brand_obj %} from this brand{% endif %}.
                             {% else %}No materials match these filters.{% endif %}
                         </p>
                         <a class="btn-primary" href="{{ url_for('materials.catalog') }}">Browse all materials</a>

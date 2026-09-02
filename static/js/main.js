@@ -963,10 +963,22 @@ const QuoteCart = {
         box.hidden = false;
 
         this._ensureLocationPicker()
-            .then(() => EBLocationPicker.preview(document.getElementById('quoteInfoMapCanvas'), lat, lng))
+            .then(() => {
+                // A browser holding a location-picker.js from before preview() existed
+                // would otherwise throw here. It should not happen now the URL is
+                // fingerprinted, but "no map" has to stay a handled outcome, not an
+                // exception - see the fallback below for why.
+                if (!window.EBLocationPicker || typeof EBLocationPicker.preview !== 'function') return null;
+                return EBLocationPicker.preview(document.getElementById('quoteInfoMapCanvas'), lat, lng);
+            })
+            // .catch as well as the null check: EVERY way this can fail has to end at
+            // the same place. An unhandled rejection here leaves the box on screen
+            // with nothing in it and the "View" link hidden, which is worse than
+            // never having shown a map at all.
+            .catch(() => null)
             .then(map => {
-                // Leaflet couldn't load (an office with no route to the tile server
-                // is the realistic case). Drop the empty box and put the link back,
+                // No map - Leaflet unreachable is the realistic case, an office with no
+                // route to the tile server. Drop the empty box and put the link back
                 // rather than leaving a grey rectangle where a map should be.
                 if (map) return;
                 box.hidden = true;
@@ -991,17 +1003,25 @@ const QuoteCart = {
     // does it here rather than sending a customer with a full cart off to
     // /profile/edit. Same picker either way (partials/location_picker.html).
 
-    /* location-picker.js is not in the app.js bundle: most visits never open this
-     * modal, and the ones that do can afford one more request. Loaded exactly like
-     * _ensurePdfLibs() loads jsPDF. The script registers every .loc-picker on the
-     * page as it runs, so by the time this resolves ours is live. */
+    /* location-picker.js is not in the app.js bundle: most visits never open the
+     * picker, and the ones that do can afford one more request. Loaded like
+     * _ensurePdfLibs() loads jsPDF, with one difference that matters - the URL comes
+     * from LOCATION_PICKER_URL (base.html), which carries the ?v=<mtime> fingerprint.
+     * Static files are cached for 30 days here, so a hand-written path would pin
+     * whatever copy a browser fetched first and no later edit would ever reach it.
+     *
+     * The script registers every .loc-picker on the page as it runs, so by the time
+     * this resolves ours is live. */
     _locationPickerPromise: null,
     _ensureLocationPicker() {
         if (window.EBLocationPicker) return Promise.resolve(true);
+        if (typeof LOCATION_PICKER_URL === 'undefined') {
+            return Promise.reject(new Error('No map picker on this page'));
+        }
         if (!this._locationPickerPromise) {
             this._locationPickerPromise = new Promise((resolve, reject) => {
                 const script = document.createElement('script');
-                script.src = '/static/js/location-picker.js';
+                script.src = LOCATION_PICKER_URL;
                 script.onload = resolve;
                 script.onerror = () => reject(new Error('Failed to load the map picker'));
                 document.head.appendChild(script);

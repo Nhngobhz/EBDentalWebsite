@@ -28,7 +28,6 @@ from sap_catalog import (
     PAGE_SIZE,
     SORT_OPTIONS,
     can_sort,
-    initials as _initials,
     page_numbers as _page_numbers,
     rail as _rail,
     resolve_sort,
@@ -154,6 +153,51 @@ def _promoted_brands(brands, limit):
     return [b for b in brands if b["name"] != FALLBACK_BRAND_NAME][:limit]
 
 
+def _pin(buckets, wanted_ids, key):
+    """The facet list with every chosen option guaranteed to be in it, and those
+    options resolved to their buckets.
+
+    Each facet is counted within the OTHER filters (see GET /products/facets), so
+    a choice made before those narrowed can drop out of the list it came from -
+    tick Diamond Burs, then pick a brand that stocks none, and the box you would
+    untick to get back is gone. A filter with no control left is one nobody can
+    take off, and multi-select makes that combination easy to reach rather than a
+    corner case.
+
+    Anything missing is named from the section-wide facets - cached, so this costs
+    no extra round trip - and carried at count 0, which is exactly the truth:
+    nothing in this view matches it. An id that isn't a real facet at all (a
+    hand-typed URL) is named rather than numbered - it still gets a chip that
+    removes it, so the filter is never applied invisibly, but "#999999" standing
+    as a page heading reads as a broken page where "Unknown category" reads as
+    the answer to what was asked.
+
+    Returns (buckets, chosen) with `chosen` in the order the ids were given, which
+    for categories is the order the boxes were ticked.
+    """
+    by_id = {b["id"]: b for b in buckets}
+    missing = [i for i in wanted_ids if i not in by_id]
+    if missing:
+        section_wide = {b["id"]: b for b in _facets()[key]}
+        # The optional column differs per facet - a brand bucket carries its logo,
+        # a category bucket the admin's icon override - and the templates read
+        # both, so a stand-in has to have the same shape as the real thing.
+        extra = "icon" if key == "categories" else "image"
+        unknown = "Unknown category" if key == "categories" else "Unknown brand"
+        for i in missing:
+            known = section_wide.get(i) or {}
+            buckets = buckets + [
+                {
+                    "id": i,
+                    "name": known.get("name") or unknown,
+                    "count": 0,
+                    extra: known.get(extra),
+                }
+            ]
+        by_id = {b["id"]: b for b in buckets}
+    return buckets, [by_id[i] for i in wanted_ids if i in by_id]
+
+
 @materials_bp.route("/")
 def home():
     """The materials front door.
@@ -193,7 +237,6 @@ def home():
         total_items=_total_items(),
         category_count=len(categories),
         brand_count=len(brands),
-        initials=_initials,
     )
 
 
@@ -217,7 +260,11 @@ def catalog():
     client = get_api_client()
 
     selected_brand = request.args.get("brand", type=int)
-    selected_category = request.args.get("category", type=int)
+    # Categories are multi-select: the standing panel on the left is a list of
+    # checkboxes, so the parameter repeats - "?category=8&category=19". A
+    # one-category link from an older bookmark still arrives here as a
+    # single-element list, so nothing already out in the wild breaks.
+    selected_categories = request.args.getlist("category", type=int)
     search_query = request.args.get("q", "").strip()
     page = max(1, request.args.get("page", 1, type=int))
     # Unknown values, and any ordering asked for by a shopper whose prices are
@@ -227,8 +274,13 @@ def catalog():
     filters = {"section": "materials"}
     if selected_brand:
         filters["brand_id"] = selected_brand
-    if selected_category:
-        filters["category_id"] = selected_category
+    if selected_categories:
+        # A list, which `requests` writes out as a repeated parameter and
+        # store-api reads as "in any of these" (GET /products/, _catalog_query).
+        # Unlike the machinery page, this one CANNOT do the OR itself: it holds
+        # 24 of 8,000 rows, so a second pass in Python would only ever filter the
+        # window it was handed.
+        filters["category_id"] = selected_categories
     if search_query:
         filters["q"] = search_query
 
@@ -256,21 +308,32 @@ def catalog():
     products = [adapt_product(p) for p in raw_products]
 
     facets = _facets(
-        brand_id=selected_brand, category_id=selected_category, q=search_query
+        brand_id=selected_brand, category_id=selected_categories, q=search_query
     )
     # Counted with this facet's own filter dropped (see the endpoint), so both
     # lists still offer every sibling to switch to - what a filter rail is for.
     categories, brands = facets["categories"], facets["brands"]
 
-    selected_category_obj = next(
-        (c for c in categories if c["id"] == selected_category), None
+    categories, selected_category_objs = _pin(
+        categories, selected_categories, "categories"
     )
-    selected_brand_obj = next((b for b in brands if b["id"] == selected_brand), None)
+    brands, selected_brand_objs = _pin(
+        brands, [selected_brand] if selected_brand else [], "brands"
+    )
+
+    # The breadcrumb and the heading can name only ONE category, so they get one
+    # only when exactly one is ticked - two have no single honest heading.
+    selected_category_obj = (
+        selected_category_objs[0] if len(selected_category_objs) == 1 else None
+    )
+    selected_brand_obj = selected_brand_objs[0] if selected_brand_objs else None
 
     if search_query:
         page_title = f'Results for "{search_query}"'
     elif selected_category_obj:
         page_title = selected_category_obj["name"]
+    elif selected_category_objs:
+        page_title = f"{len(selected_category_objs)} categories"
     elif selected_brand_obj:
         page_title = selected_brand_obj["name"]
     else:
@@ -279,7 +342,7 @@ def catalog():
     def catalog_url(**overrides):
         query = {
             "brand": selected_brand,
-            "category": selected_category,
+            "category": selected_categories,
             "q": search_query or None,
             # The default ordering is left out of the URL entirely, so the canonical
             # view of a category has one address however you arrived at it.
@@ -291,11 +354,26 @@ def catalog():
         query.update(overrides)
         query = {k: v for k, v in query.items() if v not in (None, "", [])}
         base = url_for("materials.catalog")
-        return f"{base}?{urlencode(query)}" if query else base
+        # doseq, because `category` is a list - urlencode would otherwise write
+        # the repr of the list ("%5B8%2C+19%5D") as one value.
+        return f"{base}?{urlencode(query, doseq=True)}" if query else base
 
     def filter_url(**overrides):
         """A filter link: same view, one facet changed, back to page 1."""
         return catalog_url(page=None, **overrides)
+
+    def category_toggle_url(category_id):
+        """This view with `category_id` added to, or removed from, the ticked set.
+
+        The checkbox in the panel and the chip that clears it both point here, so
+        the two controls cannot drift apart about what a category click means.
+        """
+        current = list(selected_categories)
+        if category_id in current:
+            current.remove(category_id)
+        else:
+            current.append(category_id)
+        return filter_url(category=current)
 
     def sort_url(value):
         """This exact view, reordered. Back to page 1: a new ordering means page 7
@@ -313,14 +391,15 @@ def catalog():
     return render_template(
         "materials/catalog.html",
         products=products,
-        categories=_rail(categories, selected_category),
+        categories=_rail(categories, selected_categories),
         brands=_rail(brands, selected_brand),
         category_total=len(categories),
         brand_total=len(brands),
         selected_brand=selected_brand,
-        selected_category=selected_category,
+        selected_categories=selected_categories,
         selected_brand_obj=selected_brand_obj,
         selected_category_obj=selected_category_obj,
+        selected_category_objs=selected_category_objs,
         search_query=search_query,
         page_title=page_title,
         total=total,
@@ -329,13 +408,14 @@ def catalog():
         page_numbers=page_numbers,
         page_size=PAGE_SIZE,
         sort=sort,
+        default_sort=DEFAULT_SORT,
         sort_options=SORT_OPTIONS,
         can_sort=can_sort(),
         sort_url=sort_url,
         catalog_url=catalog_url,
         filter_url=filter_url,
+        category_toggle_url=category_toggle_url,
         page_url=page_url,
-        initials=_initials,
     )
 
 
@@ -388,7 +468,6 @@ def brands():
         "materials/brands.html",
         brands=facets["brands"],
         brand_count=len(facets["brands"]),
-        initials=_initials,
     )
 
 
