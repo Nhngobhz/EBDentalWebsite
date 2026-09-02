@@ -13,6 +13,8 @@ from flask import (
     session,
     url_for,
 )
+import metrics
+
 from auth import account_type, current_account, is_customer, is_staff, login_required
 from formatting import adapt_order, to_number
 from store_api import StoreAPIError, get_api_client, token_expires_at
@@ -75,7 +77,7 @@ def _build_session_account(account_type, user=None, customer=None):
     }
 
 
-def _establish_session(result):
+def _establish_session(result, method):
     """Everything a successful authentication has in common, whichever way the account
     was proven - a password (POST /login) or a Google ID token (POST /auth/google).
     Both get back the same store-api LoginResponse shape. Returns where to send the
@@ -100,6 +102,14 @@ def _establish_session(result):
         result["account_type"], user=result.get("user"), customer=result.get("customer")
     )
     flash(f"Welcome back, {session['account']['name']}!", "success")
+    # Counted here rather than in each caller because this is the one place both the
+    # password and the Google path converge on an established session - anywhere else
+    # and a future third sign-in route would silently go uncounted.
+    metrics.record_login(
+        account_type="staff" if result["account_type"] == "user" else "customer",
+        method=method,
+        outcome="success",
+    )
 
     next_url = _safe_next_url(request.args.get("next"))
     if next_url:
@@ -124,6 +134,9 @@ def login():
     password = request.form.get("password", "")
     wants_json = _wants_json()
     if not email or not password:
+        # Not counted: a blank form is a slip, not a failed sign-in attempt, and
+        # counting it would put a floor under the failure rate that the "someone is
+        # guessing passwords" reading depends on being near zero.
         if wants_json:
             return jsonify({"success": False, "reason": "invalid", "detail": "Please enter both email and password."}), 400
         flash("Please enter both email and password.", "error")
@@ -133,6 +146,10 @@ def login():
     try:
         result = client.login(email, password)
     except StoreAPIError as e:
+        # "unknown", because a rejected sign-in is exactly the case where the account
+        # type is not known - store-api will not say whether the email matched a staff
+        # account, a customer, or nothing at all, and it is right not to.
+        metrics.record_login(account_type="unknown", method="password", outcome="failure")
         if wants_json:
             # Distinguishes "account exists but hasn't confirmed their email yet" (which
             # the page's JS reports differently) from any other login failure.
@@ -141,7 +158,7 @@ def login():
         flash(e.detail, "error")
         return render_template(AUTH_TEMPLATE, mode="login"), (e.status_code or 400)
 
-    redirect_url = _establish_session(result)
+    redirect_url = _establish_session(result, method="password")
     if wants_json:
         return jsonify({"success": True, "redirect_url": redirect_url})
     return redirect(redirect_url)
@@ -163,9 +180,10 @@ def google_login():
     try:
         result = client.google_login(credential)
     except StoreAPIError as e:
+        metrics.record_login(account_type="unknown", method="google", outcome="failure")
         return jsonify({"success": False, "detail": e.detail}), (e.status_code or 400)
 
-    return jsonify({"success": True, "redirect_url": _establish_session(result)})
+    return jsonify({"success": True, "redirect_url": _establish_session(result, method="google")})
 
 
 @auth_bp.route("/forgot-password", methods=["GET", "POST"])
