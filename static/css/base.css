@@ -556,16 +556,21 @@ img {
 }
 
 /* Which saved pin this order is going to (customer carts). Sits directly under
-   the Address box it qualifies, and reads as a quiet aside rather than a field -
-   it is information, not something to fill in. */
+   the Address box it qualifies: a small map to look at, then one line of text
+   saying what it is. Information, not something to fill in. */
 .quote-info-location {
     display: flex;
-    align-items: center;
-    flex-wrap: wrap;
+    flex-direction: column;
     gap: 6px;
     margin: -4px 0 2px;
     font-size: 0.68rem;
     color: var(--text-light);
+}
+.quote-info-location-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
 }
 .quote-info-location i {
     color: var(--accent);
@@ -575,13 +580,190 @@ img {
     font-weight: 600;
     text-decoration: none;
 }
-.quote-info-location a:hover {
+.quote-info-location-line a:hover {
     text-decoration: underline;
 }
+
+/* The little map of the saved pin. Fixed height rather than an aspect ratio,
+   because it sits in a form column whose width changes with the drawer and a
+   preview that grows taller on a wide screen pushes the cart's items
+   off-screen. */
+.quote-info-map {
+    position: relative;
+    height: 104px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--bg);
+}
+.quote-info-map[hidden] {
+    display: none;
+}
+.quote-info-map-canvas {
+    width: 100%;
+    height: 100%;
+}
+/* Leaflet's own attribution, shrunk to thumbnail scale. It stays visible on
+   purpose - it is the one part of an OpenStreetMap map that is not optional. */
+.quote-info-map .leaflet-control-attribution {
+    font-size: 0.55rem;
+    padding: 0 4px;
+    background: rgba(255, 255, 255, 0.75);
+}
+/* Covers the whole map, so a tap anywhere on it opens the location full-size in
+   Google Maps instead of swallowing a swipe on a 104px-tall thumbnail. */
+.quote-info-map-open {
+    position: absolute;
+    inset: 0;
+    display: block;
+    background: transparent;
+    transition: var(--transition);
+    /* Above Leaflet's panes, below its controls. The map container is positioned
+       but has no z-index, so it opens no stacking context and its panes (tiles
+       200 ... markers 600) compete directly with this overlay - at `auto` the
+       chip below renders UNDER the tiles and simply never appears. 700 clears
+       the panes; the attribution control sits at 800 and stays on top, visible
+       and clickable, which is where it has to be. */
+    z-index: 700;
+}
+.quote-info-map-open:hover {
+    background: rgba(15, 23, 42, 0.12);
+}
+/* The chip is always on, not hover-only: on a phone there is no hover, and a map
+   that looks like a picture is a map nobody taps. Top-right corner, out of the
+   way of both the pin (centred) and the OpenStreetMap credit (bottom-right). */
+.quote-info-map-open span {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 9px;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, 0.94);
+    color: var(--text);
+    font-size: 0.64rem;
+    font-weight: 700;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+    transition: var(--transition);
+}
+.quote-info-map-open:hover span,
+.quote-info-map-open:focus-visible span {
+    background: #fff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+}
+.quote-info-map-open i {
+    color: var(--accent);
+}
+/* NOTE: do not give .leaflet-control-container a `position` to lift it over the
+   click-catcher. It is a zero-height box, so making it the containing block
+   sends `.leaflet-bottom { bottom: 0 }` to the TOP of the map and the credit
+   disappears off the thumbnail. Nothing is needed anyway - Leaflet's controls
+   carry z-index 800 and the overlay below carries none, so the credit already
+   paints above it and stays clickable. */
 /* No pin saved. Warm rather than red: nothing is broken, the delivery team just
    has less to go on, and the fix is one link away. */
 .quote-info-location.is-missing i {
     color: #d97706;
+}
+/* "Change" / "Set one". A <button> rather than a link now that it opens the map
+   modal instead of navigating to /profile/edit, so it has to be un-styled back
+   down to matching the "View" anchor beside it. */
+.quote-info-location-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    font-weight: 600;
+    color: var(--accent);
+    cursor: pointer;
+}
+.quote-info-location-btn:hover {
+    text-decoration: underline;
+}
+
+/* ---- Delivery-location modal (customer carts) ----
+   Opened by the button above; holds the same picker the profile page uses.
+   Sits above the drawer (9999999) because it opens on top of it, and below
+   ebAlert/ebConfirm, which can still speak over both. */
+.cart-location-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000000;
+    background: var(--modal-overlay);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.cart-location-overlay[hidden] {
+    display: none;
+}
+.cart-location-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
+    width: 100%;
+    max-width: 560px;
+    /* The picker carries a fixed-height map, so on a short screen the box has to
+       be the thing that scrolls - otherwise Save sits below the fold with no way
+       to reach it. */
+    max-height: calc(100vh - 40px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.cart-location-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+}
+.cart-location-head h4 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text);
+}
+.cart-location-head i {
+    color: var(--accent);
+}
+.cart-location-close {
+    background: var(--bg);
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    color: var(--text-light);
+    cursor: pointer;
+    transition: var(--transition);
+}
+.cart-location-close:hover {
+    background: #fee2e2;
+    color: var(--danger);
+}
+.cart-location-body {
+    padding: 16px 20px;
+    overflow-y: auto;
+}
+.cart-location-actions {
+    display: flex;
+    gap: 10px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+}
+.cart-location-actions .eb-dialog-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+    transform: none;
 }
 
 /* ---- Delivery terms note (customer carts) ---- */
@@ -1236,13 +1418,6 @@ table.qpt-table td.qpt-right { text-align: right; }
     display: block;
 }
 
-.sidebar-logo {
-    max-width: 150px;
-    width: 100%;
-    height: auto;
-    display: block;
-    margin-left: -30px;
-}
 
 /* ============================================================
    SCROLL REVEAL — progressive enhancement.

@@ -882,23 +882,46 @@ const QuoteCart = {
             // fires no `input` event, and submit() reads localStorage, not the DOM.
             this.saveInfoField(key, data[key]);
         });
-        this.renderSavedLocation(data.map_url || '');
+        this.rememberLocation(data);
     },
 
-    /* The "we will deliver to your saved pin" line under the address box. Its
-     * job is to make the auto-fill visible: a pin the customer cannot see is one
-     * they will never notice is wrong or missing. */
-    renderSavedLocation(mapUrl) {
+    /* The customer's saved pin, as the last server answer described it. Held here
+     * rather than read out of the picker's own inputs because the picker only
+     * exists once the modal has been opened, and the line under the address box
+     * has to be right before that. */
+    savedLocation: null,
+
+    rememberLocation(data) {
+        this.savedLocation = {
+            latitude: (data && data.latitude !== undefined) ? data.latitude : null,
+            longitude: (data && data.longitude !== undefined) ? data.longitude : null,
+            map_link: (data && data.map_link) || '',
+            map_url: (data && data.map_url) || '',
+        };
+        this.renderSavedLocation();
+    },
+
+    /* The map under the address box, and the line that says what it is. Its job
+     * is to make the auto-fill visible: a pin the customer cannot see is one
+     * they will never notice is wrong or missing - which is why this shows the
+     * place rather than linking to it. */
+    renderSavedLocation() {
         const wrap = document.getElementById('quoteInfoLocation');
         if (!wrap) return;   // staff drawer - the block isn't rendered at all
+        const saved = this.savedLocation || {};
+        const mapUrl = saved.map_url || '';
         const text = document.getElementById('quoteInfoLocationText');
         const view = document.getElementById('quoteInfoLocationView');
         const edit = document.getElementById('quoteInfoLocationEdit');
 
+        const drewMap = this.renderLocationPreview(saved, mapUrl);
         if (mapUrl) {
             text.textContent = 'Delivering to your saved location.';
             view.href = mapUrl;
-            view.hidden = false;
+            // Only stands in for a preview we could not draw - a saved map link with
+            // no readable coordinates behind it (see maps.py on why those are two
+            // independent halves).
+            view.hidden = drewMap;
             edit.textContent = 'Change';
         } else {
             text.textContent = 'No delivery location saved yet.';
@@ -907,6 +930,162 @@ const QuoteCart = {
         }
         wrap.classList.toggle('is-missing', !mapUrl);
         wrap.hidden = false;
+    },
+
+    /* Draws the little map of the saved pin, and returns whether there was
+     * anything to draw - the caller shows the plain "View" link when there
+     * wasn't, so a location we cannot picture is still reachable.
+     *
+     * The coordinates are re-parsed here rather than used as they arrived: they
+     * reach this through a JSON response, and a map is not the place to find out
+     * something was not a number.
+     *
+     * Kicked off, not awaited. The map arrives a moment after the rest of the
+     * form - which is the right order, since the line of text beside it already
+     * says what it is going to show. */
+    renderLocationPreview(saved, mapUrl) {
+        const box = document.getElementById('quoteInfoMap');
+        if (!box) return false;
+
+        const lat = parseFloat(saved.latitude);
+        const lng = parseFloat(saved.longitude);
+        if (!isFinite(lat) || !isFinite(lng)) {
+            box.hidden = true;
+            return false;
+        }
+
+        const coords = lat.toFixed(6) + ',' + lng.toFixed(6);
+        // Prefers the customer's own pasted link over the synthesized one, exactly
+        // like location_link() in maps.py - it may point at a named place rather
+        // than at bare coordinates.
+        document.getElementById('quoteInfoMapOpen').href =
+            mapUrl || ('https://www.google.com/maps?q=' + coords);
+        box.hidden = false;
+
+        this._ensureLocationPicker()
+            .then(() => EBLocationPicker.preview(document.getElementById('quoteInfoMapCanvas'), lat, lng))
+            .then(map => {
+                // Leaflet couldn't load (an office with no route to the tile server
+                // is the realistic case). Drop the empty box and put the link back,
+                // rather than leaving a grey rectangle where a map should be.
+                if (map) return;
+                box.hidden = true;
+                const view = document.getElementById('quoteInfoLocationView');
+                if (view && this.savedLocation && this.savedLocation.map_url) view.hidden = false;
+            });
+        return true;
+    },
+
+    /* Leaflet sizes itself from its container, so a map drawn while Order Details
+     * was collapsed is zero-height once it is opened again. Re-running preview()
+     * re-measures it; it is cheap, and a no-op when there is no pin. */
+    refreshLocationPreview() {
+        const canvas = document.getElementById('quoteInfoMapCanvas');
+        const saved = this.savedLocation;
+        if (!canvas || !saved || !window.EBLocationPicker) return;
+        EBLocationPicker.preview(canvas, saved.latitude, saved.longitude);
+    },
+
+    // ---- changing that pin, without leaving the cart ----
+    // The pin belongs to the account, so this really does edit the profile - it just
+    // does it here rather than sending a customer with a full cart off to
+    // /profile/edit. Same picker either way (partials/location_picker.html).
+
+    /* location-picker.js is not in the app.js bundle: most visits never open this
+     * modal, and the ones that do can afford one more request. Loaded exactly like
+     * _ensurePdfLibs() loads jsPDF. The script registers every .loc-picker on the
+     * page as it runs, so by the time this resolves ours is live. */
+    _locationPickerPromise: null,
+    _ensureLocationPicker() {
+        if (window.EBLocationPicker) return Promise.resolve(true);
+        if (!this._locationPickerPromise) {
+            this._locationPickerPromise = new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = '/static/js/location-picker.js';
+                script.onload = resolve;
+                script.onerror = () => reject(new Error('Failed to load the map picker'));
+                document.head.appendChild(script);
+            }).then(() => true).catch(err => {
+                this._locationPickerPromise = null;   // let a later attempt retry
+                throw err;
+            });
+        }
+        return this._locationPickerPromise;
+    },
+
+    openLocationModal() {
+        const overlay = document.getElementById('cartLocationOverlay');
+        if (!overlay) return;
+        overlay.hidden = false;
+
+        // The prefill request may still be in flight the first time the cart is
+        // opened, so wait on it - opening the picker on an empty map when the
+        // customer has a pin saved would look like their pin was lost.
+        this.ensurePrefill()
+            .then(() => this._ensureLocationPicker())
+            .then(() => {
+                const saved = this.savedLocation || {};
+                EBLocationPicker.setValue(
+                    'cartLocationPicker', saved.latitude, saved.longitude, saved.map_link
+                );
+                // Leaflet measures its container at creation time, so a map built
+                // while the modal was hidden is zero-height. reveal() builds it now
+                // and re-measures one that already exists.
+                EBLocationPicker.reveal('cartLocationPicker');
+            })
+            .catch(() => {
+                showToast('The map could not be loaded. Please try again.');
+                this.closeLocationModal();
+            });
+    },
+
+    closeLocationModal() {
+        const overlay = document.getElementById('cartLocationOverlay');
+        if (overlay) overlay.hidden = true;
+    },
+
+    /* Writes the pin to the customer's own record (POST /quote/location), not into
+     * the cart: submit() reads it back off that record server-side, so there is
+     * nothing here for the order payload to carry. */
+    saveLocation() {
+        const button = document.getElementById('cartLocationSave');
+        const root = document.getElementById('cartLocationPicker');
+        if (!button || !root) return;
+
+        const read = name => {
+            const input = root.querySelector('[data-loc="' + name + '"]');
+            return input ? input.value : '';
+        };
+
+        button.disabled = true;
+        button.textContent = 'Saving…';
+        fetch('/quote/location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                latitude: read('latitude'),
+                longitude: read('longitude'),
+                map_link: read('map_link'),
+            }),
+        })
+            // .catch(() => ({})) on the parse: a session that expired mid-cart answers
+            // with the sign-in page, not JSON, and an unhandled parse error would put
+            // "Unexpected token '<'" in front of the customer instead of something
+            // they can act on.
+            .then(response => response.json().catch(() => ({})).then(data => ({ ok: response.ok, data })))
+            .then(({ ok, data }) => {
+                if (!ok) throw new Error(data.detail || 'Could not save that location.');
+                // Redrawn from the server's answer rather than from what was typed,
+                // so the line under the address box says what was actually stored.
+                this.rememberLocation(data);
+                this.closeLocationModal();
+                showToast(data.map_url ? 'Delivery location updated.' : 'Delivery location cleared.');
+            })
+            .catch(err => showToast(err.message || 'Could not save that location.'))
+            .finally(() => {
+                button.disabled = false;
+                button.textContent = 'Save location';
+            });
     },
 
     renderInfoForm() {
@@ -1222,7 +1401,7 @@ const QuoteCart = {
                     <div class="qpt-info-row"><span class="qpt-info-label">Salesperson</span><span class="qpt-info-value">${ebEscapeHtml(order.salesperson || '—')}</span></div>
                     <div class="qpt-info-row"><span class="qpt-info-label">User</span><span class="qpt-info-value">${ebEscapeHtml(order.quoted_by_name || '—')}</span></div>
                     <div class="qpt-info-row"><span class="qpt-info-label">Installation Term</span><span class="qpt-info-value">${ebEscapeHtml(order.install_term || 'Free within Phnom Penh')}</span></div>
-                    <div class="qpt-info-row"><span class="qpt-info-label">Contact Person</span><span class="qpt-info-value">${ebEscapeHtml(order.contact_person || '—')}</span></div>
+                    <div class="qpt-info-row"><span class="qpt-info-label">Contact Person</span><span class="qpt-info-value">${ebEscapeHtml(order.contact_person || cfg.default_contact_person || '—')}</span></div>
                 </div>
             </div>
 
@@ -1895,11 +2074,27 @@ document.addEventListener('DOMContentLoaded', () => {
     // Saves the code as a labelled PNG for sending on. Only ever visible in the staff
     // flow - see _renderKhqrCard().
     document.getElementById('khqrDownloadBtn')?.addEventListener('click', () => QuoteCart.downloadQrImage());
+
+    // Delivery-location modal (customer carts). Closing it discards nothing that was
+    // stored - only Save writes - so unlike the KHQR modal it needs no confirmation,
+    // and a click on the backdrop is a close like any other.
+    document.getElementById('cartLocationSave')?.addEventListener('click', () => QuoteCart.saveLocation());
+    document.getElementById('cartLocationCancel')?.addEventListener('click', () => QuoteCart.closeLocationModal());
+    document.getElementById('cartLocationClose')?.addEventListener('click', () => QuoteCart.closeLocationModal());
+    document.getElementById('cartLocationOverlay')?.addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) QuoteCart.closeLocationModal();
+    });
     document.getElementById('quoteDiscountEditBtn')?.addEventListener('click', () => {
         document.getElementById('quoteDiscountEditor')?.classList.toggle('open');
     });
     document.getElementById('quoteInfoToggle')?.addEventListener('click', () => {
-        document.getElementById('quoteInfoForm')?.classList.toggle('collapsed');
+        const form = document.getElementById('quoteInfoForm');
+        if (!form) return;
+        form.classList.toggle('collapsed');
+        // The saved-location map is inside the section that just opened, and a
+        // Leaflet map measured while its container was display:none comes back
+        // zero-height. See refreshLocationPreview().
+        if (!form.classList.contains('collapsed')) QuoteCart.refreshLocationPreview();
     });
 });
 

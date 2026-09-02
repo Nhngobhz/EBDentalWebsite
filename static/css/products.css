@@ -4691,7 +4691,10 @@
     text-align: center;
     box-shadow: var(--shadow);
 }
-.eb-orders-page .orders-empty i {
+/* The big grey glyph above the message - `> i` and not a bare descendant
+   selector, which also caught the icon inside the "Browse products" button
+   below and blew it up to 2.4rem on its own line. */
+.eb-orders-page .orders-empty > i {
     font-size: 2.4rem;
     color: var(--text-light);
     opacity: 0.4;

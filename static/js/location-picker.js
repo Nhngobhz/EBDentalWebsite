@@ -35,6 +35,9 @@
     var DEFAULT_VIEW = [11.5564, 104.9282];
     var DEFAULT_ZOOM = 12;
     var PIN_ZOOM = 17;
+    // One step wider than the picker's: a thumbnail wants a street or two of
+    // context around the pin, not the rooftop.
+    var PREVIEW_ZOOM = 16;
 
     var leafletPromise = null;
 
@@ -126,6 +129,27 @@
         } catch (e) {
             return false;   // not a URL at all
         }
+    }
+
+    // ---- pieces shared by the editable picker and the read-only preview ----
+    var TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    var ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
+
+    function tileLayer(L) {
+        return L.tileLayer(TILE_URL, { maxZoom: 19, attribution: ATTRIBUTION });
+    }
+
+    /* A divIcon rather than Leaflet's default PNG: the default's image path is
+     * resolved from the stylesheet's own URL, which is fragile behind a CDN, and
+     * this one inherits the site's accent colour instead of shipping a blue that
+     * belongs to no brand. */
+    function pinIcon(L) {
+        return L.divIcon({
+            className: 'loc-pin',
+            html: '<span class="loc-pin-dot"></span>',
+            iconSize: [26, 26],
+            iconAnchor: [13, 26]
+        });
     }
 
     // ---- one picker instance ----------------------------------------------
@@ -312,10 +336,7 @@
                 start ? [start.lat, start.lng] : DEFAULT_VIEW,
                 start ? PIN_ZOOM : DEFAULT_ZOOM
             );
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
-            }).addTo(self.map);
+            tileLayer(L).addTo(self.map);
 
             // Tap/click anywhere to move the pin - on a phone that is far easier
             // than grabbing a marker that is only a few millimetres across.
@@ -349,16 +370,7 @@
         if (!this.marker) {
             this.marker = L.marker([pair.lat, pair.lng], {
                 draggable: true,
-                // A divIcon rather than Leaflet's default PNG: the default's
-                // image path is resolved from the stylesheet's own URL, which is
-                // fragile behind a CDN, and this one inherits the site's accent
-                // colour instead of shipping a blue that belongs to no brand.
-                icon: L.divIcon({
-                    className: 'loc-pin',
-                    html: '<span class="loc-pin-dot"></span>',
-                    iconSize: [26, 26],
-                    iconAnchor: [13, 26]
-                })
+                icon: pinIcon(L)
             }).addTo(this.map);
             this.marker.on('dragend', function () {
                 var position = self.marker.getLatLng();
@@ -454,6 +466,57 @@
             var picker = get(id);
             if (picker) picker.reveal();
         },
+
+        /* A read-only map of one location, for showing where something is going
+         * rather than choosing it - the cart drawer draws the customer's saved pin
+         * with this. Same tiles and same pin as the picker above, so the little map
+         * and the one they edit it in look like the same place.
+         *
+         * Every interaction is off: at thumbnail size a pannable map is a trap on a
+         * phone, and whatever sits over it (the cart's "Open in Google Maps" link)
+         * should get the tap. The attribution control stays - it is the one part of
+         * an OpenStreetMap map that is not optional.
+         *
+         * Safe to call repeatedly: the map is built once per element and later calls
+         * just move it, which is what makes it cheap to re-run on every render. */
+        preview: function (element, latitude, longitude) {
+            var pair = toPair(latitude, longitude);
+            if (!element || !pair) return Promise.resolve(null);
+            return loadLeaflet().then(function (L) {
+                var map = element._locPreviewMap;
+                if (!map) {
+                    map = L.map(element, {
+                        zoomControl: false,
+                        attributionControl: true,
+                        dragging: false,
+                        scrollWheelZoom: false,
+                        doubleClickZoom: false,
+                        boxZoom: false,
+                        keyboard: false,
+                        touchZoom: false
+                    });
+                    tileLayer(L).addTo(map);
+                    element._locPreviewMap = map;
+                }
+                map.setView([pair.lat, pair.lng], PREVIEW_ZOOM);
+                if (element._locPreviewMarker) {
+                    element._locPreviewMarker.setLatLng([pair.lat, pair.lng]);
+                } else {
+                    element._locPreviewMarker = L.marker([pair.lat, pair.lng], {
+                        icon: pinIcon(L),
+                        interactive: false
+                    }).addTo(map);
+                }
+                // Leaflet measures its container when the map is created, so one
+                // built inside a collapsed section comes out zero-height. Callers
+                // re-run this when the section opens; this is what makes that work.
+                map.invalidateSize();
+                return map;
+            }).catch(function () {
+                return null;   // no map - the caller falls back to a plain link
+            });
+        },
+
         parseCoordinates: parseCoordinates
     };
 

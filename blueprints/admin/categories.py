@@ -1,7 +1,7 @@
 from flask import flash, redirect, render_template, request, url_for
 
 from auth import permission_required
-from blueprints.admin import admin_bp
+from blueprints.admin import admin_bp, product_facet_counts
 from store_api import StoreAPIError, get_api_client
 
 
@@ -20,32 +20,11 @@ def _icon_from_form():
     return request.form.get("category_icon", "").strip()
 
 
-def _product_counts_by_category(products):
-    counts = {}
-    for p in products:
-        category = p.get("category")
-        if category:
-            counts[category["id"]] = counts.get(category["id"], 0) + 1
-    return counts
-
-
 @admin_bp.route("/categories")
 def categories():
     client = get_api_client()
     category_list = client.get_all("/categories/")
-    # Gift-only products still belong to a category, so they count here.
-    #
-    # KNOWN LIMITATION, same one the admin Products table carries: 500 is the
-    # server's maximum page and the catalogue is past 8,000 rows since the SAP
-    # import, so this counts the first 500 only. Deliberately not "fixed" by paging
-    # through everything - GET /products/facets already returns exact per-category
-    # counts in one query, and moving this screen onto it is the real fix rather
-    # than 17 more requests per page view.
-    raw_products = client.get(
-        "/products/",
-        params={"limit": 500, "include_unpurchasable": "true", "section": "all"},
-    )
-    counts = _product_counts_by_category(raw_products)
+    counts = product_facet_counts(client, "categories")
     for c in category_list:
         c["product_count"] = counts.get(c["id"], 0)
     return render_template("admin/categories.html", categories=category_list)

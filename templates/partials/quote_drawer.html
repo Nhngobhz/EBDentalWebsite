@@ -1,3 +1,4 @@
+{% from "partials/location_picker.html" import location_picker %}
 <!-- Cart Drawer — slides in, shows items added via "Add to Cart"
      with full line-item editing (code / qty / UOM / unit price / discount),
      plus a customer & quote info form matching EB Dental's official
@@ -37,25 +38,60 @@
                     <label>Address *
                         <input type="text" id="qiAddress" placeholder="Clinic address" required oninput="QuoteCart.saveInfoField('address', this.value)">
                     </label>
-                    {# Which saved pin this order will be delivered to. Read-only on
-                       purpose: the pin belongs to the account, not to one order, so
-                       it is changed where it lives (the profile) rather than being
-                       re-picked in the cart every time. The address box above stays
-                       freely editable - it is what gets PRINTED on the quotation.
+                    {# Which saved pin this order will be delivered to. The pin belongs
+                       to the account rather than to one order, so Change edits the
+                       profile - but it does it in the map modal below rather than by
+                       sending the customer off to /profile/edit with a full cart open
+                       behind them. The address box above stays freely editable - it is
+                       what gets PRINTED on the quotation.
 
                        Hidden until QuoteCart.applyPrefill() has heard back from
                        /quote/prefill, so it never flashes the wrong state. #}
                     {% if is_customer() %}
                     <div class="quote-info-location" id="quoteInfoLocation" hidden>
-                        <i class="fas fa-location-dot"></i>
-                        <span id="quoteInfoLocationText"></span>
-                        <a id="quoteInfoLocationView" href="" target="_blank" rel="noopener" hidden>View</a>
-                        <a href="{{ url_for('auth.profile_edit') }}" id="quoteInfoLocationEdit"></a>
+                        {# The pin, shown rather than linked to. Drawn by
+                           EBLocationPicker.preview() - the same tiles and the same pin
+                           as the picker behind Change, so the little map and the one
+                           they edit it in look like the same place. Painted only once
+                           the cart has actually been opened (renderSavedLocation runs
+                           off the prefill), so browsing costs nothing.
+
+                           Google's keyless `output=embed` iframe was tried here first
+                           and dropped: at 96px it crops its own "Map data / Terms" bar,
+                           it logs a CORS error on every open, and the click-catcher
+                           below obscures Google's own UI - all three are things their
+                           terms are pointed about. The anchor still opens Google Maps,
+                           which is what the old "View" link did; it just isn't Google
+                           drawing the thumbnail.
+
+                           The anchor sits ON TOP of the map and is what a tap hits.
+                           Even with every Leaflet interaction disabled, a thumbnail
+                           that swallows a swipe on a phone is a trap. #}
+                        <div class="quote-info-map" id="quoteInfoMap" hidden>
+                            <div class="quote-info-map-canvas" id="quoteInfoMapCanvas"></div>
+                            <a class="quote-info-map-open" id="quoteInfoMapOpen" href=""
+                               target="_blank" rel="noopener" aria-label="Open your delivery location in Google Maps">
+                                <span><i class="fab fa-google"></i> Maps</span>
+                            </a>
+                        </div>
+                        <div class="quote-info-location-line">
+                            <i class="fas fa-location-dot"></i>
+                            <span id="quoteInfoLocationText"></span>
+                            {# Only for a saved location we have no coordinates for - a
+                               map link the picker could not read a pin out of. There is
+                               nothing to draw a preview from, so the old link stands in
+                               for it. #}
+                            <a id="quoteInfoLocationView" href="" target="_blank" rel="noopener" hidden>View</a>
+                            <button type="button" id="quoteInfoLocationEdit" class="quote-info-location-btn"
+                                    onclick="QuoteCart.openLocationModal()"></button>
+                        </div>
                     </div>
                     {% endif %}
+                    {% if not is_customer() %}
                     <label>Contact Person
                         <input type="text" id="qiContactPerson" placeholder="098 882 953" oninput="QuoteCart.saveInfoField('contactPerson', this.value)">
                     </label>
+                    {% endif %}
                 </div>
                 <div class="quote-info-col">
                     {% if is_customer() %}
@@ -109,6 +145,15 @@
                     <div class="quote-info-static">
                         <span>Installation Term</span>
                         <strong>{{ site_settings().default_install_term }}</strong>
+                    </div>
+                    {# EB's own contact, not the buyer's - on the printed quotation it
+                       sits in this column, beside Salesperson and User. So it reads
+                       like the two terms above it, and submit() in blueprints/quote.py
+                       substitutes the same value server-side rather than trusting
+                       whatever a customer's request carried. #}
+                    <div class="quote-info-static">
+                        <span>Contact Person</span>
+                        <strong>{{ site_settings().default_contact_person }}</strong>
                     </div>
                     {% else %}
                     <label>Payment Term
@@ -234,6 +279,41 @@
         </div>
     </div>
 </div>
+
+{% if is_customer() %}
+{# Delivery-location picker, opened by the Change/Set one button under the cart's
+   Address box. The same field the profile page uses (partials/location_picker.html),
+   in a modal, so a customer with a full cart can move their pin without navigating
+   away from it and coming back.
+
+   It is NOT part of the order payload: Save writes it straight to the customer's own
+   record (POST /quote/location -> PUT /customers/me), and submit() then reads the pin
+   back off that record server-side. So a pin corrected here is corrected everywhere,
+   and the order can't carry a location the profile disagrees with.
+
+   The markup ships with the page, but nothing behind it does: location-picker.js is
+   fetched the first time the modal opens (QuoteCart._ensureLocationPicker), and Leaflet
+   only when that script builds the map. And the map is built on open rather than on
+   load because Leaflet sizes itself from its container - one created inside a hidden
+   box comes out zero-height, which is what reveal() exists to undo. #}
+<div class="cart-location-overlay" id="cartLocationOverlay" hidden>
+    <div class="cart-location-box" role="dialog" aria-modal="true" aria-labelledby="cartLocationTitle">
+        <div class="cart-location-head">
+            <h4 id="cartLocationTitle"><i class="fas fa-location-dot"></i> Delivery location</h4>
+            <button type="button" class="cart-location-close" id="cartLocationClose" aria-label="Close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="cart-location-body">
+            {{ location_picker('cartLocationPicker') }}
+        </div>
+        <div class="cart-location-actions">
+            <button type="button" class="eb-dialog-btn cancel" id="cartLocationCancel">Cancel</button>
+            <button type="button" class="eb-dialog-btn confirm" id="cartLocationSave">Save location</button>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- Hidden print template — built and populated by QuoteCart.confirmPurchase()
      right before capture, then snapshotted with html2canvas. Kept off-screen

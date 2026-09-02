@@ -49,54 +49,64 @@
     transition: left 0.3s ease;
 }
 .dashboard-sidebar .sidebar-brand {
-    padding: 20px 20px 16px;
+    padding: 16px 16px 14px;
     text-align: center;
     border-bottom: 1px solid var(--sidebar-border);
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 12px;
+    gap: 8px;
     flex-shrink: 0;
 }
-/* The brand block is an <a> back to the storefront - it keeps the same class
-   (and therefore the same layout), this just undoes link styling and adds a
-   hint that it's clickable. */
-a.sidebar-brand {
-    text-decoration: none;
-    color: inherit;
-    transition: var(--transition);
-}
-a.sidebar-brand:hover {
-    background: rgba(255, 255, 255, 0.04);
-}
-.dashboard-sidebar .sidebar-brand .brand-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, #06b6d4, #0891b2);
+/* The two shop logos share one light plate. Both machinery-logo and home-49 are
+   dark artwork drawn for the white storefront header, so they need a light ground
+   here rather than a filter - inverting home-49 to white would erase the "49"
+   inside its tooth badge. */
+.dashboard-sidebar .sidebar-shops {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.1rem;
-    color: white;
-    flex-shrink: 0;
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: #fff;
 }
-.dashboard-sidebar .sidebar-brand .brand-text {
-    text-align: left;
-    line-height: 1.2;
-}
-.dashboard-sidebar .sidebar-brand .brand-text span {
-    font-size: 1.1rem;
-    font-weight: 700;
-    letter-spacing: -0.3px;
+.dashboard-sidebar .sidebar-shops a {
     display: block;
-    color: #fff;
+    line-height: 0;
+    text-decoration: none;
+    transition: var(--transition);
 }
-.dashboard-sidebar .sidebar-brand .brand-text small {
+.dashboard-sidebar .sidebar-shops a:hover {
+    opacity: 0.65;
+}
+/* Hairline between the two marks, so it reads as two logos rather than one
+   run-on lockup. */
+.dashboard-sidebar .sidebar-shops a + a {
+    margin-left: 10px;
+    padding-left: 10px;
+    border-left: 1px solid rgba(15, 23, 42, 0.15);
+}
+/* Sized by height, like .header-logo-img. Not the SAME height though: a third of
+   machinery-logo's canvas is its "Partner in Dentistry" tagline, so matching box
+   heights would leave HOME 49's wordmark looking twice the size. The max-widths
+   are the guard for the 270px sidebar - the pair has ~197px to live in. */
+.dashboard-sidebar .sidebar-logo {
+    height: 28px;
+    width: auto;
+    max-width: 88px;
+    object-fit: contain;
+    display: block;
+}
+.dashboard-sidebar .sidebar-logo.home49 {
+    height: 20px;
+    max-width: 110px;
+}
+.dashboard-sidebar .sidebar-brand .brand-caption {
     font-weight: 400;
     font-size: 0.65rem;
-    opacity: 0.6;
-    display: block;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
     color: rgba(255, 255, 255, 0.6);
 }
 

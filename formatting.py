@@ -9,11 +9,18 @@ told apart from the sentinel by type alone. `to_number()` is the one place that
 distinction is made; everything downstream (Jinja, JS `|tojson` blobs) should only ever
 see a real float, the literal "XXXX", or None - never a numeric-looking string.
 """
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from flask import current_app, url_for
 
 MASKED_PRICE = "XXXX"
+
+# Cambodia is UTC+7 all year - no DST has ever applied - so a fixed offset is exactly
+# correct here and, unlike ZoneInfo("Asia/Phnom_Penh"), needs no tzdata package on the
+# Windows server. Deliberately the same constant store-api's telegram_format.py keeps,
+# for the same reasons; the two repos ship separately, so it is spelled out twice
+# rather than imported across the boundary.
+ICT = timezone(timedelta(hours=7))
 
 
 def resolve_image_url(path):
@@ -130,12 +137,46 @@ def was_price(list_price, price):
 
 
 def format_date(value, fmt="%b %d, %Y"):
-    """store-api returns ISO 8601 datetimes as strings once JSON-decoded."""
+    """store-api returns ISO 8601 datetimes as strings once JSON-decoded.
+
+    Anything carrying an offset is moved onto the Cambodia clock before it is
+    formatted. Every timestamp column over there is DateTime(timezone=True) and comes
+    home normalised to UTC, so strftime on the value as-received printed the UTC clock
+    - an order placed at 2pm in the shop read as "07:00" on the admin Orders table, and
+    the Activity Log dated the day's first entries seven hours before anyone arrived.
+    The Telegram alerts have always converted (telegram_format.when), which is what
+    made the web screens the odd ones out rather than the rule.
+
+    A value WITHOUT an offset is formatted exactly as it arrives, and that asymmetry is
+    the point: date_of_birth is a Date, not an instant, and there is no hour of a
+    birthday to shift - "converting" one could only ever move it to the wrong day.
+    """
     if not value:
         return ""
     if isinstance(value, str):
         value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    # datetime is a subclass of date, so this has to be the narrow check: a plain date
+    # has no tzinfo to ask about and no astimezone to call.
+    if isinstance(value, datetime) and value.tzinfo is not None:
+        value = value.astimezone(ICT)
     return value.strftime(fmt)
+
+
+def local_date_string(value):
+    """An ISO timestamp from store-api as "YYYY-MM-DD" on the Cambodia clock.
+
+    For pre-filling an <input type="date"> from a stored instant. Slicing the ISO
+    string instead (`value[:10]`) reads the UTC day, which is a different day for
+    anything stored in the first seven hours of one - see _date_to_iso in
+    blueprints/admin/promotions.py, where that costs a whole day.
+    """
+    if not value:
+        return ""
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(ICT).strftime("%Y-%m-%d")
 
 
 # ---- activity log display ----

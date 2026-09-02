@@ -28,6 +28,17 @@ def customer_install_term():
     return site_settings.get().get("default_install_term") or "Free within Phnom Penh"
 
 
+def customer_contact_person():
+    """Who the buyer should call about their order - EB's number, not theirs.
+
+    "Contact Person" prints in the right-hand column of the quotation, next to
+    Salesperson and User (see buildPrintTemplate in main.js and invoice_pdf.py):
+    it has always been EB's contact, so it belongs with the two terms above
+    rather than in the box a customer fills in.
+    """
+    return site_settings.get().get("default_contact_person") or "098 882 953"
+
+
 def _saved_customer():
     """The signed-in customer's own record, or None.
 
@@ -65,13 +76,69 @@ def prefill():
         "clinic": customer.get("customer_name") or "",
         "tel": customer.get("phone_num") or "",
         "address": customer.get("address") or "",
-        # Not editable in the cart - shown there only so a customer can see WHICH
-        # saved location their order is about to be delivered to, with a link to
-        # go change it. The order gets its copy server-side in submit(), never
-        # from the browser.
+        # Which saved location this order is about to be delivered to. `map_url` is
+        # the ready-made "open this in Maps" link the cart shows; the three raw
+        # fields under it seed the picker behind the cart's Change button, so it
+        # opens on the pin the customer already has instead of on an empty map.
+        #
+        # None of them is trusted on the way back in: submit() reads the pin off
+        # the customer record itself, and save_location() below writes it through
+        # store-api's own validation.
         "map_url": maps.location_link(
             customer.get("latitude"), customer.get("longitude"), customer.get("map_link")
         ),
+        "latitude": customer.get("latitude"),
+        "longitude": customer.get("longitude"),
+        "map_link": customer.get("map_link") or "",
+    })
+
+
+@quote_bp.route("/location", methods=["POST"])
+def save_location():
+    """Move the signed-in customer's delivery pin, from the cart drawer.
+
+    The pin belongs to the account rather than to one order, so this really does
+    edit the profile - it is the same PUT /customers/me the profile page makes,
+    reached without leaving a full cart behind. Customers only: staff carts quote
+    for other people's clinics and have no pin of their own to move.
+
+    Returns the same three fields prefill() does, so the caller can redraw the
+    line under the address box from the answer instead of guessing at it.
+    """
+    if not is_customer():
+        return jsonify({"detail": "Only customers have a delivery location."}), 403
+
+    body = request.get_json(silent=True) or {}
+
+    def _coord(field):
+        raw = body.get(field)
+        if raw in (None, ""):
+            return None
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            return None
+
+    # Sent as explicit nulls when blank rather than omitted, so clearing the pin in
+    # the picker really clears it - store-api only touches the keys it is given
+    # (PUT /customers/me does model_dump(exclude_unset=True)).
+    payload = {
+        "latitude": _coord("latitude"),
+        "longitude": _coord("longitude"),
+        "map_link": (body.get("map_link") or "").strip() or None,
+    }
+    try:
+        customer = get_api_client().put_json("/customers/me", payload)
+    except StoreAPIError as e:
+        return jsonify({"detail": e.detail}), (e.status_code or 400)
+
+    return jsonify({
+        "map_url": maps.location_link(
+            customer.get("latitude"), customer.get("longitude"), customer.get("map_link")
+        ),
+        "latitude": customer.get("latitude"),
+        "longitude": customer.get("longitude"),
+        "map_link": customer.get("map_link") or "",
     })
 
 
@@ -105,23 +172,25 @@ def submit():
     if is_customer() and payment_method not in ("cash", "khqr"):
         return jsonify({"detail": "Please choose a payment method (Cash or KHQR)."}), 400
 
-    # Payment/installation terms are EB's to state, so a customer's order gets the
-    # standing ones no matter what the request said. Staff are quoting per deal and
-    # keep typing their own. Contact person stays client-supplied either way - that
-    # one genuinely is the buyer's own detail.
+    # Payment/installation terms and the contact person are EB's to state, so a
+    # customer's order gets the standing ones no matter what the request said -
+    # which is what stops a hand-crafted POST printing its own onto an EB
+    # quotation. Staff are quoting per deal and keep typing their own.
     if is_customer():
         payment_term = customer_payment_term()
         install_term = customer_install_term()
+        contact_person = customer_contact_person()
     else:
         payment_term = body.get("payment_term") or None
         install_term = body.get("install_term") or None
+        contact_person = body.get("contact_person") or None
 
     # salesperson/quoted_by_name are NOT sent - store-api derives them server-side from
     # whoever is actually calling (see routers/orders.py::create_order), never trusted
     # from the client.
     payload = {
         "clinic_name": clinic_name,
-        "contact_person": body.get("contact_person") or None,
+        "contact_person": contact_person,
         "phone": phone,
         "address": address,
         "payment_term": payment_term,

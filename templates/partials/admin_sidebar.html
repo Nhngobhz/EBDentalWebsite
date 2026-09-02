@@ -2,15 +2,26 @@
     <button type="button" class="sidebar-mobile-close" id="dashSidebarClose" aria-label="Close menu">
         <i class="fas fa-times"></i>
     </button>
-    <!-- The logo doubles as the way back to the storefront (same tab). The
-         footer's arrow button still opens the site in a NEW tab, for when an
-         admin wants to keep the panel open. -->
-    <a class="sidebar-brand" href="{{ url_for('main.home') }}" title="Go to the store">
-    <img src="{{ url_for('static', filename='images/eb-logo.png') }}" alt="EB Dental Supply" class="sidebar-logo" />
-    <div class="brand-text">
-        <small>Admin Panel</small>
+    <!-- Both shops get a mark. This panel administers machinery AND materials, so
+         showing only the machinery logo made the sidebar look like it belonged to
+         half the business. Each logo doubles as the way back to its own storefront
+         (same tab); the footer's arrow button still opens the site in a NEW tab,
+         for when an admin wants to keep the panel open.
+
+         The pair sits on a light plate because both files are dark artwork drawn
+         for the white storefront header - on this navy sidebar they would be
+         practically invisible without a ground of their own. -->
+    <div class="sidebar-brand">
+        <div class="sidebar-shops">
+            <a href="{{ url_for('main.home') }}" title="Go to the machinery store">
+                <img src="{{ url_for('static', filename='images/machinery-logo.png') }}" alt="EB Dental Supply" class="sidebar-logo" />
+            </a>
+            <a href="{{ url_for('materials.home') }}" title="Go to the materials store">
+                <img src="{{ url_for('static', filename='images/home-49.png') }}" alt="HOME 49" class="sidebar-logo home49" />
+            </a>
+        </div>
+        <small class="brand-caption">Admin Panel</small>
     </div>
-    </a>
     <nav class="sidebar-nav">
 
         <div class="nav-group">

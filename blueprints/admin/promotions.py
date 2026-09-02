@@ -4,24 +4,38 @@ from flask import flash, redirect, render_template, request, url_for
 
 from auth import permission_required
 from blueprints.admin import admin_bp, bundle_items_from_form
-from formatting import adapt_promotion
+from formatting import adapt_promotion, local_date_string
 from store_api import StoreAPIError, get_api_client
 
 
 def _date_to_iso(value, end_of_day=False):
     """<input type="date"> submits "YYYY-MM-DD" - store-api needs a full ISO
     datetime, and end_date must be strictly after start_date, so a same-day
-    promotion needs start pinned to 00:00:00 and end pinned to 23:59:59."""
+    promotion needs start pinned to 00:00:00 and end pinned to 23:59:59.
+
+    The +07:00 makes those the admin's own day, and it fixes two separate things.
+    A window sent without an offset was read as UTC, so a deal set to end on the 19th
+    actually ran until 06:59 on the 20th in Phnom Penh and one starting on the 19th
+    was not live until 07:00 that morning. And a naive datetime never compares equal
+    to the aware value already in the (timezone=True) column, so re-saving a promotion
+    whose dates nobody had touched still rewrote both of them - and filed a start/end
+    change in the activity log every single time.
+    """
     if not value:
         return None
-    return f"{value}T23:59:59" if end_of_day else f"{value}T00:00:00"
+    clock = "23:59:59" if end_of_day else "00:00:00"
+    return f"{value}T{clock}+07:00"
 
 
 def _iso_to_date(value):
-    """Reverse of the above, for pre-filling the edit form's <input type="date">."""
-    if not value:
-        return ""
-    return value[:10]
+    """Reverse of the above, for pre-filling the edit form's <input type="date">.
+
+    Via the Cambodia clock, not by slicing the string: store-api hands the timestamp
+    back normalised to UTC, so a promotion starting on the 19th comes home as
+    "2026-08-18T17:00:00Z" and value[:10] would offer the form the 18th - a form that
+    walks the start date back a day every time it is opened and saved.
+    """
+    return local_date_string(value)
 
 
 # The two storefronts a deal can be advertised in - see store-api's

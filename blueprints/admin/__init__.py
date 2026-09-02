@@ -28,6 +28,34 @@ def bundle_items_from_form(field="item_product_id", qty_field="item_qty"):
     return items
 
 
+def product_facet_counts(client, facet):
+    """How many products sit behind each brand (or category), keyed by id.
+
+    One GROUP BY on store-api (GET /products/facets) rather than a page of
+    products counted here. The page-counting version was wrong twice over on a
+    catalogue this size: `limit` is capped at 500, so it only ever saw the first
+    500 rows of 9,000, and the brands screen additionally never passed `section`,
+    which defaults to "machinery" - so every one of the 186 brands that sells only
+    materials or spare parts showed 0.
+
+    Counts EVERYTHING assigned to the brand/category, not what a shopper can see:
+    gift-only products (include_unpurchasable) and items SAP has withdrawn
+    (include_delisted) are still rows pointing at it, and are exactly what makes a
+    delete come back "cannot delete a brand that still has products assigned to
+    it". A column that says 0 next to a delete that then refuses is worse than a
+    number that includes rows the storefront hides.
+    """
+    buckets = client.get(
+        "/products/facets",
+        params={
+            "section": "all",
+            "include_unpurchasable": "true",
+            "include_delisted": "true",
+        },
+    )[facet]
+    return {b["id"]: b["count"] for b in buckets}
+
+
 @admin_bp.before_request
 @staff_required
 def _require_staff():

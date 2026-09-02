@@ -1,17 +1,8 @@
 from flask import flash, redirect, render_template, request, url_for
 
 from auth import permission_required
-from blueprints.admin import admin_bp
+from blueprints.admin import admin_bp, product_facet_counts
 from store_api import StoreAPIError, get_api_client
-
-
-def _product_counts_by_brand(products):
-    counts = {}
-    for p in products:
-        brand = p.get("brand")
-        if brand:
-            counts[brand["id"]] = counts.get(brand["id"], 0) + 1
-    return counts
 
 
 def _file_from_request():
@@ -23,13 +14,12 @@ def _file_from_request():
 
 @admin_bp.route("/brands")
 def brands():
-    # products is already provided by the sitewide context processor, but we need
-    # per-brand counts here specifically, so fetch it again to compute those.
     client = get_api_client()
-    brand_list = client.get("/brands/", params={"limit": 200})
-    # Gift-only products still belong to a brand, so they count here.
-    raw_products = client.get("/products/", params={"limit": 500, "include_unpurchasable": "true"})
-    counts = _product_counts_by_brand(raw_products)
+    # get_all, not limit=200: there are 190 brands since the SAP import, and a
+    # fixed page that happens to still fit is how this table silently starts
+    # dropping rows off the end.
+    brand_list = client.get_all("/brands/")
+    counts = product_facet_counts(client, "brands")
     for b in brand_list:
         b["product_count"] = counts.get(b["id"], 0)
     return render_template("admin/brands.html", brands=brand_list)
