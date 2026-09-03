@@ -74,6 +74,11 @@ def _order_stats(orders, now):
         total = to_number(order.get("grand_total")) or 0
         created = _parse(order.get("created_at"))
         paid = order.get("payment_status") == "paid"
+        # A refunded sale is money that came in and went straight back out. It is not
+        # takings, and - the part that matters here - it is not a debt either: without
+        # this it would fall through to "unpaid" below and be chased as an order still
+        # waiting to be settled.
+        refunded = order.get("payment_status") == "refunded"
         cancelled = order.get("status") == "cancelled"
 
         if is_quote:
@@ -88,7 +93,7 @@ def _order_stats(orders, now):
 
         if paid:
             stats["paid_value"] += total
-        elif not is_quote and not cancelled:
+        elif not is_quote and not cancelled and not refunded:
             # Unpaid quotes are not debts - nobody has agreed to buy one yet.
             stats["unpaid_count"] += 1
             stats["unpaid_value"] += total

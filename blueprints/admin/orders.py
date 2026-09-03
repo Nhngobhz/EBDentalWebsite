@@ -160,7 +160,11 @@ def orders_mark_paid(order_id):
 
     A customer sitting on the KHQR modal sees "paid" on its next poll and downloads
     their receipt; for a counter sale, staff print it from this page's Print button,
-    which now says Receipt for any paid row."""
+    which now says Receipt for any paid row.
+
+    Doubles as "Undo refund": posting payment_status="paid" over a refunded order puts
+    the sale back and clears the reversal (store-api's update_order drops refunded_at
+    and refund_reason with it), which is how a mis-clicked refund is taken back."""
     client = get_api_client()
     try:
         client.put_json(f"/orders/{order_id}", {"payment_status": "paid"})
@@ -169,6 +173,32 @@ def orders_mark_paid(order_id):
         return redirect(url_for("admin.orders"))
 
     flash("Order marked as paid.", "success")
+    return redirect(url_for("admin.orders"))
+
+
+@admin_bp.route("/orders/<int:order_id>/refund", methods=["POST"])
+@ORDERS_PERMISSION
+def orders_refund(order_id):
+    """Records that the money for a paid order has been given back.
+
+    Nothing here moves money - the refund itself is made at the bank or over the
+    counter, exactly as the payment was. This writes it down, which is what takes the
+    sale out of the takings totals and puts the reversal on the printed invoice.
+
+    Gated the same way deleting a paid order is: the route allows anyone who can work
+    the Orders screen, and store-api's refund_order 403s all but `admin`. The button is
+    only rendered for an admin, so that 403 is a backstop rather than the normal path -
+    the same pair of doors the Delete button already goes through.
+    """
+    reason = request.form.get("reason", "").strip()
+    client = get_api_client()
+    try:
+        client.post_json(f"/orders/{order_id}/refund", {"reason": reason or None})
+    except StoreAPIError as e:
+        flash(e.detail, "error")
+        return redirect(url_for("admin.orders"))
+
+    flash("Refund recorded - this order no longer counts as a sale.", "success")
     return redirect(url_for("admin.orders"))
 
 

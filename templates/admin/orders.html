@@ -71,7 +71,8 @@
                  filters below in filterOrdersTable(). The three are mutually exclusive
                  and follow the badges: a paid row is an Invoice and shows under
                  Invoices, so "Quotes" means quotes still waiting to be settled - which
-                 is the list staff actually chase. -->
+                 is the list staff actually chase. A refunded row is an Invoice too - it
+                 is finished, and putting it back on the chase list would be wrong. -->
             <div id="orderTypeTabs" style="display:flex; gap:4px;">
                 <button type="button" class="btn-dash sm primary" data-type-filter="all" onclick="setOrderTypeFilter('all')">All</button>
                 <button type="button" class="btn-dash sm" data-type-filter="quote" onclick="setOrderTypeFilter('quote')">Quotes</button>
@@ -150,9 +151,14 @@
                        under that title too (buildPrintTemplate / invoice_pdf.py). Mirrored
                        by documentWord() in the JS below, which titles the two modals.
                        order_type itself doesn't move - the Quotes/Orders tabs still sort
-                       by how the row was raised. #}
+                       by how the row was raised.
+
+                       A REFUNDED row keeps the Invoice badge: the invoice was really
+                       issued, and the refund is a fact about it rather than a reason to
+                       demote it back to a quote. The Payment column below is where the
+                       reversal is stated. #}
                     <td>
-                        {% if o.payment_status == 'paid' %}
+                        {% if o.payment_status in ('paid', 'refunded') %}
                         <span style="background:#16a34a; color:white; padding:2px 10px; border-radius:99px; font-size:0.65rem; font-weight:600; white-space:nowrap;">🧾 Invoice</span>
                         {% elif (o.order_type or 'order') == 'quote' %}
                         <span style="background:#f59e0b; color:white; padding:2px 10px; border-radius:99px; font-size:0.65rem; font-weight:600; white-space:nowrap;">📄 Quote</span>
@@ -172,6 +178,11 @@
                            it as "Paid" here reads as live revenue that no longer exists. #}
                         {% if o.status == 'cancelled' %}
                         <span style="color:var(--text-light); font-weight:600;"><i class="fas fa-ban"></i> Cancelled</span>
+                        {# Before "paid": a refunded row still carries the payment_method
+                           the money came in on, and calling it Paid is the one thing
+                           about it that is no longer true. #}
+                        {% elif o.payment_status == 'refunded' %}
+                        <span style="color:#b45309; font-weight:600;"><i class="fas fa-rotate-left"></i> Refunded</span>
                         {% elif o.payment_status == 'paid' %}
                         <span style="color:#16a34a; font-weight:600;"><i class="fas fa-circle-check"></i> Paid{% if o.payment_method == 'khqr' %} (KHQR){% endif %}</span>
                         {% elif o.payment_method == 'khqr' %}
@@ -188,33 +199,46 @@
                     <td style="font-size:0.7rem; white-space:nowrap;">{{ format_date(o.created_at) }}</td>
                     <!-- Edit disappears once the row is paid: an invoice has been
                          issued against those exact figures, so the order is frozen and
-                         openOrderEditModal() refuses it anyway.
+                         openOrderEditModal() refuses it anyway. A refunded row is locked
+                         the same way - money moved against it in both directions, and
+                         editing it now would leave the figures describing neither.
 
                          Delete is the owner's exception (2026-08-20). A locked row can
                          still be deleted, but only by someone holding `admin` - the
                          same pair of doors store-api's delete_order now checks, where
                          a price_listing salesperson gets a 403. It destroys the record
-                         of a completed sale outright, so the confirm says so. -->
+                         of a completed sale outright, so the confirm says so.
+
+                         Refund (2026-09-02) is the other admin-only action, and only on
+                         a row that is actually paid - there is nothing to give back on
+                         an unpaid one, and store-api 409s a second refund. -->
                     <td style="white-space:nowrap;" onclick="event.stopPropagation();">
                         <button type="button" class="btn-dash primary sm" onclick="openOrderModal({{ o.id }})" title="View"><i class="fas fa-eye"></i></button>
                         {# Delivered but no payment on record is the one state staff act on
                            in bulk down the list - the goods are out and the money is in, so
                            the same "Complete" the view modal offers is put right here.
                            Sets payment_status="paid", which is what issues the receipt. #}
-                        {% if o.status == 'delivered' and o.payment_status != 'paid' %}
+                        {% if o.status == 'delivered' and o.payment_status not in ('paid', 'refunded') %}
                         <form method="post" action="{{ url_for('admin.orders_mark_paid', order_id=o.id) }}" style="display:inline;"
                               data-confirm="Mark this order complete? This records the payment as received, which is what issues the receipt."
                               data-confirm-label="Complete" data-confirm-tone="success">
                             <button type="submit" class="btn-dash primary sm" style="background:#16a34a;" title="Mark as complete"><i class="fas fa-check"></i></button>
                         </form>
                         {% endif %}
-                        {% if o.payment_status == 'paid' %}
-                        <span class="order-locked-chip" title="This order has been paid - it can no longer be edited.{% if has_permission('admin') %} As an admin you can still delete it.{% endif %}"><i class="fas fa-lock"></i> Locked</span>
+                        {% if o.payment_status in ('paid', 'refunded') %}
+                        {% if o.payment_status == 'refunded' %}
+                        <span class="order-locked-chip refunded" title="The payment for this order was refunded{% if o.refunded_at %} on {{ format_date(o.refunded_at) }}{% endif %} - it no longer counts as a sale."><i class="fas fa-rotate-left"></i> Refunded</span>
+                        {% else %}
+                        <span class="order-locked-chip" title="This order has been paid - it can no longer be edited.{% if has_permission('admin') %} As an admin you can refund or delete it.{% endif %}"><i class="fas fa-lock"></i> Locked</span>
+                        {% endif %}
                         {% if has_permission('admin') %}
+                        {% if o.payment_status == 'paid' %}
+                        <button type="button" class="btn-dash sm" onclick="openRefundModal({{ o.id }})" title="Refund this order"><i class="fas fa-rotate-left"></i></button>
+                        {% endif %}
                         <form method="post" action="{{ url_for('admin.orders_delete', order_id=o.id) }}" style="display:inline;"
-                              data-confirm="This order is paid, so deleting it destroys the record of a completed sale - its line items included. There is no way to get it back. Delete it anyway?"
+                              data-confirm="This order has a payment on record, so deleting it destroys the record of a completed sale - its line items included. There is no way to get it back. Delete it anyway?"
                               data-confirm-label="Delete anyway">
-                            <button type="submit" class="btn-dash danger sm" title="Delete this paid order"><i class="fas fa-trash"></i></button>
+                            <button type="submit" class="btn-dash danger sm" title="Delete this order"><i class="fas fa-trash"></i></button>
                         </form>
                         {% endif %}
                         {% else %}
@@ -257,7 +281,7 @@
     </div>
     <div class="orders-summary-note">
         <span id="summaryCancelledNote"></span>
-        <strong>Paid</strong> counts only rows the system has actually recorded a payment for - a confirmed KHQR payment, or one staff marked as paid. Everything else that isn't cancelled counts as <strong>pending</strong>, including cash quotes, where payment is settled offline and never recorded here.
+        <strong>Paid</strong> counts only rows the system has actually recorded a payment for - a confirmed KHQR payment, or one staff marked as paid. Everything else that isn't cancelled or refunded counts as <strong>pending</strong>, including cash quotes, where payment is settled offline and never recorded here. A <strong>refunded</strong> row counts in neither: the money came in and went back out.
         {% if orders|length >= 200 %}Only the 200 most recent orders are loaded, so these totals cover those rows.{% endif %}
     </div>
     {% endif %}
@@ -315,9 +339,15 @@
         <!-- Shown on a paid order in place of the status control, which applyOrderLock()
              removes: store-api refuses to move the status of a completed sale (409), so
              offering the dropdown would only ever produce an error. The rest of the
-             order stays correctable - see _reject_if_paid in store-api. -->
+             order stays correctable - see _reject_if_paid in store-api.
+
+             On a REFUNDED order the same box says so instead, and the status control
+             stays: a reversed sale is exactly the row whose status still needs to move,
+             usually to Cancelled once the goods are back. Icon and text are swapped by
+             applyOrderLock(), and the reason is written with textContent because staff
+             typed it. -->
         <div class="order-locked-note" id="orderLockedNote" style="display:none;">
-            <i class="fas fa-lock"></i> This order is complete — its status is final.
+            <i class="fas fa-lock" id="orderLockedIcon"></i> <span id="orderLockedText">This order is complete — its status is final.</span>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <form id="orderStatusForm" method="post" style="display:flex; gap:8px; flex:1; min-width:240px;">
@@ -346,6 +376,22 @@
             <form id="orderMarkPaidForm" method="post" data-confirm="Mark this order complete? This records the payment as received, which is what issues the receipt." data-confirm-label="Complete" data-confirm-tone="success">
                 <button type="submit" class="btn-dash primary" style="background:#16a34a;"><i class="fas fa-circle-check"></i> Complete</button>
             </form>
+            {% if has_permission('admin') %}
+            <!-- Giving the money back on a settled sale. Admin-only, like deleting a
+                 paid order - store-api's refund_order 403s everyone else - and it only
+                 appears while there is actually a payment to reverse. The dialog it
+                 opens is the confirmation, so no data-confirm here.
+
+                 "Undo refund" posts to the same mark-paid route: setting payment_status
+                 back to "paid" is what clears refunded_at/refund_reason server-side, so
+                 a mis-clicked refund has one way back rather than a second endpoint. -->
+            <button type="button" class="btn-dash" id="orderRefundBtn" style="display:none;" onclick="openRefundModal(currentOrderId)"><i class="fas fa-rotate-left"></i> Refund</button>
+            <form id="orderUndoRefundForm" method="post" style="display:none;"
+                  data-confirm="Undo this refund? The order counts as a paid sale again, and the refund date and reason are cleared."
+                  data-confirm-label="Undo refund" data-confirm-tone="success">
+                <button type="submit" class="btn-dash"><i class="fas fa-rotate-right"></i> Undo refund</button>
+            </form>
+            {% endif %}
             <button type="button" class="btn-dash" id="orderPrintBtn" onclick="printOrder(currentOrderId)"><i class="fas fa-print"></i> Print</button>
         </div>
         {% if has_permission('admin') %}
@@ -432,6 +478,36 @@
     </div>
 </div>
 
+{% if has_permission('admin') %}
+<!-- Refund Modal -->
+<!-- Records that a paid order's money went back. Nothing here moves money - the refund
+     is made at the bank or over the counter exactly as the payment was; this is where it
+     gets written down, which is what takes the sale out of the takings and puts the
+     reversal on the printed invoice. Whole-order only: the amount is the grand total and
+     is shown, not typed, so there is nothing to key in wrong. -->
+<div class="dash-modal-overlay" id="orderRefundOverlay">
+    <div class="dash-modal-box" style="max-width:460px;">
+        <button type="button" class="dash-modal-close" onclick="closeRefundModal()"><i class="fas fa-times"></i></button>
+        <h3 class="dash-modal-title">Refund order</h3>
+        <p class="page-sub" style="margin-top:-6px;">This records a refund that you have already made — it does not send any money. The order stops counting as a sale, and its invoice will print as refunded.</p>
+        <div class="order-refund-summary">
+            <span id="refundOrderLabel"></span>
+            <strong id="refundAmount"></strong>
+        </div>
+        <form id="orderRefundForm" method="post">
+            <div class="filter-field" style="display:flex; flex-direction:column; gap:4px;">
+                <label for="refundReason">Reason (optional)</label>
+                <input type="text" id="refundReason" name="reason" maxlength="255" placeholder="e.g. wrong item supplied, customer returned it">
+            </div>
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
+                <button type="button" class="btn-dash outline" onclick="closeRefundModal()">Cancel</button>
+                <button type="submit" class="btn-dash danger"><i class="fas fa-rotate-left"></i> Record refund</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
 <!-- Staff Payment QR Modal -->
 <!-- The same KHQR the storefront checkout shows a customer, issued against an order
      that already exists. Polls the same payment-status endpoint, so a scan confirmed
@@ -467,6 +543,7 @@
     const ORDER_STATUS_URL_TEMPLATE = {{ url_for('admin.orders_status', order_id=0)|tojson }};
     const ORDER_MARK_PAID_URL_TEMPLATE = {{ url_for('admin.orders_mark_paid', order_id=0)|tojson }};
     const ORDER_EDIT_URL_TEMPLATE = {{ url_for('admin.orders_edit', order_id=0)|tojson }};
+    const ORDER_REFUND_URL_TEMPLATE = {{ url_for('admin.orders_refund', order_id=0)|tojson }};
     const ORDER_KHQR_URL_TEMPLATE = {{ url_for('admin.orders_khqr', order_id=0)|tojson }};
     const ORDER_PAYMENT_STATUS_URL_TEMPLATE = {{ url_for('admin.orders_payment_status', order_id=0)|tojson }};
     // The catalogue behind the edit modal's product picker (see admin.orders()).
@@ -479,8 +556,17 @@
 
     // A paid order is a closed record: no edit, no status change, and no second
     // payment. Deleting one is still possible, but only for `admin` (store-api's
-    // delete_order 403s anyone else) - that is the only action the lock lets through.
+    // delete_order 403s anyone else) - and, since 2026-09-02, refunding it.
     const isPaid = order => order.payment_status === 'paid';
+    // The money came in and went back out again. Locked like a paid row - editing the
+    // figures now would leave them describing neither the sale nor the refund - but it
+    // is NOT a sale: it counts in no money total, and its status is free to move (the
+    // usual next step is Cancelled, once the goods are back).
+    const isRefunded = order => order.payment_status === 'refunded';
+    // "Money has moved against this row", either way. This is the test for anything
+    // that cares about the record being closed rather than about takings: the Invoice
+    // badge, the row lock, and the admin-only Delete.
+    const isSettled = order => isPaid(order) || isRefunded(order);
 
     // What to call the row on screen. Paid ⇒ Invoice, whatever it started life as: a
     // quote staff took money for is the invoice for that sale, and the printed document
@@ -488,7 +574,9 @@
     // for the Telegram copy). Unpaid rows keep their type - Quote for a staff quote or a
     // cash order, Order for a customer KHQR purchase still awaiting payment.
     // The Quotes/Orders tabs above still filter on order_type, which doesn't move.
-    const documentWord = order => isPaid(order) ? 'Invoice' : (order.order_type === 'quote' ? 'Quote' : 'Order');
+    // A refunded row keeps the word Invoice: that invoice really was issued, and the
+    // refund is a fact about it rather than a reason to call it a quote again.
+    const documentWord = order => isSettled(order) ? 'Invoice' : (order.order_type === 'quote' ? 'Quote' : 'Order');
 
     // Quote/Order tabs - combined with the text search in filterOrdersTable().
     function setOrderTypeFilter(type) {
@@ -503,10 +591,22 @@
         // Same rule as the table's Payment column, except the detail view keeps what was
         // actually recorded in brackets - staff need it to know whether a refund is owed.
         if (order.status === 'cancelled') {
-            const wasPaid = isPaid(order)
-                ? 'was paid' + (order.payment_method === 'khqr' ? ' by KHQR' : '')
-                : null;
-            return 'Cancelled' + (wasPaid ? ' (' + wasPaid + ')' : '');
+            // A cancelled row that was paid is money owed back - which is what the
+            // Refund action is for, so once it has been refunded that is said here
+            // instead of leaving staff to wonder whether it still is.
+            const note = isRefunded(order)
+                ? 'refunded'
+                : (isPaid(order) ? 'was paid' + (order.payment_method === 'khqr' ? ' by KHQR' : '') : null);
+            return 'Cancelled' + (note ? ' (' + note + ')' : '');
+        }
+        // Before the method branches: a refunded row still carries the method the money
+        // arrived on, and "KHQR — paid" is precisely what is no longer true about it.
+        if (isRefunded(order)) {
+            const via = order.payment_method === 'khqr' ? ' by KHQR' : '';
+            const on = order.refunded_at
+                ? ' on ' + new Date(order.refunded_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+                : '';
+            return 'Refunded' + on + ' (was paid' + via + ')';
         }
         if (order.payment_method === 'khqr') {
             return isPaid(order) ? 'KHQR — paid' : 'KHQR — awaiting payment';
@@ -627,23 +727,53 @@
 
     function applyOrderLock(order) {
         const paid = isPaid(order);
+        const refunded = isRefunded(order);
         const cancelled = order.status === 'cancelled';
         // A completed sale's status is final - store-api 409s any change to it once
         // payment is on record, so the control comes off the modal entirely and the
         // note explains why. Everything else about the row stays as it was.
-        document.getElementById('orderLockedNote').style.display = paid ? 'flex' : 'none';
+        //
+        // A refunded row gets the note but KEEPS the control: store-api exempts it from
+        // the status freeze precisely because a reversed sale is the one whose status
+        // still has somewhere to go.
+        const note = document.getElementById('orderLockedNote');
+        note.style.display = (paid || refunded) ? 'flex' : 'none';
+        note.classList.toggle('refunded', refunded);
+        document.getElementById('orderLockedIcon').className =
+            refunded ? 'fas fa-rotate-left' : 'fas fa-lock';
+        // textContent, not innerHTML: refund_reason is free text somebody typed.
+        document.getElementById('orderLockedText').textContent = refunded
+            ? 'This payment was refunded' + (order.refunded_at ? ' on ' + new Date(order.refunded_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '')
+              + (order.refund_reason ? ' — ' + order.refund_reason : '')
+              + '. It no longer counts as a sale; set the status to Cancelled if the goods came back.'
+            : 'This order is complete — its status is final.';
         document.getElementById('orderStatusForm').style.display = paid ? 'none' : 'flex';
         document.getElementById('orderEditBtn').style.display = '';
-        // A QR is only worth showing while there's still something to collect.
-        document.getElementById('orderQrBtn').style.display = (paid || cancelled) ? 'none' : '';
+        // A QR is only worth showing while there's still something to collect - and a
+        // refunded order is not something to collect on again. If the customer really is
+        // buying it a second time, that is a new order.
+        document.getElementById('orderQrBtn').style.display = (paid || refunded || cancelled) ? 'none' : '';
 
         // "Complete" records the payment, so it disappears once there is one - and off a
         // cancelled row entirely, since store-api refuses to record a payment against
         // one (409: reopen it first). Offering a button that can only error is worse
         // than not offering it.
+        //
+        // Off a refunded row too: it would silently undo the refund. That is a real
+        // thing to want, but it has its own button below that says so.
         const markPaidForm = document.getElementById('orderMarkPaidForm');
-        markPaidForm.style.display = (paid || cancelled) ? 'none' : '';
+        markPaidForm.style.display = (paid || refunded || cancelled) ? 'none' : '';
         markPaidForm.action = orderUrl(ORDER_MARK_PAID_URL_TEMPLATE, order.id);
+
+        // Both admin-only, so both are absent from the page for everyone else.
+        const refundBtn = document.getElementById('orderRefundBtn');
+        if (refundBtn) refundBtn.style.display = paid ? '' : 'none';
+        const undoForm = document.getElementById('orderUndoRefundForm');
+        if (undoForm) {
+            undoForm.style.display = refunded ? '' : 'none';
+            // Undoing a refund IS re-recording the payment, which is the mark-paid route.
+            undoForm.action = orderUrl(ORDER_MARK_PAID_URL_TEMPLATE, order.id);
+        }
 
         // Print stays available on a cancelled order - staff still need the record - but
         // what comes out is headed "Cancelled Order", never an invoice (docTitle in
@@ -674,7 +804,7 @@
             // Any row with a payment on record reprints as an Invoice - a confirmed
             // KHQR payment, or a quote staff marked paid after taking cash.
             // buildPrintTemplate() picks the printed title from the same one field.
-            await QuoteCart.exportPDF(order.quote_code, isPaid(order) ? 'Invoice' : 'Quotation');
+            await QuoteCart.exportPDF(order.quote_code, isSettled(order) ? 'Invoice' : 'Quotation');
         } finally {
             btn.disabled = false;
             btn.innerHTML = originalHtml;
@@ -683,6 +813,36 @@
 
     document.getElementById('orderModalOverlay').addEventListener('click', function(e) {
         if (e.target === this) closeOrderModal();
+    });
+
+    // ---- Refund an order ----------------------------------------------------------
+    // Admin-only, so the whole dialog is absent from the page for anyone else and every
+    // function here no-ops rather than throwing. The amount is shown, never typed: the
+    // refund is the whole grand total (store-api has no partial-refund concept), so
+    // there is nothing here to key in wrong.
+    function openRefundModal(orderId) {
+        const order = ORDERS_BY_ID[orderId];
+        const overlay = document.getElementById('orderRefundOverlay');
+        if (!order || !overlay) return;
+        if (!isPaid(order)) {
+            ebAlert('Only an order with a payment on record can be refunded.', { title: 'Nothing to refund', tone: 'warning' });
+            return;
+        }
+        closeOrderModal();
+        document.getElementById('orderRefundForm').action = orderUrl(ORDER_REFUND_URL_TEMPLATE, orderId);
+        document.getElementById('refundReason').value = '';
+        document.getElementById('refundOrderLabel').textContent =
+            documentWord(order) + ' ' + order.order_number + ' · ' + (order.clinic_name || '—');
+        document.getElementById('refundAmount').textContent = formatMoney(Number(order.grand_total));
+        overlay.classList.add('active');
+    }
+
+    function closeRefundModal() {
+        document.getElementById('orderRefundOverlay')?.classList.remove('active');
+    }
+
+    document.getElementById('orderRefundOverlay')?.addEventListener('click', function(e) {
+        if (e.target === this) closeRefundModal();
     });
 
     // ---- Edit an order ------------------------------------------------------------
@@ -697,8 +857,13 @@
     function openOrderEditModal(orderId) {
         const order = ORDERS_BY_ID[orderId];
         if (!order) return;
-        if (isPaid(order)) {
-            ebAlert('This order has been paid, so it can no longer be edited.', { title: 'Order locked', tone: 'warning' });
+        if (isSettled(order)) {
+            ebAlert(
+                isRefunded(order)
+                    ? 'This order has been refunded, so its figures are a record of what was paid and returned. Undo the refund first if it needs correcting.'
+                    : 'This order has been paid, so it can no longer be edited.',
+                { title: 'Order locked', tone: 'warning' }
+            );
             return;
         }
         editOrderId = orderId;
@@ -1061,9 +1226,11 @@
         // The tabs follow documentWord(), not order_type alone: once a quote is paid it
         // is badged Invoice, so it belongs under Invoices and not still under Quotes.
         if (f.type === 'invoice') {
-            if (!isPaid(order)) return false;
+            if (!isSettled(order)) return false;
         } else if (f.type !== 'all') {
-            if (isPaid(order) || (order.order_type || 'order') !== f.type) return false;
+            // A refunded row belongs with the invoices, never back under Quotes: the
+            // Quotes tab is the list staff chase for payment, and this one is finished.
+            if (isSettled(order) || (order.order_type || 'order') !== f.type) return false;
         }
         if (f.status !== 'all' && order.status !== f.status) return false;
         // created_at is an ISO 8601 string, so its leading YYYY-MM-DD compares correctly
@@ -1123,11 +1290,14 @@
     // the system actually recorded a payment for (payment_status === 'paid' - a confirmed
     // KHQR payment or a staff "Complete"). Cash quotes are settled offline and carry
     // no payment record at all, so they count as pending rather than being guessed at.
-    // Cancelled rows are counted but contribute no money either way.
+    // Cancelled rows are counted but contribute no money either way, and a REFUNDED row
+    // is the same: the money came in and went straight back out, so counting it as
+    // takings overstates the day and counting it as pending invents a debt to chase.
     function renderOrdersSummary(orders) {
-        let paid = 0, pending = 0, cancelled = 0;
+        let paid = 0, pending = 0, cancelled = 0, refunded = 0;
         orders.forEach(order => {
             if (order.status === 'cancelled') { cancelled++; return; }
+            if (isRefunded(order)) { refunded++; return; }
             const total = Number(order.grand_total) || 0;
             if (order.payment_status === 'paid') paid += total;
             else pending += total;
@@ -1137,8 +1307,12 @@
         document.getElementById('summaryTotal').textContent = formatMoney(paid + pending);
         document.getElementById('summaryPaid').textContent = formatMoney(paid);
         document.getElementById('summaryPending').textContent = formatMoney(pending);
-        document.getElementById('summaryCancelledNote').textContent = cancelled
-            ? `${cancelled} cancelled ${cancelled === 1 ? 'row is' : 'rows are'} excluded from the money totals.`
+        const excluded = [];
+        if (cancelled) excluded.push(`${cancelled} cancelled`);
+        if (refunded) excluded.push(`${refunded} refunded`);
+        const rowCount = cancelled + refunded;
+        document.getElementById('summaryCancelledNote').textContent = excluded.length
+            ? `${excluded.join(' and ')} ${rowCount === 1 ? 'row is' : 'rows are'} excluded from the money totals.`
             : '';
     }
 

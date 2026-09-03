@@ -14,7 +14,7 @@
 {# Paid ⇒ Invoice, whatever the row started as - the same single rule the printed
    document, the admin list and the account drawer follow. See documentWord() in
    templates/admin/orders.html and document_title() in store-api's invoice_pdf.py. #}
-{% macro document_word(o) %}{% if o.payment_status == 'paid' %}Invoice{% elif (o.order_type or 'order') == 'quote' %}Quote{% else %}Order{% endif %}{% endmacro %}
+{% macro document_word(o) %}{% if o.payment_status in ('paid', 'refunded') %}Invoice{% elif (o.order_type or 'order') == 'quote' %}Quote{% else %}Order{% endif %}{% endmacro %}
 
 <div class="eb-orders-page">
     <div class="container">
@@ -35,9 +35,15 @@
            and cancelled (payment confirmed after a cancellation - see the 409 rule in
            store-api's update_order), and subtracting both counts from the total took
            that row off twice, which is how "Awaiting payment" managed to read -1. #}
+        {# Refunded rows are counted on their own for the same reason cancelled ones are:
+           the money went back, so they are neither a paid order nor one still waiting to
+           be paid, and letting them fall into "Awaiting payment" would tell the customer
+           they still owe for something they were refunded for. #}
         {% set cancelled_count = orders|selectattr('status', 'equalto', 'cancelled')|list|length %}
-        {% set paid_count = orders|rejectattr('status', 'equalto', 'cancelled')|selectattr('payment_status', 'equalto', 'paid')|list|length %}
-        {% set awaiting_count = orders|rejectattr('status', 'equalto', 'cancelled')|rejectattr('payment_status', 'equalto', 'paid')|list|length %}
+        {% set live_orders = orders|rejectattr('status', 'equalto', 'cancelled')|list %}
+        {% set refunded_count = live_orders|selectattr('payment_status', 'equalto', 'refunded')|list|length %}
+        {% set paid_count = live_orders|selectattr('payment_status', 'equalto', 'paid')|list|length %}
+        {% set awaiting_count = live_orders|length - paid_count - refunded_count %}
         <div class="orders-stats reveal">
             <div class="orders-stat">
                 <span class="orders-stat-number">{{ orders|length }}</span>
@@ -51,6 +57,12 @@
                 <span class="orders-stat-number">{{ awaiting_count }}</span>
                 <span class="orders-stat-label">Awaiting payment</span>
             </div>
+            {% if refunded_count %}
+            <div class="orders-stat">
+                <span class="orders-stat-number">{{ refunded_count }}</span>
+                <span class="orders-stat-label">Refunded</span>
+            </div>
+            {% endif %}
             {% if cancelled_count %}
             <div class="orders-stat">
                 <span class="orders-stat-number">{{ cancelled_count }}</span>
@@ -72,6 +84,9 @@
                 <button type="button" class="orders-chip active" data-filter="all" onclick="ebSetOrderFilter(this)">All</button>
                 <button type="button" class="orders-chip" data-filter="unpaid" onclick="ebSetOrderFilter(this)">Awaiting payment</button>
                 <button type="button" class="orders-chip" data-filter="paid" onclick="ebSetOrderFilter(this)">Paid</button>
+                {% if refunded_count %}
+                <button type="button" class="orders-chip" data-filter="refunded" onclick="ebSetOrderFilter(this)">Refunded</button>
+                {% endif %}
                 {% if cancelled_count %}
                 <button type="button" class="orders-chip" data-filter="cancelled" onclick="ebSetOrderFilter(this)">Cancelled</button>
                 {% endif %}
@@ -81,15 +96,17 @@
         <div class="orders-list" id="ordersList">
             {% for o in orders %}
             {% set paid = o.payment_status == 'paid' %}
+            {% set refunded = o.payment_status == 'refunded' %}
             {% set cancelled = o.status == 'cancelled' %}
             <a class="order-row reveal" href="{{ url_for('auth.my_order_detail', order_id=o.id) }}"
-               data-state="{{ 'cancelled' if cancelled else ('paid' if paid else 'unpaid') }}"
+               data-state="{{ 'cancelled' if cancelled else ('refunded' if refunded else ('paid' if paid else 'unpaid')) }}"
                data-search="{{ ((o.order_number or '') ~ ' ' ~ (o.quote_code or '') ~ ' ' ~ (o.clinic_name or ''))|lower }}">
                 <div class="order-row-main">
                     <div class="order-row-head">
                         <span class="order-row-no">#{{ o.order_number }}</span>
                         <span class="order-doc-tag {{ 'invoice' if paid else ((o.order_type or 'order')) }}">{{ document_word(o) }}</span>
                         {% if cancelled %}<span class="order-state-tag cancelled">Cancelled</span>
+                        {% elif refunded %}<span class="order-state-tag unpaid">Refunded</span>
                         {% elif not paid %}<span class="order-state-tag unpaid">Awaiting payment</span>
                         {% endif %}
                     </div>

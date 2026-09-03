@@ -134,6 +134,10 @@
                             <td>
                                 {% if o.payment_status == 'paid' %}
                                 <span class="stock-chip in"><i class="fas fa-check"></i> Paid</span>
+                                {# Refunded is neither: it was paid and the money went back, so
+                                   showing it as either would misstate the takings row above. #}
+                                {% elif o.payment_status == 'refunded' %}
+                                <span class="stock-chip out"><i class="fas fa-rotate-left"></i> Refunded</span>
                                 {% elif o.status == 'cancelled' %}
                                 <span class="stock-chip out">Cancelled</span>
                                 {% else %}

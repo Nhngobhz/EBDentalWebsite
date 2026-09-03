@@ -354,6 +354,19 @@ anything quote-related.
   `doc_word`/`document_word()` in `auth/order_detail.html` +`auth/orders.html`,
   and store-api's `invoice_pdf.document_title()`. `payment_method` now only
   picks the wording of the paid note ("Paid via KHQR" vs "Paid in full").
+- **`payment_status` has a third value, `"refunded"` (added 2026-09-02)**, set
+  only by `POST /orders/{id}/refund` (admin only, only on a row that is
+  currently `"paid"`), which stamps `refunded_at`/`refund_reason` and leaves
+  `paid_at` alone - the payment really happened. Every one of the five places
+  above tests **paid OR refunded** for the document word (a refunded row is
+  still the Invoice that was issued; the terms box says it was refunded and
+  drops the pay-me QR), but **only `"paid"` counts as money**: the admin
+  totals strip, `_order_stats()` on the dashboard and the customer's
+  "Awaiting payment" count all exclude a refunded row from both halves, the
+  way a cancelled one is excluded. `isSettled()`/`isRefunded()` in
+  `admin/orders.html` are the JS shorthand for the two tests. The reversal is
+  undone by posting `payment_status: "paid"` again (the "Undo refund" button
+  reuses `admin.orders_mark_paid`), which clears both columns server-side.
 - **The admin Orders page is where staff run an order (reworked
   2026-08-08)**, `templates/admin/orders.html` + `blueprints/admin/orders.py`.
   Type tabs/badges separate quotes from orders, and each row's modal offers:
@@ -366,13 +379,16 @@ anything quote-related.
   3s), and **Mark as Paid** (`admin.orders_mark_paid`, now valid on **any**
   order - counter cash, bank transfer, or a KHQR payment auto-detection
   missed).
-- **A paid order is frozen, and the UI must not pretend otherwise.**
-  store-api `409`s every `PUT`/`DELETE` on a paid row, so the page hides
-  Edit, Delete, Update Status, Payment QR and Mark as Paid for it
-  (`applyOrderLock()` in the modal, a "Locked" chip in the table) and leaves
-  only Print. If you add a new order-mutating control, gate it on
-  `isPaid(order)` too - the server will refuse it regardless, but a button
-  that only ever errors is worse than no button.
+- **A settled order is frozen in the UI, and must not pretend otherwise.**
+  The page hides Edit, Update Status, Payment QR and Mark as Paid on a paid
+  row (`applyOrderLock()` in the modal, a "Locked" chip in the table) and
+  leaves Print; a refunded row is locked the same way but keeps its status
+  control, because store-api's status freeze covers `"paid"` only - a
+  reversed sale is exactly the row whose status still has to move. Delete and
+  Refund are the admin-only exceptions (`delete_order`/`refund_order` `403`
+  anyone without `admin`). If you add a new order-mutating control, gate it on
+  `isSettled(order)` too - the server will refuse most of it regardless, but a
+  button that only ever errors is worse than no button.
 - **Sub-Total/Discount/Special Discount/Grand Total, in both the cart
   drawer and the printed PDF**: Sub-Total is the undiscounted combined list
   price, Discount is the money each product's own (admin-set) discount

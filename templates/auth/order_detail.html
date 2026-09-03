@@ -9,8 +9,12 @@
    this page has to agree with the PDF the same button downloads. Restating that
    arithmetic in Jinja would be a fourth copy - see the eb-quote-parity skill. #}
 {% set paid = order.payment_status == 'paid' %}
+{# The payment was taken and given back. The document stays an Invoice - it really was
+   issued, and it is what the refund was made against - but nothing on this page may go
+   on describing the order as a live sale or as something still owed. #}
+{% set refunded = order.payment_status == 'refunded' %}
 {% set cancelled = order.status == 'cancelled' %}
-{% set doc_word = 'Invoice' if paid else ('Quote' if (order.order_type or 'order') == 'quote' else 'Order') %}
+{% set doc_word = 'Invoice' if (paid or refunded) else ('Quote' if (order.order_type or 'order') == 'quote' else 'Order') %}
 
 {% block title %}{{ doc_word }} {{ order.order_number }}{% endblock %}
 
@@ -28,6 +32,7 @@
                     <div class="order-detail-tags">
                         <span class="order-doc-tag {{ 'invoice' if paid else ((order.order_type or 'order')) }}">{{ doc_word }}</span>
                         {% if cancelled %}<span class="order-state-tag cancelled">Cancelled</span>
+                        {% elif refunded %}<span class="order-state-tag unpaid">Refunded</span>
                         {% elif not paid %}<span class="order-state-tag unpaid">Awaiting payment</span>
                         {% endif %}
                         <span class="order-state-tag">{{ order.status }}</span>
@@ -50,9 +55,23 @@
                 <i class="fas fa-circle-info"></i>
                 <span>
                     This order was cancelled, so there is no invoice for it.
-                    {% if paid %}
+                    {% if refunded %}
+                    The payment made against it has been refunded.
+                    {% elif paid %}
                     A payment had already been recorded against it — please contact us about a refund if you have not already been in touch.
                     {% endif %}
+                </span>
+            </div>
+            {% elif refunded %}
+            {# Said plainly rather than left to a badge: the customer's copy of this
+               invoice says it was paid, and this page is where they find out it isn't
+               owed any more. #}
+            <div class="order-detail-note">
+                <i class="fas fa-rotate-left"></i>
+                <span>
+                    This payment has been refunded{% if order.refunded_at %} on {{ format_date(order.refunded_at) }}{% endif %}.
+                    {% if order.refund_reason %}Reason: {{ order.refund_reason }}.{% endif %}
+                    The invoice below is kept for your records.
                 </span>
             </div>
             {% endif %}
@@ -79,6 +98,8 @@
                     <strong>
                         {%- if cancelled -%}
                             Cancelled{% if paid %} (was paid{% if order.payment_method == 'khqr' %} by KHQR{% endif %}){% endif %}
+                        {%- elif refunded -%}
+                            Refunded (was paid{% if order.payment_method == 'khqr' %} by KHQR{% endif %})
                         {%- elif paid -%}
                             Paid{% if order.payment_method == 'khqr' %} by KHQR{% endif %}
                         {%- elif order.payment_method == 'khqr' -%}
@@ -119,7 +140,7 @@
                    to offer the download at all: a cancelled sale has no invoice to give. #}
                 {% if not cancelled %}
                 <button type="button" class="btn-primary" id="orderPdfBtn">
-                    <i class="fas fa-file-arrow-down"></i> Download {{ 'Invoice' if paid else 'Quotation' }} PDF
+                    <i class="fas fa-file-arrow-down"></i> Download {{ 'Invoice' if (paid or refunded) else 'Quotation' }} PDF
                 </button>
                 {% endif %}
                 <a class="btn-outline" href="{{ url_for('main.contact') }}">
@@ -187,7 +208,8 @@
         try {
             QuoteCart.buildPrintTemplate(EB_ORDER);
             await QuoteCart.exportPDF(
-                EB_ORDER.quote_code, EB_ORDER.payment_status === 'paid' ? 'Invoice' : 'Quotation'
+                EB_ORDER.quote_code,
+                ['paid', 'refunded'].includes(EB_ORDER.payment_status) ? 'Invoice' : 'Quotation'
             );
         } catch (err) {
             await ebAlert('Sorry, the PDF could not be generated. Please try again.', { tone: 'error' });

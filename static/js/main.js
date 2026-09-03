@@ -1280,11 +1280,20 @@ const QuoteCart = {
         //      the sale, and the document the customer keeps should say so.
         //   3. Everything else stays a Quotation.
         //
+        // A REFUNDED row is an Invoice under (2): that invoice was genuinely issued and
+        // is what the refund was made against, so re-titling it a Quotation would deny
+        // it ever existed. What changes is the terms box, which says it was refunded
+        // and drops the pay-me QR (see termsLines below, and REFUNDED_NOTE in
+        // invoice_pdf.py, which must keep saying the same thing).
+        //
         // (2) said "Receipt" until 2026-08-17; renamed to Invoice throughout on the
         // owner's instruction. The `receipt_note_*` setting keys kept their names.
         const isCancelled = order.status === 'cancelled';
         const isPaidDocument = order.payment_status === 'paid' && !isCancelled;
-        const docTitle = isCancelled ? 'Cancelled Order' : (isPaidDocument ? 'Invoice' : 'Quotation');
+        const isRefunded = order.payment_status === 'refunded' && !isCancelled;
+        const docTitle = isCancelled
+            ? 'Cancelled Order'
+            : ((isPaidDocument || isRefunded) ? 'Invoice' : 'Quotation');
         // Letterhead and wording are admin-editable (Settings -> Quote & Invoice),
         // delivered as EB_SETTINGS by base.html / _admin_base.html. The fallbacks below
         // are only reached if that blob is missing entirely - store-api's spec holds the
@@ -1305,6 +1314,12 @@ const QuoteCart = {
         // the `order` fields get, but a settings screen is not a place to author markup.
         const termsLines = (isCancelled
             ? ['This order was cancelled. It is not an invoice and is not payable.']
+            : isRefunded
+            ? [
+                'This invoice has been refunded. The payment was returned to the customer.'
+                    + (order.refunded_at ? ` (${ebEscapeHtml(QuoteCart._formatQuoteDate(order.refunded_at))})` : ''),
+                order.refund_reason ? `Reason: ${ebEscapeHtml(order.refund_reason)}` : '',
+            ]
             : isPaidDocument
             ? [ebEscapeHtml(order.payment_method === 'khqr'
                 ? (cfg.receipt_note_khqr || 'Paid via KHQR. Thank you for your purchase.')
@@ -1320,7 +1335,7 @@ const QuoteCart = {
         // picture lives on store-api or on R2, and html2canvas cannot export a canvas
         // that has drawn a cross-origin image. `?v=` is the stored filename (a uuid),
         // so replacing the picture in Settings busts the browser's copy of the old one.
-        const storedQr = isCancelled || isPaidDocument ? '' : (cfg.quote_payment_qr || '').trim();
+        const storedQr = isCancelled || isPaidDocument || isRefunded ? '' : (cfg.quote_payment_qr || '').trim();
         const qrCaption = ebEscapeHtml(cfg.quote_payment_qr_caption || '');
         const termsQr = storedQr ? `
                     <div class="qpt-terms-qr">
@@ -3175,20 +3190,26 @@ const AccountDrawer = {
                 : '';
             const tags = [];
             const paid = o.payment_status === 'paid';
+            const refunded = o.payment_status === 'refunded';
             const cancelled = o.status === 'cancelled';
             // What the row IS: a Quote until it's paid, an Invoice once it is - the same
             // single-field rule the printed document uses (see buildPrintTemplate). Only
             // an unpaid customer KHQR row is a plain "Order": it has been placed but not
             // yet settled. See Order.order_type in store-api.
-            const docWord = paid ? 'Invoice' : (o.order_type === 'order' ? 'Order' : 'Quote');
+            // Refunded rows keep the Invoice word for the same reason the printed
+            // document does - the invoice was issued - and say so in a tag of their own.
+            const docWord = (paid || refunded) ? 'Invoice' : (o.order_type === 'order' ? 'Order' : 'Quote');
             tags.push(`<span class="account-tag ${paid ? 'paid' : (o.order_type === 'order' ? 'order' : '')}">${docWord}</span>`);
+            if (refunded && !cancelled) tags.push('<span class="account-tag unpaid">Refunded</span>');
             // Payment state, but never on a cancelled row: "Paid" beside "Cancelled" read
             // as a live sale that no longer exists, which is what the admin table already
             // avoids by showing cancelled rows as cancelled and nothing else. A cancelled
             // row that WAS paid is money owed back - staff see that spelled out in the
             // admin modal ("Cancelled (was paid by KHQR)"), which is where a refund is
             // actually handled.
-            if (!cancelled && o.payment_status && !paid) {
+            // "Awaiting payment" only where something is genuinely still owed - never on
+            // a refunded row, which is finished and has its own tag above.
+            if (!cancelled && !refunded && o.payment_status && !paid) {
                 tags.push('<span class="account-tag unpaid">Awaiting payment</span>');
             }
             if (o.status) tags.push(`<span class="account-tag">${ebEscapeHtml(o.status)}</span>`);
@@ -3262,6 +3283,7 @@ const AccountDrawer = {
         // Same rules as buildPrintTemplate() - see the comment there, including why a
         // cancelled order is never treated as a paid document.
         const isPaidDocument = order.payment_status === 'paid' && order.status !== 'cancelled';
+        const isRefunded = order.payment_status === 'refunded' && order.status !== 'cancelled';
         // Sub-Total/Discount are derived the same way the printed quote and the admin
         // modal derive them - from each line's snapshotted list_price vs the unit_price
         // actually charged - so all three always agree.
@@ -3297,7 +3319,7 @@ const AccountDrawer = {
                          was the one place still going by order_type alone, so a quote
                          staff had just taken payment for still said "Quote" here while
                          its own PDF button offered an Invoice. -->
-                    <strong>${isPaidDocument ? 'Invoice' : (order.order_type === 'order' ? 'Order' : 'Quote')} #${ebEscapeHtml(order.order_number)}</strong>
+                    <strong>${(isPaidDocument || isRefunded) ? 'Invoice' : (order.order_type === 'order' ? 'Order' : 'Quote')} #${ebEscapeHtml(order.order_number)}</strong>
                     <span>${ebEscapeHtml(QuoteCart._formatQuoteDate(order.created_at))} · C. Code ${ebEscapeHtml(order.quote_code || '—')}</span>
                 </div>
                 <span class="account-order-total">${formatPrice(order.grand_total)}</span>
@@ -3308,6 +3330,7 @@ const AccountDrawer = {
             <div class="account-detail-row"><span>Address</span><strong>${ebEscapeHtml(order.address || '—')}</strong></div>
             <div class="account-detail-row"><span>Status</span><strong>${ebEscapeHtml(order.status || '—')}</strong></div>
             ${(order.payment_method || order.payment_status) ? `<div class="account-detail-row"><span>Payment</span><strong>${order.payment_method === 'khqr' ? 'KHQR' : order.payment_method === 'cash' ? 'Cash' : 'Paid at counter'}${order.payment_status ? ` · ${ebEscapeHtml(order.payment_status)}` : ''}</strong></div>` : ''}
+            ${isRefunded ? `<div class="account-detail-row"><span>Refunded</span><strong>${ebEscapeHtml(order.refunded_at ? QuoteCart._formatQuoteDate(order.refunded_at) : 'yes')}${order.refund_reason ? ` · ${ebEscapeHtml(order.refund_reason)}` : ''}</strong></div>` : ''}
 
             <div class="account-items">${rows}</div>
 
@@ -3321,7 +3344,7 @@ const AccountDrawer = {
                 This order was cancelled, so there is no invoice for it.
             </div>` : `
             <button type="button" class="account-pdf-btn" id="accountOrderPdfBtn">
-                <i class="fas fa-file-arrow-down"></i> Download ${isPaidDocument ? 'Invoice' : 'Quotation'} PDF
+                <i class="fas fa-file-arrow-down"></i> Download ${(isPaidDocument || isRefunded) ? 'Invoice' : 'Quotation'} PDF
             </button>`}`;
 
         // Absent on a cancelled order: a cancelled sale has no invoice to hand over, and
@@ -3342,7 +3365,8 @@ const AccountDrawer = {
         try {
             QuoteCart.buildPrintTemplate(order);
             await QuoteCart.exportPDF(
-                order.quote_code, order.payment_status === 'paid' ? 'Invoice' : 'Quotation'
+                order.quote_code,
+                ['paid', 'refunded'].includes(order.payment_status) ? 'Invoice' : 'Quotation'
             );
         } catch (err) {
             await ebAlert('Sorry, the PDF could not be generated. Please try again.', { tone: 'error' });
