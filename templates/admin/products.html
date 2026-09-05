@@ -329,12 +329,27 @@
                 <div style="font-size:0.7rem;color:var(--text-light);margin-bottom:6px;">
                     Extra angles/close-ups shown as thumbnails on the product page, after the main image. Pick several at once.
                 </div>
-                {# Existing photos, rendered by openProductModal(). Removing one only
-                   adds a hidden remove_gallery_ids input - nothing is deleted until
-                   the form is saved. #}
+                {# Existing photos AND videos, rendered by openProductModal(). Both
+                   kinds are rows of the same gallery, so one strip shows both and one
+                   X removes either. Removing one only adds a hidden remove_gallery_ids
+                   input - nothing is deleted until the form is saved. #}
                 <div class="gallery-thumbs" id="prodGalleryExisting"></div>
                 <input type="file" name="gallery" id="prodGalleryFile" accept="image/png,image/jpeg,image/webp,image/gif" multiple style="width:100%;font-size:0.8rem;">
                 <div id="prodGalleryRemovals"></div>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Videos (product page gallery)</label>
+                <div style="font-size:0.7rem;color:var(--text-light);margin-bottom:6px;">
+                    Short clips shown in the same thumbnail strip as the photos, in the order added.
+                    <strong>MP4 or WebM only</strong> &mdash; an iPhone .MOV has to be exported to MP4 first, or it uploads and then won't play.
+                    Up to {{ max_video_mb }}&nbsp;MB each, {{ max_gallery_videos }} at a time. Nothing is compressed, so the file
+                    size here is what a customer downloads &mdash; keep clips short.
+                </div>
+                {# Removals go into the SAME prodGalleryRemovals bucket as the photos':
+                   store-api deletes a gallery row by id and doesn't care which kind it
+                   was, so a second list would be two names for one thing. #}
+                <input type="file" name="gallery_videos" id="prodVideoFile" accept="video/mp4,video/webm" multiple style="width:100%;font-size:0.8rem;">
+                <div id="prodVideoTooBig" style="font-size:0.7rem;color:var(--danger);margin-top:6px;display:none;"></div>
             </div>
             <button type="submit" class="btn-dash primary" style="width:100%;padding:10px;font-size:0.9rem;justify-content:center;margin-top:4px;" id="productModalSubmitBtn">
                 <i class="fas fa-save"></i> Create Product
@@ -388,7 +403,14 @@
        image - the raw field can be a store-api-relative path. #}
     {% set gallery = [] %}
     {% for gi in p.images or [] %}
-    {% set _ = gallery.append({'id': gi.id, 'url': img(gi.image)}) %}
+    {# media_type decides whether the thumbnail is an <img> or a <video>; a clip in an
+       <img> is a broken-image icon. Videos go through file_url() rather than img(),
+       which would hand back the "no image" placeholder for one. #}
+    {% set _ = gallery.append({
+        'id': gi.id,
+        'media_type': gi.media_type or 'image',
+        'url': file_url(gi.image) if gi.media_type == 'video' else img(gi.image),
+    }) %}
     {% endfor %}
     {% set _ = products_json.append(dict(p, image=img(p.product_image), gallery=gallery)) %}
     {% endfor %}
@@ -500,6 +522,8 @@
         ebSetImagePreview('prodImagePreview', isEdit ? product.image : null);
 
         document.getElementById('prodGalleryFile').value = '';
+        document.getElementById('prodVideoFile').value = '';
+        document.getElementById('prodVideoTooBig').style.display = 'none';
         document.getElementById('prodGalleryRemovals').innerHTML = '';
         renderProductGallery(isEdit ? (product.gallery || []) : []);
 
@@ -513,20 +537,48 @@
         if (window.ebHistoryFor) ebHistoryFor(productId || null);
     }
 
-    // Existing gallery photos, each with an X. Clicking one doesn't call the API -
-    // it drops the thumbnail and leaves a hidden remove_gallery_ids input behind, so
-    // the deletion happens with the rest of the save (and closing the modal without
-    // saving undoes it).
-    function renderProductGallery(images) {
+    // Existing gallery items - photos and videos in one strip, each with an X.
+    // Clicking one doesn't call the API - it drops the thumbnail and leaves a hidden
+    // remove_gallery_ids input behind, so the deletion happens with the rest of the
+    // save (and closing the modal without saving undoes it).
+    //
+    // A video's tile is a real <video preload="metadata">, so it shows its own first
+    // frame rather than a generic icon; muted + playsinline because the tile is only
+    // ever a still, and no controls - at 72px they would cover the whole thing.
+    function renderProductGallery(items) {
         const wrap = document.getElementById('prodGalleryExisting');
         if (!wrap) return;
-        wrap.innerHTML = images.map(image => `
-            <div class="gallery-thumb" data-image-id="${image.id}">
-                <img src="${image.url}" alt="" loading="lazy">
-                <button type="button" class="gallery-thumb-remove" title="Remove this photo"
-                        onclick="removeProductGalleryImage(${image.id})"><i class="fas fa-times"></i></button>
-            </div>`).join('');
+        wrap.innerHTML = items.map(item => {
+            const isVideo = item.media_type === 'video';
+            const media = isVideo
+                ? `<video src="${item.url}" preload="metadata" muted playsinline></video>
+                   <span class="gallery-thumb-play"><i class="fas fa-play"></i></span>`
+                : `<img src="${item.url}" alt="" loading="lazy">`;
+            return `
+            <div class="gallery-thumb${isVideo ? ' is-video' : ''}" data-image-id="${item.id}">
+                ${media}
+                <button type="button" class="gallery-thumb-remove" title="Remove this ${isVideo ? 'video' : 'photo'}"
+                        onclick="removeProductGalleryImage(${item.id})"><i class="fas fa-times"></i></button>
+            </div>`;
+        }).join('');
     }
+
+    // Catch an oversized clip before the upload starts. store-api enforces the real
+    // limit, but only after the whole file has crossed the network - and a 400MB pick
+    // is a minutes-long wait that ends in an error, so it is worth saying up front.
+    const MAX_VIDEO_BYTES = {{ max_video_mb }} * 1024 * 1024;
+    document.getElementById('prodVideoFile')?.addEventListener('change', function() {
+        const oversized = Array.from(this.files || []).filter(f => f.size > MAX_VIDEO_BYTES);
+        const warning = document.getElementById('prodVideoTooBig');
+        if (oversized.length) {
+            warning.textContent = 'Too large (max {{ max_video_mb }} MB): ' +
+                oversized.map(f => `${f.name} - ${(f.size / 1024 / 1024).toFixed(0)} MB`).join(', ');
+            warning.style.display = 'block';
+            this.value = '';
+        } else {
+            warning.style.display = 'none';
+        }
+    });
 
     function removeProductGalleryImage(imageId) {
         document.querySelector(`#prodGalleryExisting .gallery-thumb[data-image-id="${imageId}"]`)?.remove();

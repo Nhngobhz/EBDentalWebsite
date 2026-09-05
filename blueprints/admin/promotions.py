@@ -65,11 +65,40 @@ def _promo_form_payload():
     }
 
 
-def _file_from_request():
-    file = request.files.get("file")
+def _file_from_request(field="file"):
+    """The named upload, in the shape store-api's image endpoints expect, or None if
+    the admin left that file input empty. Empty means "leave the saved picture alone" -
+    a file input can't be pre-filled with the existing file, so a blank one has to mean
+    unchanged rather than cleared."""
+    file = request.files.get(field)
     if file and file.filename:
         return {"file": (file.filename, file.stream, file.mimetype)}
     return None
+
+
+def _upload_artwork(client, promotion_id):
+    """Both pictures a promotion can have, each to its own endpoint.
+
+    They are separate columns because they are separate placements: `file` is the card
+    art (the square offer tiles, the promotions page, the admin thumbnail), `banner` is
+    the wide hero slide at the top of the storefront. See store-api's
+    models.Promotion.banner_image.
+
+    Clearing the banner is its own checkbox rather than "submit an empty file input",
+    for the reason above - and it is worth having because, unlike the card image, an
+    unset banner has a real meaning: fall back to the card image."""
+    card = _file_from_request()
+    if card:
+        client.post_form(f"/promotions/{promotion_id}/image", files=card)
+
+    # A picked file beats a ticked "remove": someone who did both meant to replace the
+    # banner, and honouring the checkbox instead would delete the upload they just made
+    # and report success.
+    banner = _file_from_request("banner_file")
+    if banner:
+        client.post_form(f"/promotions/{promotion_id}/banner", files=banner)
+    elif request.form.get("remove_banner"):
+        client.delete(f"/promotions/{promotion_id}/banner")
 
 
 @admin_bp.route("/promotions")
@@ -105,9 +134,7 @@ def promotions_new():
     client = get_api_client()
     try:
         created = client.post_json("/promotions/", payload)
-        files = _file_from_request()
-        if files:
-            client.post_form(f"/promotions/{created['id']}/image", files=files)
+        _upload_artwork(client, created["id"])
     except StoreAPIError as e:
         flash(e.detail, "error")
         return redirect(url_for("admin.promotions"))
@@ -123,9 +150,7 @@ def promotions_edit(promotion_id):
     client = get_api_client()
     try:
         client.put_json(f"/promotions/{promotion_id}", payload)
-        files = _file_from_request()
-        if files:
-            client.post_form(f"/promotions/{promotion_id}/image", files=files)
+        _upload_artwork(client, promotion_id)
     except StoreAPIError as e:
         flash(e.detail, "error")
         return redirect(url_for("admin.promotions"))

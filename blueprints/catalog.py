@@ -6,7 +6,13 @@ import site_cache
 import site_section
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 
-from formatting import adapt_product, adapt_promotion, adapt_set, resolve_image_url
+from formatting import (
+    adapt_product,
+    adapt_promotion,
+    adapt_set,
+    resolve_file_url,
+    resolve_image_url,
+)
 from special_products import SPECIAL_PRODUCTS, get_special_product
 from store_api import StoreAPIError, get_api_client
 
@@ -234,13 +240,24 @@ def detail_context(product_id, section, related_by="brand"):
     # Manual row with no PDF yet would render as a download link to nothing.
     manuals = [m for m in manuals if m.get("pdf")]
 
-    # The detail page's image gallery: the main picture first, then the extra photos
-    # (store-api's ProductImage rows, which never repeat the main one). Resolved to
-    # real URLs here rather than in the template, because the same list has to reach
+    # The detail page's gallery: the main picture first, then the extra photos and
+    # videos (store-api's ProductImage rows, which never repeat the main one). Resolved
+    # to real URLs here rather than in the template, because the same list has to reach
     # both the markup and the page's JS.
-    gallery = [resolve_image_url(product.get("product_image"))] + [
-        resolve_image_url(extra.get("image")) for extra in product.get("images") or []
-    ]
+    #
+    # Entries are {"url", "type"} rather than bare strings, and every consumer branches
+    # on the type: a video in an <img> is a broken-image icon, and the two need
+    # different thumbnails, different stage markup and different lightbox behaviour.
+    # Videos resolve through resolve_file_url, not resolve_image_url - the latter would
+    # substitute the "no image" placeholder PNG for a missing clip, giving the page a
+    # <video> pointed at a picture.
+    gallery = [{"url": resolve_image_url(product.get("product_image")), "type": "image"}]
+    for extra in product.get("images") or []:
+        is_video = extra.get("media_type") == "video"
+        url = resolve_file_url(extra.get("image")) if is_video else resolve_image_url(extra.get("image"))
+        if not url:
+            continue
+        gallery.append({"url": url, "type": "video" if is_video else "image"})
 
     # The "more like this" strip at the foot of the page. Best-effort: a failure
     # here shouldn't take down the product page itself.
@@ -538,11 +555,14 @@ def _bundle_detail(kind, path, adapt, name_field, image_field, extra_images=()):
     # section of their own and stay machinery, which is what they are.
     site_section.override(item.get("section"))
 
-    # Gallery, same shape as the product page's: main picture first, then any
-    # secondary image the entity happens to have (only Set has one today).
-    gallery = [resolve_image_url(item.get(image_field))]
+    # Gallery, same shape as the product page's - {"url", "type"} entries, because the
+    # same template and the same PdGallery read both. Main picture first, then any
+    # secondary image the entity happens to have (only Set has one today). All
+    # "image": neither a Promotion nor a Set carries video, which is why this builds
+    # the shape rather than sharing the product page's builder.
+    gallery = [{"url": resolve_image_url(item.get(image_field)), "type": "image"}]
     gallery += [
-        resolve_image_url(item[field])
+        {"url": resolve_image_url(item[field]), "type": "image"}
         for field in extra_images
         if item.get(field)
     ]

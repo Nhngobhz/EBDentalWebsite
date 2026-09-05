@@ -210,8 +210,13 @@ class StoreAPIClient:
         return self._request("DELETE", path)
 
     # ---- multipart passthrough (browser upload -> store-api) ----
-    def post_form(self, path, data=None, files=None):
-        return self._request("POST", path, data=data, files=files)
+    def post_form(self, path, data=None, files=None, timeout=None):
+        """`timeout` overrides the client's 10s default, which is sized for a table
+        read and is not enough for a large upload: a 60MB product video over the
+        clinic's Wi-Fi takes longer than that to leave the browser, and the request
+        would be abandoned mid-transfer and surface as "store-api unreachable". Callers
+        uploading video pass a longer one - see admin/products.py."""
+        return self._request("POST", path, data=data, files=files, timeout=timeout)
 
     def post_form_download(self, path, data=None, files=None, timeout=60):
         """Uploads a file and gets a *file* back, as (bytes, content_type, filename) -

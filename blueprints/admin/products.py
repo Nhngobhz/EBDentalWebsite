@@ -48,28 +48,60 @@ def _file_from_request():
     return None
 
 
-def _gallery_files_from_request():
-    """The extra product-page photos, as the repeated-field list store-api's
-    POST /products/{id}/gallery expects (a list of tuples rather than a dict,
-    since every one of them is sent under the same field name)."""
+def _multipart_files(field):
+    """The files posted under one repeated field name, as the list store-api's upload
+    endpoints expect (a list of tuples rather than a dict, since every one of them is
+    sent under the same field name)."""
     return [
         ("files", (f.filename, f.stream, f.mimetype))
-        for f in request.files.getlist("gallery")
+        for f in request.files.getlist(field)
         if f and f.filename
     ]
 
 
+# How long a gallery upload is given to reach store-api, overriding the client's 10s
+# default. Videos are the reason: they are capped at MAX_VIDEO_SIZE_MB (100MB) and
+# nothing compresses them, so the request is a real file transfer over the clinic's
+# network rather than a JSON round trip. Ten seconds abandons a large one mid-flight
+# and reports it as "store-api unreachable", which reads as an outage rather than as
+# the slow upload it is.
+UPLOAD_TIMEOUT_SECONDS = 300
+
+# What the product modal TELLS the admin about video limits, mirroring store-api's
+# MAX_VIDEO_SIZE_MB and MAX_GALLERY_VIDEOS. Copies rather than a fetch: store-api is
+# the authority and enforces them on every upload regardless, so the only cost of these
+# drifting is a hint that quotes the wrong number - never a file that gets through when
+# it shouldn't. Fetching them would mean an extra round trip on a page that already
+# makes four, for a sentence of help text.
+MAX_VIDEO_MB = 100
+MAX_GALLERY_VIDEOS = 3
+
+
 def _upload_gallery(client, product_id):
-    files = _gallery_files_from_request()
+    """The extra product-page photos and videos. Two endpoints because store-api
+    validates them differently (type, size ceiling, how many at once) - see
+    upload_product_gallery_videos there."""
+    files = _multipart_files("gallery")
     if files:
-        client.post_form(f"/products/{product_id}/gallery", files=files)
+        client.post_form(
+            f"/products/{product_id}/gallery",
+            files=files,
+            timeout=UPLOAD_TIMEOUT_SECONDS,
+        )
+    videos = _multipart_files("gallery_videos")
+    if videos:
+        client.post_form(
+            f"/products/{product_id}/gallery/videos",
+            files=videos,
+            timeout=UPLOAD_TIMEOUT_SECONDS,
+        )
 
 
 def _delete_removed_gallery_images(client, product_id):
-    """Gallery photos the admin X'd out in the modal. They arrive as hidden
-    inputs on the same form as everything else (a nested <form> per thumbnail
+    """Gallery items - photos or videos - the admin X'd out in the modal. They arrive
+    as hidden inputs on the same form as everything else (a nested <form> per thumbnail
     isn't valid HTML), so the removal happens here rather than through a
-    dedicated route."""
+    dedicated route. One endpoint covers both: a gallery row is a gallery row."""
     for image_id in request.form.getlist("remove_gallery_ids"):
         if image_id.isdigit():
             client.delete(f"/products/{product_id}/gallery/{image_id}")
@@ -270,6 +302,8 @@ def products():
         sort_url=sort_url,
         filter_url=filter_url,
         page_url=page_url,
+        max_video_mb=MAX_VIDEO_MB,
+        max_gallery_videos=MAX_GALLERY_VIDEOS,
     )
 
 

@@ -29,7 +29,7 @@
                     <a class="brand-card {{ 'active' if selected_brand == brand.id }}" href="{{ catalog_url(brand=brand.id) }}">
                         <div class="brand-img-wrap">
                             {% if brand.brand_image %}
-                            <img src="{{ img(brand.brand_image) }}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;" />
+                            <img src="{{ img(brand.brand_image) }}" alt="" loading="lazy" />
                             {% else %}
                             <span class="brand-logo"><i class="fas fa-tag"></i></span>
                             {% endif %}

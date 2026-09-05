@@ -185,7 +185,7 @@
                 {{ status_chip('File storage', true, status.storage.mode) }}
 
                 {{ status_chip('Upload limits', true,
-                               status.storage.max_image_mb ~ ' MB images · ' ~ status.storage.max_pdf_mb ~ ' MB PDFs') }}
+                               status.storage.max_image_mb ~ ' MB images · ' ~ status.storage.max_pdf_mb ~ ' MB PDFs · ' ~ status.storage.max_video_mb ~ ' MB videos') }}
 
                 {{ status_chip('Google sign-in', status.google_signin.configured, 'Enabled', 'Disabled') }}
 

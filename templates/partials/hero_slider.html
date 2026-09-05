@@ -22,8 +22,17 @@
    nothing but that picture (`no-overlay`, no heading, no copy), so a deal whose
    image has never been uploaded rendered the "404 no image" placeholder full-bleed
    across the widest element on the site. A deal without a picture is still on the
-   promotions page and in the promo banner - it just doesn't get a slide. #}
-{% set promo = (active_promotions | selectattr('promotion_image') | first) if active_promotions else None %}
+   promotions page and in the promo banner - it just doesn't get a slide.
+
+   Artwork here means EITHER picture. A promotion carries two - `banner_image` for this
+   slide and `promotion_image` for its square cards - because a tile cropped to a
+   ~16:6 band keeps about a third of itself, centred on whatever happens to be in the
+   middle. So the banner wins where one has been uploaded, and the card image is the
+   fallback, which is what every deal predating banner_image renders with (i.e.
+   unchanged). `selectattr` won't do that job: it takes one attribute name, and the
+   question here is "either of two". #}
+{% set promo = (active_promotions | selectattr('banner_image') | first) if active_promotions else None %}
+{% set promo = promo or ((active_promotions | selectattr('promotion_image') | first) if active_promotions else None) %}
 {# Nothing to show means no carousel at all: an empty .slides with arrows and no dots
    is a broken-looking box, not an empty state. #}
 {% if promo or hero_slides %}
@@ -33,7 +42,7 @@
         {# The slide IS this promotion's artwork, so it opens that deal's page
            rather than the list it happens to be first in. #}
         <a class="slide no-overlay" href="{{ url_for('catalog.promotion_detail', promotion_id=promo.id) }}"
-          style="background-image: url('{{ img(promo.promotion_image) }}'); cursor: pointer;">
+          style="background-image: url('{{ img(promo.banner_image or promo.promotion_image) }}'); cursor: pointer;">
             <div class="slide-content">
                 <span class="btn-hero"><i class="fas fa-fire"></i> View This Deal</span>
             </div>

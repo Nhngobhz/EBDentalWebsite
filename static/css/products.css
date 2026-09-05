@@ -96,6 +96,22 @@
     color: var(--text-soft);
     transition: var(--transition);
 }
+/* The real logo fills the circle rather than carrying a size of its own. It used
+   to be a hard 28px inline on the <img>, which overflowed the 22px wrap below
+   720px and could not follow the materials catalog's larger pill at all. */
+.eb-brand-scroll .brand-card .brand-img-wrap img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+/* The circle keeps a ground of its own on an active pill, but the near-white one
+   it inherits under a glyph that has just turned white is an empty disc - which is
+   what it drew. Translucent white works over whatever colour the pill took, the
+   per-brand colours below included; a real logo covers it entirely either way. */
+.eb-brand-scroll .brand-card.active .brand-img-wrap {
+    background: rgba(255, 255, 255, 0.22);
+}
 .eb-brand-scroll .brand-card.active .brand-img-wrap .brand-logo {
     color: white;
 }
@@ -178,6 +194,15 @@
 .eb-scroll-arrow.disabled {
     opacity: 0.3;
     pointer-events: none;
+}
+/* A row that fits has nothing to scroll, so it keeps neither the arrows nor the
+   34px of gutter they sit in. Set by initBrandScrollers() in main.js and re-checked
+   on resize; with no JS the arrows simply stay, which is how they behaved before. */
+.eb-brand-scroll-container.no-scroll {
+    padding: 0;
+}
+.eb-brand-scroll-container.no-scroll .eb-scroll-arrow {
+    display: none;
 }
 
 @media (max-width: 720px) {
@@ -1377,6 +1402,46 @@
     border-color: var(--accent);
     box-shadow: 0 0 0 2px rgba(8, 145, 178, 0.25);
 }
+/* A gallery video's thumbnail. The tile is the clip's own first frame (the <video>
+   is loaded with preload="metadata", so this costs a header rather than a file),
+   with a play badge over it - without the badge a still frame is indistinguishable
+   from a photo and nobody clicks it. */
+.pd-thumb.is-video {
+    position: relative;
+}
+.pd-thumb video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    /* Black behind a frame that doesn't fill the tile, so a letterboxed clip reads as
+       video rather than as a photo with odd margins. */
+    background: #000;
+    border-radius: 6px;
+    pointer-events: none;
+}
+.pd-thumb-play {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 0.7rem;
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+}
+.pd-thumb-play i {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.55);
+    /* Nudged right: an equilateral play triangle looks off-centre when its bounding
+       box is centred. */
+    padding-left: 2px;
+}
 .pd-stage {
     position: relative;
     background: var(--bg);
@@ -1397,6 +1462,25 @@
 }
 .pd-stage:hover img {
     transform: scale(1.04);
+}
+/* The stage's video, shown in place of the photo when a clip is selected. Deliberately
+   NOT given the hover-zoom or the zoom-in cursor above: scaling a playing video under
+   the pointer would drag the native controls out from under it, and a video is not
+   something you enlarge - it has its own full-screen button. */
+.pd-stage video {
+    width: 100%;
+    max-height: 400px;
+    background: #000;
+    border-radius: 10px;
+}
+/* The stage holds both an <img> and a <video> and toggles `hidden` between them. Spelt
+   out because a bare [hidden] is only display:none at the browser-default specificity,
+   which the sibling rules above would otherwise win against. */
+.pd-stage img[hidden],
+.pd-stage video[hidden],
+.pd-lightbox img[hidden],
+.pd-lightbox video[hidden] {
+    display: none;
 }
 .pd-stage .product-badge {
     position: absolute;
@@ -1893,6 +1977,15 @@
     object-fit: contain;
     border-radius: 12px;
     background: var(--surface);
+}
+/* Arrowing through the gallery from inside the lightbox can land on a video, so it
+   gets the same envelope as the photo - on black rather than on --surface, which is
+   what a letterboxed clip wants behind it. */
+.pd-lightbox video {
+    max-width: min(1000px, 90vw);
+    max-height: 85vh;
+    border-radius: 12px;
+    background: #000;
 }
 .pd-lightbox-close,
 .pd-lightbox-nav {

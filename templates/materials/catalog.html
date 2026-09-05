@@ -87,6 +87,66 @@
             {% endif %}
         </header>
 
+        {# Brand, as the machinery shop draws it: the .eb-brand-* pill row from
+           products.css, one size up (see #materialsPage in materials.css). It is the
+           SAME control, not a lookalike - the two shops' category filters were made
+           one that way already, and a shopper moving between them should not have to
+           learn a second brand picker.
+
+           It replaces the list of brand links that used to sit in the rail below.
+           The rail is the CATEGORY filter now: 824 categories need a scrolling panel
+           of checkboxes, ten brands do not, and taking them out of the rail leaves
+           the one multi-select control in it instead of two lists that behave
+           differently. Only the biggest ten are here (sap_catalog.rail, with the
+           chosen one pinned) - the other 163 stay one link away.
+
+           Every pill is filter_url(), the same URL the brand chip above removes, so
+           the strip and the chips cannot disagree about what is filtered. #}
+        <div class="eb-brand-filter-wrap mat-brand-filter">
+            <div class="filter-label">
+                <i class="fas fa-tags"></i> Browse by Brand
+                {% if brand_total > brands|length %}
+                <a class="mat-brand-all" href="{{ url_for('materials.brands') }}">
+                    All {{ '{:,}'.format(brand_total) }} brands <i class="fas fa-arrow-right"></i>
+                </a>
+                {% endif %}
+            </div>
+            <div class="eb-brand-scroll-container">
+                <button type="button" class="eb-scroll-arrow prev" aria-label="Scroll brands left"><i class="fas fa-chevron-left"></i></button>
+                <div class="eb-brand-scroll">
+                    <a class="brand-card {{ 'active' if not selected_brand }}" href="{{ filter_url(brand=None) }}">
+                        <div class="brand-img-wrap"><span class="brand-logo"><i class="fas fa-th-large"></i></span></div>
+                        <div class="brand-info">All</div>
+                    </a>
+                    {% for brand in brands %}
+                    {# The glyph, not img()'s placeholder, for the brands with no logo -
+                       which out of SAP is nearly all of them (see materials/home.html).
+                       A wall of equal placeholder tiles is right on the brands index,
+                       where the picture IS the card; in a 36px circle inside a pill it
+                       is ten identical grey squares saying nothing. #}
+                    <a class="brand-card {{ 'active' if brand.id == selected_brand }}"
+                       href="{{ filter_url(brand=None if brand.id == selected_brand else brand.id) }}">
+                        <div class="brand-img-wrap">
+                            {% if brand.image %}
+                            <img src="{{ img(brand.image) }}" alt="" loading="lazy" />
+                            {% else %}
+                            <span class="brand-logo"><i class="fas fa-tag"></i></span>
+                            {% endif %}
+                        </div>
+                        <div class="brand-info">
+                            {{ brand.name }}
+                            {# Kept from the rail list this replaces. On a catalogue
+                               this size "which of these has anything in it" is half of
+                               what the filter is asked, and the count is the answer. #}
+                            <span class="brand-count">{{ '{:,}'.format(brand.count) }}</span>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                <button type="button" class="eb-scroll-arrow next" aria-label="Scroll brands right"><i class="fas fa-chevron-right"></i></button>
+            </div>
+        </div>
+
         {# What is currently narrowing the list, each removable on its own. Without
            this the only way back from "ECOLINE + Diamond Burs + rotary" is Clear
            all, which throws away the two filters you wanted to keep. #}
@@ -188,26 +248,6 @@
                             {% if category_total > categories|length %}
                             <a class="mat-facet-more" href="{{ url_for('materials.categories') }}">
                                 All {{ '{:,}'.format(category_total) }} categories <i class="fas fa-arrow-right"></i>
-                            </a>
-                            {% endif %}
-                        </section>
-
-                        <section class="mat-facet">
-                            <h2>Brand</h2>
-                            <ul>
-                                {% for brand in brands %}
-                                <li>
-                                    <a class="{{ 'active' if brand.id == selected_brand }}"
-                                       href="{{ filter_url(brand=None if brand.id == selected_brand else brand.id) }}">
-                                        <span class="mat-facet-name">{{ brand.name }}</span>
-                                        <span class="mat-facet-count">{{ '{:,}'.format(brand.count) }}</span>
-                                    </a>
-                                </li>
-                                {% endfor %}
-                            </ul>
-                            {% if brand_total > brands|length %}
-                            <a class="mat-facet-more" href="{{ url_for('materials.brands') }}">
-                                All {{ '{:,}'.format(brand_total) }} brands <i class="fas fa-arrow-right"></i>
                             </a>
                             {% endif %}
                         </section>

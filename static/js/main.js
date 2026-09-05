@@ -394,6 +394,89 @@ function initCatalogFilters() {
 
 document.addEventListener('DOMContentLoaded', initCatalogFilters);
 
+/* ------------------------------------------------------------
+   BRAND STRIP — the row of brand pills across the top of both
+   catalogs (.eb-brand-* in products.css; the materials catalog
+   scales the same control up in materials.css).
+
+   The row scrolls natively, so a swipe or a trackpad has always
+   worked; the two arrows beside it never did anything, which on
+   the materials strip - ten brands, wider pills - is a control
+   the shopper actually needs. Everything here is that: how far a
+   press moves the row, whether either end has been reached, and
+   whether the row overflows at all. Nothing here filters
+   anything - every pill is a plain link the server answers, and
+   with no JS the arrows simply sit there as before.
+------------------------------------------------------------- */
+function initBrandScrollers() {
+    // 4px of slack for sub-pixel widths - the same allowance the category strip
+    // makes. Without it a row that fits exactly reports a fraction of overflow
+    // and keeps two arrows that cannot move it.
+    const SLACK = 4;
+
+    document.querySelectorAll('.eb-brand-scroll-container').forEach((container) => {
+        const row = container.querySelector('.eb-brand-scroll');
+        if (!row) return;
+        const prev = container.querySelector('.eb-scroll-arrow.prev');
+        const next = container.querySelector('.eb-scroll-arrow.next');
+
+        function sync() {
+            const overflow = row.scrollWidth - row.clientWidth;
+            // Four brands on a desktop machinery page fit with room to spare, and
+            // arrows that cannot move anything read as a broken control - so the
+            // whole gutter goes with them. See .no-scroll in products.css.
+            container.classList.toggle('no-scroll', overflow <= SLACK);
+            if (prev) prev.classList.toggle('disabled', row.scrollLeft <= SLACK);
+            if (next) next.classList.toggle('disabled', overflow - row.scrollLeft <= SLACK);
+        }
+
+        function nudge(direction) {
+            // Most of a screenful rather than all of it: a pill or two stays put,
+            // so the row reads as having moved and not as having been replaced.
+            row.scrollBy({ left: direction * row.clientWidth * 0.8, behavior: 'smooth' });
+        }
+
+        if (prev) prev.addEventListener('click', () => nudge(-1));
+        if (next) next.addEventListener('click', () => nudge(1));
+        row.addEventListener('scroll', sync, { passive: true });
+
+        // The chosen brand on screen without hunting for it. It is pinned to the
+        // front of the materials rail so it usually already is, but a pill can
+        // still start off the side on a narrow screen - and a filter you cannot
+        // see is one nobody can take off. The ROW scrolls, never the window.
+        const active = row.querySelector('.brand-card.active:not(:first-child)');
+        if (active) {
+            const rowBox = row.getBoundingClientRect();
+            const box = active.getBoundingClientRect();
+            // Smooth scrolling is what the row wants for a swipe, not for a
+            // correcting jump on load - the pills would visibly slide past.
+            row.style.scrollBehavior = 'auto';
+            if (box.right > rowBox.right) {
+                row.scrollLeft += box.right - rowBox.right + 24;
+            } else if (box.left < rowBox.left) {
+                row.scrollLeft += box.left - rowBox.left - 24;
+            }
+            row.style.scrollBehavior = '';
+        }
+
+        sync();
+        // ...and again once the web fonts have landed. Every measurement above is
+        // of text, and this runs on DOMContentLoaded with Inter still loading, so
+        // the row is about to get wider than it just reported.
+        if (document.fonts && document.fonts.ready) document.fonts.ready.then(sync);
+
+        // How many pills fit across is a width question, so it is re-asked
+        // whenever the window changes.
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(sync, 150);
+        });
+    });
+}
+
+document.addEventListener('DOMContentLoaded', initBrandScrollers);
+
 /* NOTE: subcategory add/remove logic now lives inline in brands.html's
    modal (page-specific), not here globally — avoids double-registering
    the same button when the modal script also wires it up. */

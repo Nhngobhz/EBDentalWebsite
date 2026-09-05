@@ -3,7 +3,9 @@
 {% block title %}{{ product.product_name }}{% endblock %}
 
 {# `gallery` is built in the route (catalog.product_detail): the product's main
-   picture first, then every extra photo uploaded against it. #}
+   picture first, then every extra photo AND video uploaded against it, each entry a
+   {url, type} pair. Videos live in the same rail as the stills because they are rows
+   of the same table - see store-api's models.ProductImage. #}
 {% block content %}
 <div id="productPage">
     <div class="container">
@@ -25,17 +27,31 @@
             <!-- ---------- Gallery ---------- -->
             <div class="pd-gallery">
                 <div class="pd-thumbs" id="pdThumbs" role="tablist" aria-label="Product images">
-                    {% for src in gallery %}
-                    <button type="button" class="pd-thumb {{ 'active' if loop.first }}" data-index="{{ loop.index0 }}"
+                    {% for media in gallery %}
+                    <button type="button" class="pd-thumb {{ 'active' if loop.first }}{{ ' is-video' if media.type == 'video' }}"
+                            data-index="{{ loop.index0 }}"
                             role="tab" aria-selected="{{ 'true' if loop.first else 'false' }}"
-                            aria-label="Image {{ loop.index }} of {{ gallery|length }}">
-                        <img src="{{ src }}" alt="" loading="lazy" />
+                            aria-label="{{ 'Video' if media.type == 'video' else 'Image' }} {{ loop.index }} of {{ gallery|length }}">
+                        {% if media.type == 'video' %}
+                        {# preload="metadata" so the tile shows the clip's own first
+                           frame rather than a black box - it fetches the header, not
+                           the file. muted+playsinline because the tile never plays. #}
+                        <video src="{{ media.url }}" preload="metadata" muted playsinline></video>
+                        <span class="pd-thumb-play"><i class="fas fa-play"></i></span>
+                        {% else %}
+                        <img src="{{ media.url }}" alt="" loading="lazy" />
+                        {% endif %}
                     </button>
                     {% endfor %}
                 </div>
 
                 <div class="pd-stage">
-                    <img id="pdMainImage" src="{{ gallery[0] }}" alt="{{ product.product_name }}" />
+                    {# Both elements always exist and PdGallery hides one - swapping the
+                       markup instead would risk an MP4 ending up in an <img> src. The
+                       video carries no `src` until it is selected, so a page whose
+                       gallery opens on a photo downloads no video at all. #}
+                    <img id="pdMainImage" src="{{ gallery[0].url }}" alt="{{ product.product_name }}" />
+                    <video id="pdMainVideo" controls preload="metadata" playsinline hidden></video>
                     {% if product.badge == 'sale' %}<div class="product-badge sale">Sale</div>
                     {% elif product.badge == 'new' %}<div class="product-badge new">New</div>
                     {% elif product.badge == 'hot' %}<div class="product-badge hot">🔥 Hot</div>{% endif %}
@@ -198,11 +214,14 @@
     </div>
 </div>
 
-<!-- Full-screen image viewer, opened by the main image / "Click to enlarge". -->
+<!-- Full-screen viewer, opened by the main image / "Click to enlarge". Arrowing
+     through the gallery from in here can land on a video, so it holds both elements
+     for the same reason the stage does. -->
 <div class="pd-lightbox" id="pdLightbox" role="dialog" aria-modal="true" aria-label="Product image viewer">
     <button type="button" class="pd-lightbox-close" id="pdLightboxClose" aria-label="Close"><i class="fas fa-times"></i></button>
     <button type="button" class="pd-lightbox-nav prev" id="pdLightboxPrev" aria-label="Previous image"><i class="fas fa-chevron-left"></i></button>
     <img id="pdLightboxImage" src="" alt="{{ product.product_name }}" />
+    <video id="pdLightboxVideo" controls preload="metadata" playsinline hidden></video>
     <button type="button" class="pd-lightbox-nav next" id="pdLightboxNext" aria-label="Next image"><i class="fas fa-chevron-right"></i></button>
     <div class="pd-lightbox-count" id="pdLightboxCount"></div>
 </div>

@@ -1431,9 +1431,11 @@
 }
 
 /* -------------------------------------------------------------
-   GALLERY THUMBS — the product modal's "More Photos" strip, showing
-   the extra pictures already saved against a product. The X marks one
-   for removal on save (see renderProductGallery in admin/products.html).
+   GALLERY THUMBS — the product modal's strip of everything already
+   saved against a product's gallery: the extra photos AND the videos,
+   in one strip because they are rows of one table and share one
+   removal path. The X marks one for removal on save (see
+   renderProductGallery in admin/products.html).
 ------------------------------------------------------------- */
 .gallery-thumbs {
     display: flex;
@@ -1449,13 +1451,42 @@
     width: 64px;
     height: 64px;
 }
-.gallery-thumb img {
+.gallery-thumb img,
+.gallery-thumb video {
     width: 100%;
     height: 100%;
     border-radius: 8px;
     object-fit: cover;
     border: 1px solid var(--border);
     background: var(--surface);
+}
+.gallery-thumb video {
+    /* Black behind a frame that doesn't fill the tile, and no pointer events so the
+       click always reaches the tile rather than the browser's own video menu. */
+    background: #000;
+    pointer-events: none;
+}
+/* Play badge over a video tile - without it a first frame looks like a photo, and an
+   admin would have no way to tell which of these rows is the clip they just added. */
+.gallery-thumb-play {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 0.65rem;
+    pointer-events: none;
+}
+.gallery-thumb-play i {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.55);
+    padding-left: 2px;
 }
 .gallery-thumb-remove {
     position: absolute;

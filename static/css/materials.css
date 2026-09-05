@@ -829,6 +829,88 @@ a.mh-help-card:hover {
 }
 
 /* ============================================================
+   CATALOG - brand strip
+   ============================================================ */
+
+/* The machinery shop's brand control (.eb-brand-* / .brand-card, products.css)
+   reused whole and only resized here - same markup, same states, same arrows.
+   Nothing below changes how the strip WORKS; it is a size and one extra element,
+   so a change to the pill on /products still lands on this page too.
+   One size up because this shop's pills carry more: SAP brand names are words
+   rather than four logos, and each pill states how many items are behind it. */
+
+#materialsPage .eb-brand-filter-wrap {
+    margin-bottom: 20px;
+}
+
+/* The label row's right-hand end: the way out to the other 163 brands, where the
+   machinery strip - four brands, all of them on screen - has a swipe hint. */
+#materialsPage .eb-brand-filter-wrap .filter-label .mat-brand-all {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--accent);
+    text-decoration: none;
+}
+
+#materialsPage .eb-brand-filter-wrap .filter-label .mat-brand-all:hover {
+    text-decoration: underline;
+}
+
+#materialsPage .eb-brand-scroll-container {
+    padding: 0 42px;
+}
+
+#materialsPage .eb-brand-scroll {
+    gap: 12px;
+}
+
+#materialsPage .eb-brand-scroll .brand-card {
+    gap: 10px;
+    padding: 8px 18px 8px 10px;
+}
+
+#materialsPage .eb-brand-scroll .brand-card .brand-img-wrap {
+    width: 36px;
+    height: 36px;
+}
+
+#materialsPage .eb-brand-scroll .brand-card .brand-img-wrap .brand-logo {
+    font-size: 0.95rem;
+}
+
+#materialsPage .eb-brand-scroll .brand-card .brand-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+}
+
+/* Deliberately quiet: the name is what is being chosen, the count is the note
+   beside it. Same figure the rail list used to show at the same weight. */
+#materialsPage .eb-brand-scroll .brand-card .brand-count {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-light);
+    font-variant-numeric: tabular-nums;
+}
+
+#materialsPage .eb-brand-scroll .brand-card.active .brand-count {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+#materialsPage .eb-scroll-arrow {
+    width: 34px;
+    height: 34px;
+    font-size: 0.8rem;
+}
+
+/* ============================================================
    CATALOG - rail + results
    ============================================================ */
 
@@ -1033,11 +1115,11 @@ a.mh-help-card:hover {
 }
 
 .mat-facet-all > summary::after {
-    content: " be";
+    content: " \25be";
 }
 
 .mat-facet-all[open] > summary::after {
-    content: " b4";
+    content: " \25b4";
 }
 
 .mat-facet-all > summary:hover {
@@ -1595,7 +1677,7 @@ a.md-fact:hover {
     /* Closed, the panel is a single tappable row, so it gets the affordance that
        says so. */
     .mat-rail-panel > summary::after {
-        content: "078";
+        content: "\f078";
         margin-left: auto;
         font-family: "Font Awesome 6 Free";
         font-weight: 900;
@@ -1610,6 +1692,44 @@ a.md-fact:hover {
 }
 
 @media (max-width: 640px) {
+    /* The brand strip comes back down about half the step it was given on the
+       desktop. products.css shrinks the machinery pill at 720px, but that rule
+       cannot reach these - an id beats a class at any width - so the phone size
+       is stated here too. Still a little larger than machinery's: the names are
+       SAP words and each pill carries a count. */
+    #materialsPage .eb-brand-scroll-container {
+        padding: 0 32px;
+    }
+
+    #materialsPage .eb-brand-scroll {
+        gap: 8px;
+    }
+
+    #materialsPage .eb-brand-scroll .brand-card {
+        gap: 8px;
+        padding: 6px 14px 6px 8px;
+    }
+
+    #materialsPage .eb-brand-scroll .brand-card .brand-img-wrap {
+        width: 28px;
+        height: 28px;
+    }
+
+    #materialsPage .eb-brand-scroll .brand-card .brand-img-wrap .brand-logo {
+        font-size: 0.8rem;
+    }
+
+    #materialsPage .eb-brand-scroll .brand-card .brand-info {
+        gap: 6px;
+        font-size: 0.75rem;
+    }
+
+    #materialsPage .eb-scroll-arrow {
+        width: 28px;
+        height: 28px;
+        font-size: 0.7rem;
+    }
+
     .mh-hero {
         padding: 34px 0 30px;
     }

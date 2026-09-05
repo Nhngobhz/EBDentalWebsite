@@ -215,11 +215,18 @@ follows.
   `blueprints/admin/{products,brands,categories,manuals}.py`) and pass it
   to `post_form`/`post_json`'s sibling calls - store-api expects
   `multipart/form-data` for these, never JSON (see the other guide's
-  section 3). The one endpoint that takes **several** files
-  (`POST /products/{id}/gallery`) needs a *list of tuples* instead of a
-  dict, since every part reuses the same field name:
+  section 3). The endpoints that take **several** files
+  (`POST /products/{id}/gallery` and `.../gallery/videos`) need a *list of
+  tuples* instead of a dict, since every part reuses the same field name:
   `[("files", (filename, stream, mimetype)), ...]` - see
-  `_gallery_files_from_request()` in `blueprints/admin/products.py`.
+  `_multipart_files()` in `blueprints/admin/products.py`.
+  Video uploads also pass `timeout=UPLOAD_TIMEOUT_SECONDS` to `post_form`:
+  the client's 10s default is sized for a table read, and a 100MB clip
+  abandoned mid-transfer surfaces as "store-api unreachable" rather than
+  as the slow upload it is. `MAX_CONTENT_LENGTH` in `app.py` has to stay
+  at or above store-api's `MAX_VIDEO_SIZE_MB` for the same reason -
+  Werkzeug rejecting the body first produces a bare 413 the admin can't
+  read, instead of store-api's "File too large" message.
 
 ## 3. The admin blueprint - the pattern every page follows
 
@@ -590,7 +597,7 @@ Two traps in this half specifically:
    1,671 items - so any list ordered by size opens with it. It is filtered out of
    places that *recommend* brands (the materials home strip, the footer column; see
    `FALLBACK_BRAND_NAME`) and deliberately left in places that merely *list* them
-   (`/materials/brands`, the catalog's filter rail), because those 1,671 items have
+   (`/materials/brands`, the catalog's brand strip), because those 1,671 items have
    to be reachable by the only name they have.
 4. **A category tile draws a glyph, never a photograph.** `category_icon(name,
    override)` guesses from the name via a keyword map and takes the admin's
@@ -664,19 +671,29 @@ Two traps in this half specifically:
    named function in `admin/products.html` is the admin's own create/edit
    modal and is unrelated. `partials/product_modal.html` was renamed
    `partials/toast.html`, which is all that survived of it.
-   That page's image gallery (main picture + store-api's
-   `Product.images`) is assembled **in the route**, not the template:
-   `catalog.product_detail` resolves every URL through
-   `resolve_image_url` and passes one `gallery` list, because both the
+   That page's gallery (main picture + store-api's `Product.images`) is
+   assembled **in the route**, not the template: `catalog.product_detail`
+   resolves every URL and passes one `gallery` list, because both the
    `{% block content %}` markup and the `{% block extra_js %}` blob need
    the same list and a top-level `{% set %}` shared across two blocks is
    exactly the kind of Jinja scoping that quietly breaks.
+   Entries are `{"url", "type"}` dicts, **not bare URL strings** - the
+   gallery holds videos as well as photos (they are rows of the same
+   `product_images` table, tagged `media_type`), and a clip put in an
+   `<img>` renders a broken icon. Videos resolve through
+   `resolve_file_url`, not `resolve_image_url`: the latter substitutes the
+   "no image" placeholder PNG when the path is missing, which would leave
+   a `<video>` pointed at a picture.
 12. **Adding a second copy of the gallery/lightbox JS.** There is one
-   (`static/js/product-gallery.js`, `PdGallery.init([urls])`), shared by
-   `products/detail.html` and `products/bundle_detail.html`. A page only
-   has to render the same `.pd-gallery` markup - `#pdThumbs` buttons
-   carrying `data-index`, `#pdMainImage`, `#pdZoomBtn`, `#pdLightbox*` -
-   and call `init` with the same list the thumbnails came from.
+   (`static/js/product-gallery.js`, `PdGallery.init([{url, type}, ...])`),
+   shared by `products/detail.html` and `products/bundle_detail.html`. A
+   page only has to render the same `.pd-gallery` markup - `#pdThumbs`
+   buttons carrying `data-index`, `#pdMainImage`, `#pdZoomBtn`,
+   `#pdLightbox*` - and call `init` with the same list the thumbnails came
+   from. The stage and the lightbox each hold **both** an `<img>` and a
+   `<video>` (`#pdMainVideo`, `#pdLightboxVideo`) and `PdGallery` toggles
+   `hidden` between them; it also drops a `src` when moving off a video, so
+   a 100MB clip isn't left buffered and audible behind a photo.
 13. **Writing a third bundle page.** A `Promotion` and a `Set` share one
    template (`products/bundle_detail.html`) and one route helper
    (`catalog._bundle_detail`), which normalizes either row into

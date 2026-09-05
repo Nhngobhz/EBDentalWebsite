@@ -145,9 +145,31 @@
                 </button>
             </div>
             <div class="form-group" style="margin-bottom:12px;">
-                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Promotion Image</label>
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Card Image</label>
+                <div style="font-size:0.7rem;color:var(--text-light);margin-bottom:6px;">
+                    The square tile: Special Offers on the home page, the Promotions page card, the deal's own page and the table above. Roughly square works best.
+                </div>
                 <input type="file" name="file" id="promoImageFile" accept="image/png,image/jpeg,image/webp,image/gif" data-preview="promoImagePreview" style="width:100%;font-size:0.8rem;">
                 <img id="promoImagePreview" src="" alt="" style="display:none; margin-top:8px; width:70px; height:70px; border-radius:8px; object-fit:cover; border:1px solid var(--border);">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--text-soft);display:block;margin-bottom:3px;">Banner Image</label>
+                <div style="font-size:0.7rem;color:var(--text-light);margin-bottom:6px;">
+                    The wide hero slide at the top of the home and products pages &mdash; and nothing else. Use a landscape image
+                    (about 1600&times;600); a square one gets cropped to a strip through its middle.
+                    <strong>Optional</strong>: with none uploaded the hero falls back to the Card Image, exactly as it did before.
+                </div>
+                <input type="file" name="banner_file" id="promoBannerFile" accept="image/png,image/jpeg,image/webp,image/gif" data-preview="promoBannerPreview" style="width:100%;font-size:0.8rem;">
+                {# Wide preview rather than the 70px square used for the card, because the
+                   thing being judged here is the crop. #}
+                <img id="promoBannerPreview" src="" alt="" style="display:none; margin-top:8px; width:100%; max-height:90px; border-radius:8px; object-fit:cover; border:1px solid var(--border);">
+                {# A file input can't be emptied back to "no banner" - picking nothing means
+                   "leave it alone" - so removing one needs its own control. Hidden until
+                   there is a saved banner to remove. #}
+                <label id="promoBannerRemoveWrap" style="display:none; align-items:center; gap:6px; margin-top:8px; font-size:0.72rem; color:var(--text-soft); cursor:pointer;">
+                    <input type="checkbox" name="remove_banner" id="promoBannerRemove" value="1">
+                    Remove the banner and use the Card Image up top
+                </label>
             </div>
             <button type="submit" class="btn-dash primary" style="width:100%;padding:10px;font-size:0.9rem;justify-content:center;margin-top:4px;" id="promoModalSubmitBtn">
                 <i class="fas fa-save"></i> Create Promotion
@@ -166,7 +188,10 @@
 <script>
     {% set promos_json = [] %}
     {% for p in promotions %}
-    {% set _ = promos_json.append(dict(p, image=img(p.promotion_image))) %}
+    {# `banner` is deliberately NOT img()'d through the placeholder: the edit modal has
+       to be able to tell "no banner uploaded" from "a banner that is a picture of a
+       404", and img() collapses the two. #}
+    {% set _ = promos_json.append(dict(p, image=img(p.promotion_image), banner=file_url(p.banner_image))) %}
     {% endfor %}
     const PROMOS_DATA = {{ promos_json|tojson }};
     const PROMO_NEW_URL = {{ url_for('admin.promotions_new')|tojson }};
@@ -201,6 +226,15 @@
         // (data-preview on the input above, handled in main.js).
         ebSetImagePreview('promoImagePreview', isEdit ? promo.image : null);
 
+        document.getElementById('promoBannerFile').value = '';
+        const savedBanner = isEdit ? (promo.banner || null) : null;
+        ebSetImagePreview('promoBannerPreview', savedBanner);
+        // "Remove the banner" only means anything when there is one, and it must start
+        // unticked every time the modal opens - a checkbox left ticked from the last
+        // deal edited would silently wipe this one's banner on save.
+        document.getElementById('promoBannerRemove').checked = false;
+        document.getElementById('promoBannerRemoveWrap').style.display = savedBanner ? 'flex' : 'none';
+
         // Contents of the promotion (empty when creating). Submitting with no
         // rows at all is what clears them - see bundle_items_from_form().
         ebBundlePicker.render('promoItemsPicker', isEdit ? promo.items : []);
@@ -214,6 +248,21 @@
     function closePromoModal() {
         document.getElementById('promoModalOverlay')?.classList.remove('active');
     }
+
+    // The two banner controls contradict each other if both are used, so each clears
+    // the other as it is touched. The server resolves it too (a file wins), but a form
+    // that shows one intent and acts on another is worth not having.
+    document.getElementById('promoBannerFile')?.addEventListener('change', function() {
+        if (this.files?.length) document.getElementById('promoBannerRemove').checked = false;
+    });
+    document.getElementById('promoBannerRemove')?.addEventListener('change', function() {
+        if (!this.checked) return;
+        const input = document.getElementById('promoBannerFile');
+        input.value = '';
+        // Back to the saved banner, then hidden - the preview would otherwise still
+        // show the picture the tick is about to delete.
+        ebSetImagePreview('promoBannerPreview', null);
+    });
 
     // Optional-chained throughout: the modal isn't rendered at all without
     // product_management, so on a read-only view these elements don't exist.

@@ -32,17 +32,22 @@
             <!-- ---------- Gallery ---------- -->
             <div class="pd-gallery">
                 <div class="pd-thumbs" id="pdThumbs" role="tablist" aria-label="Images">
-                    {% for src in gallery %}
+                    {# `gallery` entries are {url, type} pairs, the same shape the
+                       product page uses (catalog._bundle_detail builds it). Every one
+                       is an image here - neither a Promotion nor a Set carries video -
+                       so this renders stills only, while PdGallery and the CSS stay
+                       shared with the product page. #}
+                    {% for media in gallery %}
                     <button type="button" class="pd-thumb {{ 'active' if loop.first }}" data-index="{{ loop.index0 }}"
                             role="tab" aria-selected="{{ 'true' if loop.first else 'false' }}"
                             aria-label="Image {{ loop.index }} of {{ gallery|length }}">
-                        <img src="{{ src }}" alt="" loading="lazy" />
+                        <img src="{{ media.url }}" alt="" loading="lazy" />
                     </button>
                     {% endfor %}
                 </div>
 
                 <div class="pd-stage">
-                    <img id="pdMainImage" src="{{ gallery[0] }}" alt="{{ name }}" />
+                    <img id="pdMainImage" src="{{ gallery[0].url }}" alt="{{ name }}" />
                     <div class="product-badge hot">{{ '🔥 Promo' if is_promo else '📦 Set' }}</div>
                     <button type="button" class="pd-zoom-hint" id="pdZoomBtn">
                         <i class="fas fa-search-plus"></i> Click to enlarge
@@ -291,7 +296,7 @@
             id: {{ bundle.id|tojson }},
             price: {{ bundle.price|tojson }},
             old_price: {{ bundle.old_price|tojson }},
-            image: {{ gallery[0]|tojson }},
+            image: {{ gallery[0].url|tojson }},
             items: {{ contents|tojson }},
         };
         {% if is_promo %}

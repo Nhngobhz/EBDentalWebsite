@@ -161,10 +161,16 @@ def create_app():
     app.secret_key = os.environ.get("FLASK_SECRET_KEY")
     if not app.secret_key:
         raise RuntimeError("FLASK_SECRET_KEY is not set - copy .env.example to .env and fill it in.")
-    # Generous enough for a product image or a manual PDF; store-api enforces the real
-    # 5MB/20MB limits itself and returns a proper error - this just stops Flask from
-    # rejecting the upload before store-api gets a chance to.
-    app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
+    # Generous enough for a product image, a manual PDF or a product-page video;
+    # store-api enforces the real per-type limits itself and returns a proper error -
+    # this just stops Flask from rejecting the upload before store-api gets a chance to.
+    #
+    # It has to stay at or above store-api's MAX_VIDEO_SIZE_MB, and the failure if it
+    # doesn't is a bad one to debug: Werkzeug rejects the request while the browser is
+    # still uploading, so what the admin sees is a broken connection or a bare 413 page
+    # rather than the "File too large. Maximum size is N MB." message store-api would
+    # have returned. Raised from 25MB when gallery videos landed.
+    app.config["MAX_CONTENT_LENGTH"] = 120 * 1024 * 1024
 
     # Session cookie hardening. This cookie is the whole authentication story for
     # this app - it carries the store-api bearer token server-side - so it gets the

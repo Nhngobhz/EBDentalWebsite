@@ -6,30 +6,49 @@
    Both pages render the same .pd-gallery markup, so the behaviour
    lives here rather than being pasted into each template:
 
-       PdGallery.init(["/url/one.jpg", "/url/two.jpg", ...]);
+       PdGallery.init([{url: "/one.jpg", type: "image"},
+                       {url: "/clip.mp4", type: "video"}, ...]);
 
    The list is the same one the thumbnails were rendered from, in
    the same order - index N here is the button with data-index="N".
-   A page with a single image still works: the arrows wrap around
-   to the same photo and the rail is hidden by CSS.
+   A page with a single item still works: the arrows wrap around
+   to the same one and the rail is hidden by CSS.
+
+   Videos are gallery entries like any other (store-api keeps them
+   in the same table as the photos - see models.ProductImage), so
+   they interleave with the stills wherever they were uploaded.
+   The stage holds BOTH an <img> and a <video>; showing one hides
+   the other rather than rewriting the markup, so a mis-typed
+   entry can never end up with an MP4 in an <img> src.
    ============================================================ */
 const PdGallery = {
-    images: [],
+    items: [],
     index: 0,
 
-    init(images) {
-        this.images = images || [];
+    init(items) {
+        // Plain strings are still accepted so a caller that hasn't been updated
+        // (or a page with no video to describe) keeps working - they mean image.
+        this.items = (items || []).map(item =>
+            typeof item === 'string' ? { url: item, type: 'image' } : item
+        );
         this.index = 0;
-        if (!this.images.length) return;
+        if (!this.items.length) return;
 
         document.querySelectorAll('#pdThumbs .pd-thumb').forEach(thumb => {
             const target = Number(thumb.dataset.index);
             // Hovering a thumbnail previews it, the way a marketplace gallery
             // does; the click is what "sticks" for touch and keyboard users.
-            thumb.addEventListener('mouseenter', () => this.show(target));
+            // Not on a video's thumbnail: hover-swapping onto a clip would stop
+            // whatever is playing every time the pointer crossed the rail.
+            if (this.items[target]?.type !== 'video') {
+                thumb.addEventListener('mouseenter', () => this.show(target));
+            }
             thumb.addEventListener('click', () => this.show(target));
         });
 
+        // A video's own frame is its "click to enlarge" target only outside the
+        // controls, so the stage listeners are on the image alone - clicking a
+        // <video> has to mean play/pause, not "open the lightbox".
         document.getElementById('pdMainImage')?.addEventListener('click', () => this.openLightbox());
         document.getElementById('pdZoomBtn')?.addEventListener('click', () => this.openLightbox());
         document.getElementById('pdLightboxClose')?.addEventListener('click', () => this.closeLightbox());
@@ -48,16 +67,50 @@ const PdGallery = {
             if (e.key === 'ArrowLeft') this.show(this.index - 1);
             if (e.key === 'ArrowRight') this.show(this.index + 1);
         });
+
+        // Paint once so the stage agrees with the rail on load, including the
+        // case where the gallery's first entry is a video.
+        this.show(0);
+    },
+
+    current() {
+        return this.items[this.index];
     },
 
     show(index) {
-        if (!this.images.length) return;
-        if (index < 0) index = this.images.length - 1;
-        if (index >= this.images.length) index = 0;
+        if (!this.items.length) return;
+        if (index < 0) index = this.items.length - 1;
+        if (index >= this.items.length) index = 0;
         this.index = index;
 
-        const main = document.getElementById('pdMainImage');
-        if (main) main.src = this.images[this.index];
+        const item = this.items[this.index];
+        const isVideo = item.type === 'video';
+
+        const image = document.getElementById('pdMainImage');
+        const video = document.getElementById('pdMainVideo');
+        const zoom = document.getElementById('pdZoomBtn');
+
+        // Moving off a video stops it. Without this the audio keeps running from a
+        // stage nobody can see any more, and there is no visible control to stop it.
+        if (video && !isVideo) {
+            video.pause();
+            // Dropping the src as well as hiding it: a paused <video> still holds
+            // the buffered file, and these are up to 100MB each.
+            video.removeAttribute('src');
+            video.load();
+        }
+
+        if (image) {
+            image.hidden = isVideo;
+            if (!isVideo) image.src = item.url;
+        }
+        if (video) {
+            video.hidden = !isVideo;
+            if (isVideo) video.src = item.url;
+        }
+        // "Click to enlarge" is about a photo; a video has its own controls, and the
+        // lightbox shows it at the same size the stage already does.
+        if (zoom) zoom.hidden = isVideo;
 
         document.querySelectorAll('#pdThumbs .pd-thumb').forEach((thumb, i) => {
             thumb.classList.toggle('active', i === this.index);
@@ -82,12 +135,39 @@ const PdGallery = {
     closeLightbox() {
         document.getElementById('pdLightbox')?.classList.remove('active');
         document.body.style.overflow = '';
+        // The stage's own <video> keeps playing behind the lightbox on purpose (it is
+        // the same clip the viewer was watching); only the lightbox copy is stopped.
+        const video = document.getElementById('pdLightboxVideo');
+        if (video) {
+            video.pause();
+            video.removeAttribute('src');
+            video.load();
+        }
     },
 
     _paintLightbox() {
-        const img = document.getElementById('pdLightboxImage');
-        if (img) img.src = this.images[this.index];
+        const item = this.current();
+        if (!item) return;
+        const isVideo = item.type === 'video';
+
+        const image = document.getElementById('pdLightboxImage');
+        if (image) {
+            image.hidden = isVideo;
+            if (!isVideo) image.src = item.url;
+        }
+        const video = document.getElementById('pdLightboxVideo');
+        if (video) {
+            video.hidden = !isVideo;
+            if (isVideo) {
+                video.src = item.url;
+            } else {
+                video.pause();
+                video.removeAttribute('src');
+                video.load();
+            }
+        }
+
         const count = document.getElementById('pdLightboxCount');
-        if (count) count.textContent = `${this.index + 1} / ${this.images.length}`;
+        if (count) count.textContent = `${this.index + 1} / ${this.items.length}`;
     },
 };
