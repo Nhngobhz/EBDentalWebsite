@@ -4890,6 +4890,13 @@
     padding-top: 20px;
     border-top: 1px solid var(--border);
 }
+/* The staff workflow block (orderWorkflowHtml in main.js) is shared verbatim with the
+   account drawer, so it arrives carrying that panel's .account-workflow-* classes and
+   its styles from base.css. Only the width needs adjusting: buttons sized for a
+   four-inch slide-over would otherwise stretch across the whole page. */
+.eb-orders-page .account-workflow-btns {
+    max-width: 460px;
+}
 
 @media (max-width: 720px) {
     .eb-orders-page {

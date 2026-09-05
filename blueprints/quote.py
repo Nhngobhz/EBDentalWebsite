@@ -2,7 +2,7 @@ import maps
 import site_settings
 from flask import Blueprint, jsonify, request
 
-from auth import can_quote, has_any_permission, is_customer, is_logged_in, is_staff
+from auth import can_quote, has_any_permission, is_customer, is_logged_in, is_staff, sync_session_account
 from formatting import adapt_order
 from store_api import StoreAPIError, get_api_client
 
@@ -151,6 +151,12 @@ def submit():
     fabricated price here."""
     if not is_logged_in():
         return jsonify({"detail": "Please log in to submit a quote."}), 401
+    if not can_quote():
+        # Last word before refusing a sale: the cached entitlement may simply be older
+        # than the grant. app.py re-reads it once a minute; here it is worth the call
+        # every time, since this is the one request where a stale "no" turns a customer
+        # store-api would happily serve away from a completed order.
+        sync_session_account(force=True)
     if not can_quote():
         return jsonify({"detail": "Your account isn't able to place orders."}), 403
 

@@ -156,6 +156,23 @@ follows.
   which is really a centered modal - this one actually slides from the edge and
   animates on `transform`, so its hidden state must stay laid out
   (`visibility`, not `display:none`).
+- **Staff work an order from the storefront too (added 2026-09-03).** Both
+  order views above show a **Confirm order** / **Mark as complete** block to
+  staff holding `price_listing` or `admin` - the same pair the admin Orders
+  screen opens on - because staff raise quotes from the storefront cart and
+  that is where they already are when one needs moving along. The block is
+  rendered by `orderWorkflowHtml()` in `main.js` for **both** views (the
+  drawer's panel and `auth/order_detail.html`, which calls it from its inline
+  script) so the two can't start offering different buttons, and both post
+  through `setOrderWorkflowStatus()` → `auth.my_order_status` →
+  `PUT /orders/{id}`. Three things are deliberately narrower here than in the
+  admin: the ladder is `pending → confirmed → delivered` with **no Cancelled**
+  (`ORDER_WORKFLOW_STATUSES` in `blueprints/auth_routes.py` is the actual
+  restriction, since store-api accepts any status string); the route re-checks
+  ownership through `GET /orders/mine/<id>` first, because the `PUT` it
+  forwards to is **not** principal-scoped and would otherwise let a storefront
+  page edit any order in the store; and a status not on the ladder gets no
+  buttons at all, since there is no "next step" to guess.
 - The three decorators fail in three deliberately different ways:
   `login_required` (storefront pages) flashes and redirects to `/login`;
   `staff_required` (the `/admin/*` gate) **`abort(404)`s** so the admin
@@ -379,16 +396,20 @@ anything quote-related.
   3s), and **Mark as Paid** (`admin.orders_mark_paid`, now valid on **any**
   order - counter cash, bank transfer, or a KHQR payment auto-detection
   missed).
-- **A settled order is frozen in the UI, and must not pretend otherwise.**
-  The page hides Edit, Update Status, Payment QR and Mark as Paid on a paid
-  row (`applyOrderLock()` in the modal, a "Locked" chip in the table) and
-  leaves Print; a refunded row is locked the same way but keeps its status
-  control, because store-api's status freeze covers `"paid"` only - a
-  reversed sale is exactly the row whose status still has to move. Delete and
-  Refund are the admin-only exceptions (`delete_order`/`refund_order` `403`
-  anyone without `admin`). If you add a new order-mutating control, gate it on
-  `isSettled(order)` too - the server will refuse most of it regardless, but a
-  button that only ever errors is worse than no button.
+- **A settled order is restricted in the UI, and must not pretend otherwise.**
+  `applyOrderLock()` in the modal (and a "Locked" chip in the table) takes
+  Payment QR and Mark as Paid off a paid row and leaves Edit and Print. Its
+  status control stays, but **forward-only**: since 2026-09-03 store-api lets a
+  paid order advance `pending → confirmed → delivered` and refuses anything
+  else, so the options behind where it has got to are `disabled` rather than the
+  control being hidden - what is refused should be visible, not merely missing.
+  A refunded row is exempt from that ladder entirely (`isPaid` is false for it):
+  a reversed sale is the one whose status still has to move, usually to
+  Cancelled. Delete and Refund are the admin-only exceptions
+  (`delete_order`/`refund_order` `403` anyone without `admin`). If you add a new
+  order-mutating control, gate it on `isSettled(order)` too - the server will
+  refuse most of it regardless, but a button that only ever errors is worse than
+  no button.
 - **Sub-Total/Discount/Special Discount/Grand Total, in both the cart
   drawer and the printed PDF**: Sub-Total is the undiscounted combined list
   price, Discount is the money each product's own (admin-set) discount

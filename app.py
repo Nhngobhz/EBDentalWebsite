@@ -23,7 +23,7 @@ import metrics
 import site_cache
 import site_section
 import site_settings
-from auth import can_view_prices, is_staff, register_auth_context
+from auth import can_view_prices, is_staff, register_auth_context, sync_session_account
 from formatting import adapt_product, adapt_promotion, format_date, format_price, resolve_file_url, resolve_image_url, resolve_link_url
 from store_api import (
     SessionExpired,
@@ -371,6 +371,23 @@ def create_app():
         # old token a few lines ago. That token is still valid, so nothing would break -
         # but the rest of this request may as well use the fresh one.
         client.token = result["access_token"]
+        return None
+
+    # Entitlements - a customer's VIP access_permission, a staff member's permissions -
+    # are cached in the session at login, and store-api re-reads them from the database
+    # on every call. Nothing used to reconcile the two, so an admin granting VIP access
+    # to a customer who was already signed in produced a page that contradicted itself:
+    # real prices (store-api's answer) above a "Contact us for pricing" button
+    # (can_quote() reading the stale session). Re-read on a short TTL so a grant or a
+    # revocation lands within the minute instead of at the account's next login.
+    #
+    # Runs after slide_customer_session so it uses the freshly re-minted token on the
+    # day that fires, rather than spending the old one and being handed a 401.
+    @app.before_request
+    def sync_account_entitlements():
+        if request.endpoint in INFRA_ENDPOINTS:
+            return None
+        sync_session_account()
         return None
 
     # Blueprints that must keep working while the storefront is closed: /admin/* is how

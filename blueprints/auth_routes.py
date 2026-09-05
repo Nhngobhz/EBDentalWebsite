@@ -15,7 +15,15 @@ from flask import (
 )
 import metrics
 
-from auth import account_type, current_account, is_customer, is_staff, login_required
+from auth import (
+    account_type,
+    build_session_account,
+    current_account,
+    has_any_permission,
+    is_customer,
+    is_staff,
+    login_required,
+)
 from formatting import adapt_order, to_number
 from store_api import StoreAPIError, get_api_client, token_expires_at
 
@@ -50,33 +58,6 @@ def _wants_json():
     return request.headers.get("Accept") == "application/json" or request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
 
-def _build_session_account(account_type, user=None, customer=None):
-    if account_type == "user":
-        return {
-            "id": user["id"],
-            "name": user["user_name"],
-            "email": user["email"],
-            "role_title": user["role_title"],
-            "image": user.get("user_image"),
-            "permissions": {
-                "user_management": user["user_management"],
-                "price_listing": user["price_listing"],
-                "product_management": user["product_management"],
-                "customer_management": user["customer_management"],
-                # .get, not [...]: a session established against a store-api that
-                # predates the `admin` column would KeyError on every login otherwise.
-                "admin": user.get("admin", False),
-            },
-        }
-    return {
-        "id": customer["id"],
-        "name": customer["customer_name"],
-        "email": customer["email"],
-        "image": customer.get("customer_image"),
-        "access_permission": customer["access_permission"],
-    }
-
-
 def _establish_session(result, method):
     """Everything a successful authentication has in common, whichever way the account
     was proven - a password (POST /login) or a Google ID token (POST /auth/google).
@@ -98,9 +79,12 @@ def _establish_session(result, method):
     # just signed in isn't asked to refresh a token that's one second old.
     session["token_refreshed_at"] = time.time()
     session["account_type"] = result["account_type"]
-    session["account"] = _build_session_account(
+    session["account"] = build_session_account(
         result["account_type"], user=result.get("user"), customer=result.get("customer")
     )
+    # The account dict was read from store-api this very second, so the periodic
+    # re-read in auth.sync_session_account() has nothing to do for a minute.
+    session["account_synced_at"] = time.time()
     flash(f"Welcome back, {session['account']['name']}!", "success")
     # Counted here rather than in each caller because this is the one place both the
     # password and the Google path converge on an established session - anywhere else
@@ -469,6 +453,59 @@ def profile_order_detail(order_id):
     # the print template does arithmetic on them (see main.js), so strings would
     # silently concatenate.
     return jsonify(adapt_order(order))
+
+
+# What the storefront's order views let staff set, in the order the work actually
+# happens. Deliberately shorter than the admin Orders page's dropdown: "cancelled" is
+# not on it, because calling off a sale is a back-office decision that wants the whole
+# order in front of you (and, on a paid row, a refund) rather than a one-tap button on
+# the same screen a customer-facing quote is read from. store-api accepts any status
+# string, so this list is the actual restriction, not a display detail.
+ORDER_WORKFLOW_STATUSES = ("pending", "confirmed", "delivered")
+
+# Who may move one. The same price_listing-or-admin pair store-api gates PUT /orders/{id}
+# with and the admin Orders screen opens on - see ORDERS_PERMISSION in
+# blueprints/admin/orders.py. Checked again by store-api on the forwarded call.
+ORDER_STATUS_PERMISSIONS = ("price_listing", "admin")
+
+
+@auth_bp.route("/profile/orders/<int:order_id>/status", methods=["POST"])
+@login_required
+def my_order_status(order_id):
+    """Staff moving one of their own quotes along the workflow - "Confirm order" and
+    "Mark as complete" on the storefront order views (the account drawer's detail panel
+    and auth/order_detail.html), so a sale raised at the counter can be worked without
+    opening the admin area.
+
+    Ownership is checked the same way every other route in this family checks it - by
+    asking store-api for the order as /orders/mine/<id>, which 404s on anything that
+    isn't the caller's own. That matters here because the endpoint this then forwards to
+    (PUT /orders/{id}) is NOT principal-scoped: any price_listing staffer may edit any
+    order through it. That is correct for the admin screen, which is the whole-store
+    view; it would be wrong for this one, which only ever shows you your own quotes.
+
+    JSON in, JSON out: the drawer slides over whatever page you were on and must not
+    navigate, so both views post here and re-render from the order that comes back."""
+    if not has_any_permission(*ORDER_STATUS_PERMISSIONS):
+        return jsonify({"detail": "You do not have permission to update an order."}), 403
+
+    new_status = (request.get_json(silent=True) or {}).get("status", "")
+    if new_status not in ORDER_WORKFLOW_STATUSES:
+        return jsonify({"detail": "That is not a status this order can be set to."}), 400
+
+    client = get_api_client()
+    try:
+        # Ownership gate - see the docstring. Its 404 is passed straight through rather
+        # than being softened, for the same reason /orders/mine/<id> returns one: a
+        # different message here would confirm that somebody else's order id exists.
+        client.get(f"/orders/mine/{order_id}")
+        updated = client.put_json(f"/orders/{order_id}", {"status": new_status})
+    except StoreAPIError as e:
+        # store-api owns the rules this can break - notably the forward-only status
+        # ladder on a paid order (409) - so its own wording is what reaches the user.
+        return jsonify({"detail": e.detail}), e.status_code or 503
+
+    return jsonify(adapt_order(updated))
 
 
 @auth_bp.route("/profile/password", methods=["POST"])

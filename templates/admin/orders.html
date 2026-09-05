@@ -336,13 +336,15 @@
             <div class="quote-summary-row quote-grand-total-row"><span>Grand Total</span><span id="orderGrandTotal"></span></div>
         </div>
 
-        <!-- Shown on a paid order in place of the status control, which applyOrderLock()
-             removes: store-api refuses to move the status of a completed sale (409), so
-             offering the dropdown would only ever produce an error. The rest of the
-             order stays correctable - see _reject_if_paid in store-api.
+        <!-- Shown on a paid order to explain what its status control will and won't
+             accept: payment is taken before the goods go out, so the status may still
+             advance (Confirmed, then Delivered) but never move back or to Cancelled.
+             applyOrderLock() disables the options behind it and hides the control
+             altogether only when there is nowhere left to go. The rest of the order
+             stays correctable - see _reject_if_paid in store-api.
 
-             On a REFUNDED order the same box says so instead, and the status control
-             stays: a reversed sale is exactly the row whose status still needs to move,
+             On a REFUNDED order the same box says so instead, and every option stays
+             open: a reversed sale is exactly the row whose status still needs to move,
              usually to Cancelled once the goods are back. Icon and text are swapped by
              applyOrderLock(), and the reason is written with textContent because staff
              typed it. -->
@@ -554,10 +556,15 @@
 
     const orderUrl = (template, orderId) => template.replace('/0/', '/' + orderId + '/');
 
-    // A paid order is a closed record: no edit, no status change, and no second
-    // payment. Deleting one is still possible, but only for `admin` (store-api's
-    // delete_order 403s anyone else) - and, since 2026-09-02, refunding it.
+    // A paid order is a settled record: no second payment, and its status may only
+    // move forward along STATUS_LADDER below. Editing it is still allowed (see
+    // _reject_if_paid), deleting it needs `admin` (store-api's delete_order 403s anyone
+    // else), and - since 2026-09-02 - it can be refunded.
     const isPaid = order => order.payment_status === 'paid';
+    // The fulfilment workflow in the order it runs, matching _STATUS_LADDER in
+    // store-api's routers/orders.py. "cancelled" is deliberately absent: it is not a
+    // step forward, which is exactly what makes it unreachable from a paid order.
+    const STATUS_LADDER = ['pending', 'confirmed', 'delivered'];
     // The money came in and went back out again. Locked like a paid row - editing the
     // figures now would leave them describing neither the sale nor the refund - but it
     // is NOT a sale: it counts in no money total, and its status is free to move (the
@@ -729,13 +736,26 @@
         const paid = isPaid(order);
         const refunded = isRefunded(order);
         const cancelled = order.status === 'cancelled';
-        // A completed sale's status is final - store-api 409s any change to it once
-        // payment is on record, so the control comes off the modal entirely and the
-        // note explains why. Everything else about the row stays as it was.
+        // A paid order's status moves FORWARD only (2026-09-03) - payment is taken at
+        // the counter before the goods are picked, so a settled sale still has its
+        // fulfilment ahead of it. The options behind where it has got to are disabled
+        // rather than the whole control being hidden, so what is refused is visible
+        // instead of merely missing; store-api 409s the same moves anyway.
         //
-        // A refunded row gets the note but KEEPS the control: store-api exempts it from
-        // the status freeze precisely because a reversed sale is the one whose status
-        // still has somewhere to go.
+        // A refunded row is exempt entirely (isPaid is false for it): a reversed sale is
+        // the one whose status still needs to go somewhere, usually Cancelled.
+        const statusSelect = document.getElementById('orderStatusSelect');
+        const rank = STATUS_LADDER.indexOf(order.status);
+        let movable = 0;
+        statusSelect.querySelectorAll('option').forEach(opt => {
+            const optRank = STATUS_LADDER.indexOf(opt.value);
+            // rank === -1 covers the one row that can be paid AND off the ladder: a KHQR
+            // payment landing on a cancelled order. Nothing forward of "nowhere", so
+            // nothing is offered.
+            opt.disabled = paid && (rank === -1 || optRank === -1 || optRank < rank);
+            if (!opt.disabled && opt.value !== order.status) movable++;
+        });
+
         const note = document.getElementById('orderLockedNote');
         note.style.display = (paid || refunded) ? 'flex' : 'none';
         note.classList.toggle('refunded', refunded);
@@ -746,8 +766,12 @@
             ? 'This payment was refunded' + (order.refunded_at ? ' on ' + new Date(order.refunded_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '')
               + (order.refund_reason ? ' — ' + order.refund_reason : '')
               + '. It no longer counts as a sale; set the status to Cancelled if the goods came back.'
-            : 'This order is complete — its status is final.';
-        document.getElementById('orderStatusForm').style.display = paid ? 'none' : 'flex';
+            : (movable
+                ? 'Payment is on record — the status can still move forward, but not back and not to Cancelled.'
+                : 'This order is complete — its status is final.');
+        // Hidden only when there is genuinely nowhere left to go: a paid order already
+        // at the end of the ladder, or one paid while cancelled.
+        document.getElementById('orderStatusForm').style.display = (paid && !movable) ? 'none' : 'flex';
         document.getElementById('orderEditBtn').style.display = '';
         // A QR is only worth showing while there's still something to collect - and a
         // refunded order is not something to collect on again. If the customer really is
@@ -877,7 +901,19 @@
         document.getElementById('editAddress').value = order.address || '';
         document.getElementById('editPaymentTerm').value = order.payment_term || '';
         document.getElementById('editInstallTerm').value = order.install_term || '';
-        document.getElementById('editStatus').value = order.status || 'pending';
+        // Same forward-only ladder the modal's own status control enforces (see
+        // applyOrderLock) - an edit that quietly walked a paid order back to Pending
+        // would be refused by store-api anyway, and losing the rest of the form's
+        // changes to that 409 is a poor way to find out.
+        const editStatus = document.getElementById('editStatus');
+        editStatus.value = order.status || 'pending';
+        const editRank = STATUS_LADDER.indexOf(order.status);
+        editStatus.querySelectorAll('option').forEach(opt => {
+            const optRank = STATUS_LADDER.indexOf(opt.value);
+            opt.disabled = isPaid(order)
+                && opt.value !== order.status
+                && (editRank === -1 || optRank === -1 || optRank < editRank);
+        });
         if (CAN_DISCOUNT) {
             document.getElementById('editDiscountType').value = order.discount_type || 'percent';
             document.getElementById('editDiscountValue').value = Number(order.discount_value || 0);

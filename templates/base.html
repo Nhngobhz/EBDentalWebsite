@@ -125,6 +125,14 @@
         const ORDER_PAYMENT_STATUS_URL_TEMPLATE = {{ url_for('quote.order_payment_status', order_id=0)|tojson }};
         // Feed behind the account drawer's Orders tab (see AccountDrawer in main.js).
         const PROFILE_ORDERS_URL = {{ url_for('auth.profile_orders')|tojson }};
+        // Whether this staff member may move an order along the workflow from the
+        // storefront's own order views - the "Confirm order" / "Mark as complete"
+        // buttons in the account drawer and on auth/order_detail.html. Same
+        // price_listing-or-admin pair as the admin Orders screen; auth.my_order_status
+        // checks it again, and store-api checks it a third time on the forwarded PUT.
+        const CAN_SET_ORDER_STATUS = {{ (is_staff() and has_any_permission('price_listing', 'admin'))|tojson }};
+        // "/profile/orders/0/status" - the 0 is swapped for a real order id.
+        const MY_ORDER_STATUS_URL_TEMPLATE = {{ url_for('auth.my_order_status', order_id=0)|tojson }};
         // Admin-editable site settings (store-api's GET /settings/public). The printed
         // quote/invoice reads its letterhead and validity wording from here - see
         // QuoteCart.buildPrintTemplate(). store-api's own PDF builder

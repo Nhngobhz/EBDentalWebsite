@@ -3115,6 +3115,74 @@ document.addEventListener('DOMContentLoaded', () => {
    pay for that request on page loads where the drawer is never
    opened. `_loaded` is what keeps it to one fetch per page view.
    ============================================================ */
+
+/* ---- Staff order workflow ---------------------------------------------------
+   "Confirm order" and "Mark as complete" on the storefront's own order views: the
+   account drawer's detail panel (below) and the full-page one (auth/order_detail.html,
+   which calls these same two helpers from its inline script).
+
+   Staff raise quotes from the storefront cart, so this is where they already are when
+   an order needs moving along - the admin Orders screen stays the whole-store view with
+   cancelling, editing and payments on it.
+
+   The ladder is pending -> confirmed -> delivered, and it only ever goes forwards.
+   Cancelling is deliberately not offered here (see ORDER_WORKFLOW_STATUSES in
+   blueprints/auth_routes.py, which is what actually restricts what may be sent), and on
+   a PAID order store-api itself refuses anything but a forward move.
+   ---------------------------------------------------------------------------- */
+const ORDER_WORKFLOW = ['pending', 'confirmed', 'delivered'];
+
+// Returns the workflow control block for `order`, or '' when there is nothing to
+// offer: a customer (CAN_SET_ORDER_STATUS is false for them), a cancelled order, or a
+// status that isn't on the ladder at all - a free-text status somebody typed into the
+// admin dropdown's place has no "next step" to move to, so guessing one would be wrong.
+function orderWorkflowHtml(order) {
+    if (typeof CAN_SET_ORDER_STATUS === 'undefined' || !CAN_SET_ORDER_STATUS) return '';
+    if (order.status === 'cancelled') return '';
+    const rank = ORDER_WORKFLOW.indexOf(order.status);
+    if (rank === -1) return '';
+
+    if (rank === ORDER_WORKFLOW.length - 1) {
+        return `<div class="account-workflow">
+            <div class="account-workflow-done"><i class="fas fa-circle-check"></i> Completed — nothing left to do on this order.</div>
+        </div>`;
+    }
+
+    // Both buttons on a pending order, not just the next step: a counter sale that was
+    // picked, paid and handed over in one go is finished the moment it is rung up, and
+    // making staff press Confirm first only to press Complete a second later records
+    // nothing that wasn't already true.
+    const buttons = [];
+    if (rank < ORDER_WORKFLOW.indexOf('confirmed')) {
+        buttons.push(`<button type="button" class="account-workflow-btn" data-order-status="confirmed">
+            <i class="fas fa-check"></i> Confirm order
+        </button>`);
+    }
+    buttons.push(`<button type="button" class="account-workflow-btn complete" data-order-status="delivered">
+        <i class="fas fa-circle-check"></i> Mark as complete
+    </button>`);
+
+    return `<div class="account-workflow">
+        <span class="account-workflow-label">Order workflow</span>
+        <div class="account-workflow-btns">${buttons.join('')}</div>
+    </div>`;
+}
+
+// Posts the new status and resolves with the saved order. Rejects with store-api's own
+// message - notably the 409 a paid order answers a backwards move with - so callers can
+// put it straight in front of the user.
+async function setOrderWorkflowStatus(orderId, status) {
+    const url = MY_ORDER_STATUS_URL_TEMPLATE.replace('/0/', '/' + orderId + '/');
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ status }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || 'Could not update this order.');
+    return data;
+}
+
 const AccountDrawer = {
     _loaded: false,
 
@@ -3343,6 +3411,7 @@ const AccountDrawer = {
             <div class="account-cancelled-note">
                 This order was cancelled, so there is no invoice for it.
             </div>` : `
+            ${orderWorkflowHtml(order)}
             <button type="button" class="account-pdf-btn" id="accountOrderPdfBtn">
                 <i class="fas fa-file-arrow-down"></i> Download ${(isPaidDocument || isRefunded) ? 'Invoice' : 'Quotation'} PDF
             </button>`}`;
@@ -3351,6 +3420,40 @@ const AccountDrawer = {
         // both document builders refuse to title one that way anyway (docTitle above /
         // document_title() in store-api).
         document.getElementById('accountOrderPdfBtn')?.addEventListener('click', () => this.downloadOrderPDF(order));
+
+        // Staff-only, and absent entirely for a customer - see orderWorkflowHtml().
+        body.querySelectorAll('[data-order-status]').forEach(btn => {
+            btn.addEventListener('click', () => this.setOrderStatus(order.id, btn.dataset.orderStatus, btn));
+        });
+    },
+
+    // "Confirm order" / "Mark as complete" in the drawer. The order that comes back is
+    // the one store-api saved, so the panel is re-rendered from it rather than from a
+    // locally patched copy - which is also what keeps the cached copy honest.
+    async setOrderStatus(orderId, status, btn) {
+        const buttons = btn.closest('.account-workflow-btns')?.querySelectorAll('button') || [btn];
+        const originalHtml = btn.innerHTML;
+        buttons.forEach(b => { b.disabled = true; });
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+        try {
+            const order = await setOrderWorkflowStatus(orderId, status);
+            this._orderCache[orderId] = order;
+            this.renderOrderDetail(order);
+            // The list panel is still mounted behind this one with the old status tag on
+            // its card, so it has to be told too - otherwise backing out of the detail
+            // shows the order still sitting at "pending".
+            this.loadOrders();
+            // No showToast() here, deliberately: .toast-container sits at z-index
+            // 999999 and this drawer at 9999999, so a toast raised from inside it is
+            // simply painted underneath. The re-render above is the confirmation - the
+            // Status row and the buttons both change - and ebAlert() is used for the
+            // failure path because it IS given a z-index above the drawers (see the
+            // note beside it in base.css).
+        } catch (err) {
+            buttons.forEach(b => { b.disabled = false; });
+            btn.innerHTML = originalHtml;
+            await ebAlert(err.message, { tone: 'error' });
+        }
     },
 
     // Re-generates the original document from the order that's on record - the same

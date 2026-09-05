@@ -35,7 +35,9 @@
                         {% elif refunded %}<span class="order-state-tag unpaid">Refunded</span>
                         {% elif not paid %}<span class="order-state-tag unpaid">Awaiting payment</span>
                         {% endif %}
-                        <span class="order-state-tag">{{ order.status }}</span>
+                        {# Rewritten in place when staff move the order along - see
+                           renderWorkflow() at the foot of this page. #}
+                        <span class="order-state-tag" id="orderStatusTag">{{ order.status }}</span>
                     </div>
                     <h1>{{ doc_word }} #{{ order.order_number }}</h1>
                     <p>{{ format_date(order.created_at) }}{% if order.quote_code %} · C. Code {{ order.quote_code }}{% endif %}</p>
@@ -133,6 +135,14 @@
 
             <div class="order-totals" id="orderTotals"></div>
 
+            {# Staff-only workflow controls - "Confirm order" / "Mark as complete".
+               Rendered in the browser by orderWorkflowHtml() (main.js) rather than
+               here, for the same reason the item table is: the account drawer shows
+               the identical block, and one implementation means the two can't start
+               disagreeing about which button an order should be offering. It also
+               re-renders itself after a save, which Jinja can't. #}
+            <div id="orderWorkflow"></div>
+
             <div class="order-detail-actions">
                 {# No document for a cancelled order. The rule is enforced in the builders
                    themselves too (document_title() in store-api, docTitle in main.js -
@@ -195,6 +205,35 @@
             <div class="order-total-row"><span>Discount</span><span>${formatPrice(printedCashDiscountTotal(EB_ORDER.items))}</span></div>
             <div class="order-total-row"><span>${specialDiscountLabel}</span><span>${formatPrice(Number(EB_ORDER.discount_amount || 0))}</span></div>
             <div class="order-total-row grand"><span>Grand Total</span><span>${formatPrice(Number(EB_ORDER.grand_total || 0))}</span></div>`;
+    })();
+
+    // "Confirm order" / "Mark as complete", for staff only - orderWorkflowHtml()
+    // returns nothing at all for a customer, for a cancelled order, or for one that has
+    // reached the end of the workflow. Re-runs itself after each save so the buttons
+    // reflect the status that was actually stored, and repaints the badge in the header
+    // beside it.
+    (function renderWorkflow() {
+        const host = document.getElementById('orderWorkflow');
+        host.innerHTML = orderWorkflowHtml(EB_ORDER);
+        host.querySelectorAll('[data-order-status]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const buttons = host.querySelectorAll('button');
+                const originalHtml = btn.innerHTML;
+                buttons.forEach(b => { b.disabled = true; });
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+                try {
+                    const updated = await setOrderWorkflowStatus(EB_ORDER.id, btn.dataset.orderStatus);
+                    EB_ORDER.status = updated.status;
+                    document.getElementById('orderStatusTag').textContent = updated.status;
+                    renderWorkflow();
+                    showToast('Order marked ' + updated.status + '.');
+                } catch (err) {
+                    buttons.forEach(b => { b.disabled = false; });
+                    btn.innerHTML = originalHtml;
+                    await ebAlert(err.message, { tone: 'error' });
+                }
+            });
+        });
     })();
 
     // Rebuilt in the browser from the order on record, the same two calls the admin

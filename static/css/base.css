@@ -1951,3 +1951,72 @@ table.qpt-table td.qpt-right { text-align: right; }
     opacity: 0.6;
     cursor: default;
 }
+
+/* Staff-only workflow controls in the drawer's order detail — "Confirm order" and
+   "Mark as complete" (AccountDrawer.renderOrderDetail). Above the PDF button and
+   separated by a rule, because these change the order rather than just print it. */
+.account-workflow {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+}
+.account-workflow-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-light);
+}
+.account-workflow-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.account-workflow-btn {
+    flex: 1 1 130px;
+    padding: 11px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--accent);
+    background: var(--surface);
+    color: var(--accent);
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: var(--transition);
+}
+.account-workflow-btn:hover:not(:disabled) {
+    background: var(--accent);
+    color: #fff;
+}
+/* "Mark as complete" — the end of the workflow, so it reads as the finishing
+   action rather than one more step. Same green the admin Orders screen uses. */
+.account-workflow-btn.complete {
+    border-color: #16a34a;
+    background: #16a34a;
+    color: #fff;
+}
+.account-workflow-btn.complete:hover:not(:disabled) {
+    background: #15803d;
+    border-color: #15803d;
+}
+.account-workflow-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+/* Shown in place of the buttons once the order has reached the end of the ladder,
+   so an order with nothing left to do says so instead of looking unfinished. */
+.account-workflow-done {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #16a34a;
+}
